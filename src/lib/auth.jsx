@@ -33,12 +33,8 @@ export function MockAuthProvider({ children }) {
   }, [userId]);
 
   const switchRole = useCallback((role) => {
-    if (role === 'evaluator') {
-      const evalUser = mockUsers.find((u) => u.roles.includes('evaluator'));
-      if (evalUser) setUserId(evalUser.id);
-      return;
-    }
-    const match = mockUsers.find((u) => u.activeRole === role);
+    const match = mockUsers.find((u) => u.activeRole === role)
+      || mockUsers.find((u) => u.roles.includes(role));
     if (match) setUserId(match.id);
   }, []);
 
