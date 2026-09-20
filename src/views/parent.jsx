@@ -9,6 +9,32 @@ import { useAuth } from '../lib/auth.jsx';
 import { NotFound } from './public.jsx';
 
 /* ---------- Parent overview (prototype) ---------- */
+function useLinkedStudent() {
+  const { session } = useAuth();
+  const { data: linkRows } = useSupabaseList({
+    table: 'parent_links',
+    filters: session?.userId ? { parent_id: session.userId, status: ['Approved', 'Verified'] } : {},
+    page: 1,
+    pageSize: 5,
+  });
+  const studentId = linkRows?.[0]?.student_id ?? null;
+  const { data: profileRows } = useSupabaseList({
+    table: 'profiles',
+    filters: studentId ? { id: studentId } : {},
+    page: 1,
+    pageSize: 1,
+  });
+  const p = (profileRows || []).map(toProfile)[0];
+  if (p) return { id: p.userId || p.id, name: p.name, elevateMeId: p.elevateMeId };
+  if (studentId) return { id: studentId, name: null, elevateMeId: null };
+  return null;
+}
+
+function linkedTitle(linked, fallback) {
+  if (linked?.name) return `${linked.name.split(' ')[0]}’s ${fallback}.`;
+  return `Linked student ${fallback}.`;
+}
+
 export function ParentOverview() {
   const { data: recRows } = useSupabaseList({ table: 'recommendations', page: 1, pageSize: 20 });
   const { data: evalRows } = useSupabaseList({ table: 'evaluations', filters: { released: true }, page: 1, pageSize: 20 });
@@ -25,11 +51,15 @@ export function ParentOverview() {
     return nums.length > 0 ? total1000(nums) : null;
   })();
 
+  const linked = useLinkedStudent();
+  const whoName = linked?.name || 'Linked student';
+  const whoId = linked?.elevateMeId ? ` · ${linked.elevateMeId}` : '';
+
   return (
     <div>
-      <PageHead kicker="Parent overview" title="Nimuthu’s progress." desc="A clear summary of released performance, active programs and recommendations."
+      <PageHead kicker="Parent overview" title={linkedTitle(linked, 'progress')} desc="A clear summary of released performance, active programs and recommendations."
         action={<button className="button secondary" onClick={() => alert('One student linked — the switcher appears with more than one.')}>Switch student</button>} />
-      <div className="notice">You are viewing information released for <strong>Nimuthu Fernando · EM-00124</strong>.</div>
+      {linked && <div className="notice">You are viewing information released for <strong>{whoName}{whoId}</strong>.</div>}
       <div style={{ height: 22 }} />
       <Metrics items={[
         ['Overall total', latestTotals ? formatTotal(latestTotals) : 'No released scores', evals.length > 0 ? `${evals.length} released` : 'Awaiting first release'],
@@ -72,6 +102,8 @@ export function ParentOverview() {
 
 /* ---------- Parent performance + recommendations ---------- */
 export function ParentPerformance() {
+  const linked = useLinkedStudent();
+  const perfTitle = linkedTitle(linked, 'progress');
   const { data: evalRows, loading, error } = useSupabaseList({ table: 'evaluations', filters: { released: true }, page: 1, pageSize: 20 });
   const { data: scoreRows } = useSupabaseList({ table: 'evaluation_scores', page: 1, pageSize: 100 });
   const evals = (evalRows || []).map(toEvaluation).filter((e) => e.released);
@@ -86,11 +118,11 @@ export function ParentPerformance() {
   const currentTotal = totals.length > 0 ? totals[totals.length - 1] : null;
   const summaryValue = currentTotal != null ? formatTotal(currentTotal) : 'No released scores';
 
-  if (loading) return <div><PageHead kicker="Performance" title="Nimuthu’s progress." desc="Same released scores and remarks the student sees. Scoped to your linked student." /><SkeletonRows rows={3} /></div>;
-  if (error) return <div><PageHead kicker="Performance" title="Nimuthu’s progress." desc="Same released scores and remarks the student sees. Scoped to your linked student." /><div className="notice"><strong>Couldn’t load performance.</strong> {error.message}</div></div>;
+  if (loading) return <div><PageHead kicker="Performance" title={perfTitle} desc="Same released scores and remarks the student sees. Scoped to your linked student." /><SkeletonRows rows={3} /></div>;
+  if (error) return <div><PageHead kicker="Performance" title={perfTitle} desc="Same released scores and remarks the student sees. Scoped to your linked student." /><div className="notice"><strong>Couldn’t load performance.</strong> {error.message}</div></div>;
   return (
     <div>
-      <PageHead kicker="Performance" title="Nimuthu’s progress." desc="Same released scores and remarks the student sees. Scoped to your linked student." />
+      <PageHead kicker="Performance" title={perfTitle} desc="Same released scores and remarks the student sees. Scoped to your linked student." />
       <div className="grid dashboard">
         <section className="chart-panel">
           <ChartSummary label="Current total" value={summaryValue} status={<Status value="Improving" />} />
@@ -116,13 +148,15 @@ export function ParentPerformance() {
 }
 
 export function ParentRecommendations() {
+  const linked = useLinkedStudent();
+  const recDesc = linked?.name ? `Development actions for ${linked.name}${linked.elevateMeId ? ` · ${linked.elevateMeId}` : ''}.` : 'Development actions for your linked student.';
   const { data, loading, error } = useSupabaseList({ table: 'recommendations', page: 1, pageSize: 20 });
   const items = (data || []).map(toRecommendation);
-  if (loading) return <div><PageHead kicker="Development" title="Recommendations." desc="Development actions for Nimuthu Fernando · EM-00124." /><SkeletonRows rows={3} /></div>;
-  if (error) return <div><PageHead kicker="Development" title="Recommendations." desc="Development actions for Nimuthu Fernando · EM-00124." /><div className="notice"><strong>Couldn’t load recommendations.</strong> {error.message}</div></div>;
+  if (loading) return <div><PageHead kicker="Development" title="Recommendations." desc={recDesc} /><SkeletonRows rows={3} /></div>;
+  if (error) return <div><PageHead kicker="Development" title="Recommendations." desc={recDesc} /><div className="notice"><strong>Couldn’t load recommendations.</strong> {error.message}</div></div>;
   return (
     <div>
-      <PageHead kicker="Development" title="Recommendations." desc="Development actions for Nimuthu Fernando · EM-00124." />
+      <PageHead kicker="Development" title="Recommendations." desc={recDesc} />
       <section>
         {items.length === 0 && <Empty title="No recommendations." body="Check back later." />}
         {items.map((r) => (
@@ -134,8 +168,9 @@ export function ParentRecommendations() {
   );
 }
 
-function StudentBanner({ studentId }) {
-  return <div className="notice" style={{ marginBottom: 22 }}>You are viewing information released for <strong>Nimuthu Fernando · {studentId}</strong>.</div>;
+function StudentBanner({ studentId, linked }) {
+  const label = linked?.name ? `${linked.name}${linked.elevateMeId ? ` · ${linked.elevateMeId}` : ''}` : studentId;
+  return <div className="notice" style={{ marginBottom: 22 }}>You are viewing information released for <strong>{label}</strong>.</div>;
 }
 
 function useLinkedStudentId(studentIdParam) {
@@ -152,6 +187,8 @@ function useLinkedStudentId(studentIdParam) {
 export function ParentStudent() {
   const { studentId } = useParams();
   const linkedId = useLinkedStudentId(studentId);
+  const linked = useLinkedStudent();
+  const studentName = linked?.name || 'Linked student';
   const { data: recRows } = useSupabaseList({
     table: 'recommendations',
     filters: linkedId ? { student_id: linkedId } : {},
@@ -161,14 +198,14 @@ export function ParentStudent() {
   const recCount = (recRows || []).length;
   return (
     <div>
-      <PageHead kicker="Linked student" title="Nimuthu Fernando." desc={`${studentId} · Royal College, Colombo`} />
-      <StudentBanner studentId={studentId} />
+      <PageHead kicker="Linked student" title={`${studentName}.`} desc={linked?.elevateMeId || studentId} />
+      <StudentBanner studentId={studentId} linked={linked} />
       <div className="grid two">
         <Panel title="Performance" action={<Link to={`/parent/students/${studentId}/performance`} className="button quiet small">Open →</Link>}>
           <p style={{ color: 'var(--muted)', fontSize: '.9rem' }}>Overall trend and criterion comparison.</p>
         </Panel>
         <Panel title="Recommendations" action={<Link to={`/parent/students/${studentId}/recommendations`} className="button quiet small">Open →</Link>}>
-          <p style={{ color: 'var(--muted)', fontSize: '.9rem' }}>{recCount || 3} active recommendations.</p>
+          <p style={{ color: 'var(--muted)', fontSize: '.9rem' }}>{recCount} active recommendations.</p>
         </Panel>
       </div>
     </div>
@@ -178,6 +215,8 @@ export function ParentStudent() {
 export function ParentStudentPerformance() {
   const { studentId } = useParams();
   const linkedId = useLinkedStudentId(studentId);
+  const linked = useLinkedStudent();
+  const whoDesc = linked?.name ? `${linked.name}${linked.elevateMeId ? ` · ${linked.elevateMeId}` : ''}` : studentId;
   const { data: evalRows, loading, error } = useSupabaseList({
     table: 'evaluations',
     filters: linkedId ? { student_id: linkedId, released: true } : { released: true },
@@ -185,14 +224,14 @@ export function ParentStudentPerformance() {
     pageSize: 20,
   });
   const evals = (evalRows || []).map(toEvaluation).filter((e) => e.released);
-  if (loading) return <div><PageHead kicker="Linked student" title="Performance." desc={`Nimuthu Fernando · ${studentId}`} /><SkeletonRows rows={3} /></div>;
-  if (error) return <div><PageHead kicker="Linked student" title="Performance." desc={`Nimuthu Fernando · ${studentId}`} /><div className="notice"><strong>Couldn’t load performance.</strong> {error.message}</div></div>;
+  if (loading) return <div><PageHead kicker="Linked student" title="Performance." desc={whoDesc} /><SkeletonRows rows={3} /></div>;
+  if (error) return <div><PageHead kicker="Linked student" title="Performance." desc={whoDesc} /><div className="notice"><strong>Couldn’t load performance.</strong> {error.message}</div></div>;
   return (
     <div>
-      <PageHead kicker="Linked student" title="Performance." desc={`Nimuthu Fernando · ${studentId}`} />
-      <StudentBanner studentId={studentId} />
+      <PageHead kicker="Linked student" title="Performance." desc={whoDesc} />
+      <StudentBanner studentId={studentId} linked={linked} />
       <section className="chart-panel">
-        <ChartSummary label="Current total" value="800 / 1000 → 80 / 100" status={<Status value="Improving" />} />
+        <ChartSummary label="Released evaluations" value={evals.length > 0 ? String(evals.length).padStart(2, '0') : 'None yet'} status={<Status value="Improving" />} />
         <LineChart />
         <p style={{ fontSize: '.82rem', color: 'var(--muted)', marginTop: 8 }}>Based on {evals.length} released evaluation{evals.length === 1 ? '' : 's'} in scope.</p>
       </section>
@@ -203,6 +242,8 @@ export function ParentStudentPerformance() {
 export function ParentStudentRecommendations() {
   const { studentId } = useParams();
   const linkedId = useLinkedStudentId(studentId);
+  const linked = useLinkedStudent();
+  const whoDesc = linked?.name ? `Development actions for ${linked.name}${linked.elevateMeId ? ` · ${linked.elevateMeId}` : ''}.` : 'Development actions for your linked student.';
   const { data, loading, error } = useSupabaseList({
     table: 'recommendations',
     filters: linkedId ? { student_id: linkedId } : {},
@@ -210,12 +251,12 @@ export function ParentStudentRecommendations() {
     pageSize: 20,
   });
   const items = (data || []).map(toRecommendation);
-  if (loading) return <div><PageHead kicker="Linked student" title="Recommendations." desc={`Development actions for Nimuthu Fernando · ${studentId}.`} /><SkeletonRows rows={3} /></div>;
-  if (error) return <div><PageHead kicker="Linked student" title="Recommendations." desc={`Development actions for Nimuthu Fernando · ${studentId}.`} /><div className="notice"><strong>Couldn’t load recommendations.</strong> {error.message}</div></div>;
+  if (loading) return <div><PageHead kicker="Linked student" title="Recommendations." desc={whoDesc} /><SkeletonRows rows={3} /></div>;
+  if (error) return <div><PageHead kicker="Linked student" title="Recommendations." desc={whoDesc} /><div className="notice"><strong>Couldn’t load recommendations.</strong> {error.message}</div></div>;
   return (
     <div>
-      <PageHead kicker="Linked student" title="Recommendations." desc={`Development actions for Nimuthu Fernando · ${studentId}.`} />
-      <StudentBanner studentId={studentId} />
+      <PageHead kicker="Linked student" title="Recommendations." desc={whoDesc} />
+      <StudentBanner studentId={studentId} linked={linked} />
       <section>
         {items.length === 0 && <Empty title="No recommendations." body="Check back later." />}
         {items.map((r) => (
@@ -271,6 +312,7 @@ export function ParentMessages() {
 export function NewParentMessage() {
   const navigate = useNavigate();
   const { session } = useAuth();
+  const linked = useLinkedStudent();
   const { create: createThread, saving: savingThread } = useSupabaseMutation({ table: 'message_threads' });
   const { create: createReply } = useSupabaseMutation({ table: 'message_replies' });
   const [subject, setSubject] = useState('');
@@ -281,7 +323,7 @@ export function NewParentMessage() {
       <PageHead kicker="Messages" title="New message." desc="Send a direct request to Diplomatic Impact."
         action={<Button variant="secondary" onClick={() => navigate('/parent/messages')}>Cancel</Button>} />
       <section className="panel"><div className="panel-body form-grid">
-        <div className="field"><label>Linked student<select><option>Nimuthu Fernando · EM-00124</option></select></label></div>
+        <div className="field"><label>Linked student<select><option>{linked?.name ? `${linked.name}${linked.elevateMeId ? ` · ${linked.elevateMeId}` : ''}` : 'No linked student'}</option></select></label></div>
         <div className="field"><label>Subject<input placeholder="What is this about?" value={subject} onChange={(e) => setSubject(e.target.value)} /></label></div>
         <div className="field span-two"><label>Message<textarea placeholder="Write your message clearly..." value={body} onChange={(e) => setBody(e.target.value)} /></label></div>
         {error && <p role="alert" className="field-error span-two">{error}</p>}
@@ -300,7 +342,7 @@ export function NewParentMessage() {
             if (threadId) {
               const replyRes = await createReply({
                 thread_id: threadId,
-                author_name: session?.name || 'S. Fernando (parent)',
+                author_name: session?.name || 'Parent',
                 body: body.trim(),
               });
               if (replyRes?.error) throw new Error(replyRes.error.message);

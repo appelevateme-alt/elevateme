@@ -21,16 +21,20 @@ export function EvaluatorHome() {
   const { count: studentCount } = useSupabaseList({ table: 'registrations', page: 1, pageSize: 1 });
   const assignments = assignmentRows || [];
   const sessions = (sessionRows || []).map(toSession);
-  const assignedCount = assignmentsLoading || sessionsLoading ? '02' : String(assignments.length > 0 ? assignments.length : 2).padStart(2, '0');
+  const assignedCount = assignmentsLoading || sessionsLoading ? '00' : String(assignments.length).padStart(2, '0');
+  const nextSession = sessions
+    .map((s) => ({ s, t: Date.parse(s.date || '') }))
+    .filter((x) => Number.isFinite(x.t))
+    .sort((a, b) => a.t - b.t)[0]?.s;
 
   return (
     <div>
       <PageHead kicker="Evaluator workspace" title="Assigned sessions." desc="Open a session, select a student and complete the evaluation sheet." />
       <Metrics items={[
-        ['Assigned sessions', assignedCount, 'Across 2 programs'],
-        ['Students', studentCount != null ? String(studentCount) : '34', '12 evaluated'],
-        ['Drafts', '03', 'Saved on this device'],
-        ['Due next', '30 SEP', 'Academic Speaking'],
+        ['Assigned sessions', assignedCount, assignments.length === 1 ? '1 program' : `${new Set(assignments.map((a) => a.program_id)).size} programs`],
+        ['Students', String(studentCount).padStart(2, '0'), 'In scope'],
+        ['Drafts', '00', 'Saved on this device'],
+        ['Due next', nextSession ? nextSession.date : '—', nextSession ? nextSession.title : 'No upcoming session'],
       ]} />
       {assignmentsLoading || sessionsLoading ? (
         <SkeletonRows rows={2} />
@@ -40,7 +44,7 @@ export function EvaluatorHome() {
             const s = sessions.find((x) => x.id === (a.session_id || a.sessionId)) || sessions[i];
             return (
               <article key={a.id || i} className="list-row">
-                <div className="row-meta">{s ? `${s.date}` : 'DUE 30 SEP'}<br />{s ? s.title : 'Assigned session'}</div>
+                <div className="row-meta">{s ? `${s.date}` : '—'}<br />{s ? s.title : 'Assigned session'}</div>
                 <div className="row-main"><h3>{s?.title || 'Assigned session'}</h3><p>{s ? `${s.topic} · ${s.venue}` : 'Open the assignment to evaluate'}</p></div>
                 {s ? <Link to={`/evaluator/assignments/${s.id}`} className="button small">Continue evaluating →</Link> : <Status value="Scheduled" />}
               </article>
@@ -68,7 +72,7 @@ export function AssignmentPage() {
     pageSize: 30,
   });
 
-  const session = sessionRow ? toSession(sessionRow) : { id: assignmentId, title: 'Session 06 · Final presentations', topic: 'Persuasive structure', date: '2026-12-13', venue: 'Colombo + online' };
+  const session = sessionRow ? toSession(sessionRow) : { id: assignmentId, title: 'Assigned session', topic: '', date: '', venue: '' };
   const students = (regRows || []).map(toRegistration).filter((r) =>
     !q || `${r.studentName} ${r.elevateMeId}`.toLowerCase().includes(q.toLowerCase()));
   const loading = sessionLoading || regsLoading;
@@ -116,7 +120,7 @@ export function PerStudentEvaluate() {
   const studentName = profile?.name || 'Student';
   const studentEmId = profile?.elevateMeId || studentId;
 
-  const session = sessionRow ? toSession(sessionRow) : { id: assignmentId, title: 'Session 06 · Final presentations', date: '2026-12-13', programId: null };
+  const session = sessionRow ? toSession(sessionRow) : { id: assignmentId, title: 'Assigned session', date: '', programId: null };
   const programId = sessionRow?.program_id || session.programId || null;
 
   const { data: evalRows, loading: evalsLoading, error: evalsError, refetch: refetchEvals } = useSupabaseList({
@@ -343,7 +347,7 @@ function PerStudentEvaluateRouteless() {
   const [error, setError] = useState('');
   return (
     <div>
-      <PageHead kicker="Student performance sheet" title="Evaluate Nimuthu Fernando." desc="Academic Speaking · Session 06 · EM-00124"
+      <PageHead kicker="Student performance sheet" title="Evaluate student." desc="Score all ten criteria, then submit to lock the sheet."
         action={<span>{submitted ? <Status value="Locked" /> : <Status value="Draft" />}</span>} />
       <div className="notice" style={{ marginBottom: 26 }}><strong>Scoring guide:</strong> {SCORE_GUIDE}</div>
       {error && <p role="alert" className="field-error" style={{ marginBottom: 14 }}>{error}</p>}
@@ -388,7 +392,7 @@ export function EvaluatorSubmissions() {
     return [
       <strong key="n">{p?.name || e.student_id || 'Student'}</strong>,
       p?.elevateMeId || '—',
-      e.session_id || 'Academic Speaking · 06',
+      e.session_id || 'Session',
       e.updated_at ? String(e.updated_at).slice(0, 10) : '—',
       <Status key="s" value={e.state === 'Locked' ? 'Submitted' : 'Draft'} />,
     ];
@@ -399,7 +403,7 @@ export function EvaluatorSubmissions() {
     <div>
       <PageHead kicker="Evaluator workspace" title="Your submissions." desc="Review completed sheets and continue saved drafts." />
       <div className="filter-bar">
-        <select aria-label="Assignment"><option>All assignments</option><option>Academic Speaking</option><option>Colombo Youth MUN</option></select>
+        <select aria-label="Assignment"><option>All assignments</option></select>
         <select aria-label="Status"><option>All statuses</option><option>Submitted</option><option>Draft</option></select>
       </div>
       {rows.length === 0 ? (

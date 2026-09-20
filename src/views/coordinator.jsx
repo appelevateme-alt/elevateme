@@ -13,16 +13,21 @@ export function CoordinatorDashboard() {
   const { count: regCount } = useSupabaseList({ table: 'registrations', page: 1, pageSize: 1 });
   const { count: evalCount } = useSupabaseList({ table: 'evaluations', filters: { released: false }, page: 1, pageSize: 1 });
   const programs = (progRows || []).map(toProgram);
+  const changesNeeded = programs.filter((p) => p.status === 'ChangesRequested').length;
+  const fullest = programs
+    .filter((p) => (p.capacity ?? 0) > 0)
+    .map((p) => ({ p, pct: Math.round(((p.registered ?? 0) / p.capacity) * 100) }))
+    .sort((a, b) => b.pct - a.pct)[0];
 
   return (
     <div>
       <PageHead kicker="Coordinator overview" title="Programs at a glance." desc="Monitor registration, session readiness and evaluation completion."
         action={<Link to="/coordinator/programs" className="button">Create program →</Link>} />
       <Metrics items={[
-        ['Active programs', progsLoading ? '03' : String(progCount ?? programs.length).padStart(2, '0'), '1 pending approval'],
-        ['Registered students', regCount != null ? String(regCount) : '86', 'Across all programs'],
-        ['Evaluations due', evalCount != null ? String(evalCount) : '14', 'Before 30 September'],
-        ['Average total', '800 / 1000 → 80 / 100', '+4 points this term'],
+        ['Active programs', progsLoading ? '00' : String(progCount ?? programs.length).padStart(2, '0'), changesNeeded > 0 ? `${changesNeeded} need changes` : 'Across your programs'],
+        ['Registered students', String(regCount).padStart(2, '0'), 'Across all programs'],
+        ['Evaluations due', String(evalCount).padStart(2, '0'), 'Unreleased sheets'],
+        ['Average total', '—', 'No released evaluations yet'],
       ]} />
       <div className="grid dashboard">
         <section className="panel">
@@ -42,13 +47,17 @@ export function CoordinatorDashboard() {
           </div>
         </section>
         <section className="panel">
-          <div className="panel-head"><h2>Needs attention</h2><span className="nav-count">03</span></div>
+          <div className="panel-head"><h2>Needs attention</h2><span className="nav-count">{String((evalCount > 0 ? 1 : 0) + (changesNeeded > 0 ? 1 : 0) + (fullest && fullest.pct >= 88 ? 1 : 0)).padStart(2, '0')}</span></div>
           <div className="panel-body">
-            <InsightList items={[
-              { label: 'Evaluation', text: '14 student evaluations are still incomplete.', small: 'Academic Speaking · Session 06' },
-              { label: 'Approval', text: 'Friendly Debate draft needs your changes.', small: 'Admin note received today' },
-              { label: 'Capacity', text: 'Colombo Youth MUN is 88% full.', small: 'Registration closes 10 October' },
-            ]} />
+            {(evalCount > 0 || changesNeeded > 0 || (fullest && fullest.pct >= 88)) ? (
+              <InsightList items={[
+                ...(evalCount > 0 ? [{ label: 'Evaluation', text: `${evalCount} evaluations are still unreleased.` }] : []),
+                ...(changesNeeded > 0 ? [{ label: 'Approval', text: `${changesNeeded} program${changesNeeded === 1 ? '' : 's'} need${changesNeeded === 1 ? 's' : ''} your changes.`, small: 'Admin note received' }] : []),
+                ...(fullest && fullest.pct >= 88 ? [{ label: 'Capacity', text: `${fullest.p.title} is ${fullest.pct}% full.`, small: 'Registration nearly full' }] : []),
+              ]} />
+            ) : (
+              <Empty title="Nothing needs attention." body="Evaluations due, change requests, and nearly-full programs will appear here." />
+            )}
           </div>
         </section>
       </div>
@@ -421,9 +430,11 @@ function Workspace({ programId, active }) {
         </>
       )}
       {active === 'Evaluators' && (
-        <DataTable headers={['Evaluator', 'Session', 'Access']} rows={evaluatorCount > 0
-          ? (evalRows || []).map((e, i) => [e.evaluator_id || `Evaluator ${i + 1}`, sessions[0]?.title || '—', <Status key={`e-${i}`} value={e.status || 'Approved'} />])
-          : [['Dr. Jayasinghe', sessions[0]?.title || '—', <Status key="e" value="Approved" />]]} />
+        evaluatorCount > 0 ? (
+          <DataTable headers={['Evaluator', 'Session', 'Access']} rows={(evalRows || []).map((e, i) => [e.evaluator_id || `Evaluator ${i + 1}`, sessions[0]?.title || '—', <Status key={`e-${i}`} value={e.status || 'Approved'} />])} />
+        ) : (
+          <Empty title="No evaluators assigned." body="Assign evaluators to this program to begin." />
+        )
       )}
       {active === 'Performance' && <p style={{ color: 'var(--muted)' }}>Individual and aggregate views unlock in Performance once evaluations are released.</p>}
       {active === 'Settings' && <p style={{ color: 'var(--muted)' }}>Registration window, capacity, visibility, and contact details. Editing is restricted after submission according to lifecycle status.</p>}
@@ -451,7 +462,7 @@ export function ProgramEdit() {
     <div>
       <PageHead kicker="Edit program" title={`${program.title}.`} desc={`Status: ${program.status}`} />
       {editable ? (
-        <Panel title="Edit fields" action={<span className="tag">Mock form</span>}>
+        <Panel title="Edit fields" action={<span className="tag">Draft form</span>}>
           <p style={{ color: 'var(--muted)', fontSize: '.9rem' }}>Draft editing for {program.title}.</p>
           {saveError && <p role="alert" className="field-error">{saveError.message}</p>}
           {saved && <div className="notice">Draft saved.</div>}
@@ -484,6 +495,7 @@ export function CoordinatorStudents() {
     pageSize: 20,
   });
   const { data: regRows } = useSupabaseList({ table: 'registrations', page: 1, pageSize: 100 });
+  const { data: programRows } = useSupabaseList({ table: 'programs', page: 1, pageSize: 50 });
   const profiles = (profileRows || []).map(toProfile);
   const regs = (regRows || []).map(toRegistration);
   const rows = useMemo(() => profiles.map((r) => {
@@ -493,8 +505,8 @@ export function CoordinatorStudents() {
       name: r.name,
       elevateMeId: r.elevateMeId,
       allocation: match?.allocation || '—',
-      registration: match?.status || 'Confirmed',
-      evaluation: match?.evaluationState || 'Pending',
+      registration: match?.status || '—',
+      evaluation: match?.evaluationState || '—',
     };
   }), [profiles, regs]);
 
@@ -504,8 +516,8 @@ export function CoordinatorStudents() {
         action={<Button variant="secondary">Export CSV</Button>} />
       <div className="filter-bar">
         <input type="search" placeholder="Search name or ElevateMe ID" aria-label="Search name or ElevateMe ID" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select aria-label="Program"><option>All programs</option><option>Colombo Youth MUN 2026</option><option>Academic Speaking — Cohort 03</option></select>
-        <select aria-label="Committee"><option>All committees</option><option>WHO</option><option>UNHCR</option><option>UNSC</option></select>
+        <select aria-label="Program"><option>All programs</option>{(programRows || []).map(toProgram).map((p) => <option key={p.id}>{p.title}</option>)}</select>
+        <select aria-label="Committee"><option>All committees</option></select>
       </div>
       {loading && <SkeletonRows rows={4} />}
       {error && <div className="notice"><strong>Couldn’t load students.</strong> {error.message}</div>}
@@ -531,8 +543,8 @@ export function CoordinatorStudentDetail() {
   return (
     <div>
       <PageHead kicker="Student record" title={`Student ${studentId}.`} desc="Registrations, released evaluations, recommendations." />
-      <Panel title={profile?.name || 'Nimuthu Fernando'} action={<Status value={profile?.status || 'Approved'} />}>
-        <p style={{ fontSize: '.9rem' }}>{studentId} · Royal College, Colombo · {releasedCount} released evaluations · 3 active recommendations.</p>
+      <Panel title={profile?.name || `Student ${studentId}`} action={<Status value={profile?.status || 'Approved'} />}>
+        <p style={{ fontSize: '.9rem' }}>{studentId}{profile?.institute ? ` · ${profile.institute}` : ''} · {releasedCount} released evaluations.</p>
       </Panel>
     </div>
   );
@@ -606,17 +618,21 @@ export function CoordinatorPerformance() {
       </div>
       <div className="grid dashboard">
         <section className="chart-panel">
-          <ChartSummary label="Cohort average total" value="800 / 1000 → 80 / 100" status={<Status value="Improving" />} />
+          <ChartSummary label="Cohort average total" value={releasedCount > 0 ? `${releasedCount} released` : 'No released scores'} status={<Status value="Improving" />} />
           <LineChart />
         </section>
         <section className="panel">
-          <div className="panel-head"><h2>Cohort Insights</h2><span className="tag">3 findings</span></div>
+          <div className="panel-head"><h2>Cohort Insights</h2><span className="tag">{releasedCount > 0 ? '3 findings' : 'No data'}</span></div>
           <div className="panel-body">
-            <InsightList items={[
-              { label: 'Strongest', text: 'Audience Addressing leads at a VG median.', small: 'Cohort 03 · 3 sessions' },
-              { label: 'Next focus', text: 'Counter Arguments trails at a G median.', small: 'Matches pilot recommendations' },
-              { label: 'Coverage', text: releasedCount > 0 ? `${releasedCount} released evaluations in scope.` : '32 of 40 students have enough data for trends.', small: 'Min 3 evaluations' },
-            ]} />
+            {releasedCount > 0 ? (
+              <InsightList items={[
+                { label: 'Strongest', text: 'Audience Addressing leads the cohort.', small: 'Released evaluations' },
+                { label: 'Next focus', text: 'Counter Arguments trails the cohort.', small: 'Matches recommendations' },
+                { label: 'Coverage', text: `${releasedCount} released evaluations in scope.`, small: 'Min 3 evaluations' },
+              ]} />
+            ) : (
+              <Empty title="No insights yet." body="Insights appear once evaluations are released." />
+            )}
           </div>
         </section>
       </div>
@@ -625,34 +641,44 @@ export function CoordinatorPerformance() {
 }
 
 export function CoordinatorInsights() {
+  const { data: evalRows } = useSupabaseList({ table: 'evaluations', filters: { released: true }, page: 1, pageSize: 5 });
+  const releasedCount = (evalRows || []).length;
   return (
     <div>
       <PageHead kicker="Insights" title="Cohort insights." desc="Rule-based, evidence-windowed. Minimum 3 evaluations before trend claims." />
-      <Panel title="Cohort 03 — Academic Speaking" action={<Tag>18 students · Session 06</Tag>}>
-        <InsightList items={[
-          { label: 'Strongest', text: 'Audience Addressing (VG median).' },
-          { label: 'Needs work', text: 'Counter Arguments (G median) — matches pilot recommendations.' },
-        ]} />
-      </Panel>
+      {releasedCount >= 3 ? (
+        <Panel title="Released evaluations" action={<Tag>{releasedCount} in scope</Tag>}>
+          <InsightList items={[
+            { label: 'Strongest', text: 'Audience Addressing leads the cohort.' },
+            { label: 'Needs work', text: 'Counter Arguments trails — matches recommendations.' },
+          ]} />
+        </Panel>
+      ) : (
+        <Panel title="Cohort insights" action={<Tag>No data</Tag>}>
+          <div className="panel-body"><Empty title="Not enough data yet." body="Trend claims need a minimum of 3 released evaluations." /></div>
+        </Panel>
+      )}
     </div>
   );
 }
 
 export function CoordinatorProfile() {
   const { session } = useAuth();
-  const fullName = session?.name || 'Ms. Perera';
-  const email = session?.email || 'perera@college.edu';
-  const status = session?.status || 'Approved';
+  const { data: profile } = useSupabaseRecord({ table: 'profiles', id: session?.userId });
+  const fullName = profile?.full_name || session?.name || '';
+  const email = profile?.email || session?.email || '';
+  const status = profile?.status || session?.status || 'PendingReview';
+  const rolesLabel = (profile?.roles || session?.availableRoles || []).join(', ') || '—';
   return (
     <div>
-      <PageHead kicker="Account" title="Your profile." desc="Institutional profile. Approval by admin; cannot self-approve." action={<Button>Save changes</Button>} />
+      <PageHead kicker="Account" title="Your profile." desc="Institutional profile. Approval by admin; cannot self-approve." />
       <section className="panel">
         <div className="panel-head"><h2>Coordinator details</h2><Status value={status} /></div>
         <div className="panel-body form-grid">
-          <div className="field"><label>Full name<input defaultValue={fullName} /></label></div>
-          <div className="field"><label>Institute<input defaultValue="Royal College, Colombo" /></label></div>
+          <div className="field"><label>Full name<input defaultValue={fullName} key={fullName} /></label></div>
+          <div className="field"><label>Institute<input defaultValue={profile?.institute || ''} key={profile?.institute || 'inst'} /></label></div>
           <div className="field"><label>Email<input defaultValue={email} type="email" /></label></div>
-          <div className="field"><label>Roles<input defaultValue="Coordinator, Evaluator" disabled /></label></div>
+          <div className="field"><label>Roles<input defaultValue={rolesLabel} disabled /></label></div>
         </div>
       </section>
     </div>

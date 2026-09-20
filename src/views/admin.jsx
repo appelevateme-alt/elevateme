@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Button, DataTable, Empty, Metrics, PageHead, Panel, SkeletonRows, Status, Tag } from '../components/ui.jsx';
 import { ChartSummary, InsightList } from '../components/domain.jsx';
 import { useSupabaseList, useSupabaseMutation } from '../lib/useSupabase.js';
+import { TEN_CRITERIA } from '../lib/scores.js';
 import { supabase } from '../lib/supabaseClient.js';
 import { toAnnouncement, toProfile, toProgram, toRecommendation, toThread } from '../lib/adapters.js';
 
@@ -13,17 +14,18 @@ export function AdminOverview() {
   const { count: activePrograms } = useSupabaseList({ table: 'programs', filters: { status: 'Published' }, page: 1, pageSize: 1 });
   const { count: studentCount } = useSupabaseList({ table: 'profiles', contains: { col: 'roles', values: ['student'] }, page: 1, pageSize: 1 });
   const { count: awaitingRelease } = useSupabaseList({ table: 'evaluations', filters: { released: false }, page: 1, pageSize: 1 });
-  const pendingTotal = (pendingPrograms ?? 3) + (pendingUsers ?? 4);
+  const { count: releasedCount } = useSupabaseList({ table: 'evaluations', filters: { released: true }, page: 1, pageSize: 1 });
+  const pendingTotal = (pendingPrograms ?? 0) + (pendingUsers ?? 0);
 
   return (
     <div>
       <PageHead kicker="Diplomatic Impact" title="Platform overview." desc="Approvals, evaluations and development actions that need attention."
         action={<Link to="/admin/approvals" className="button">Open approval queue →</Link>} />
       <Metrics items={[
-        ['Pending approvals', String(pendingTotal).padStart(2, '0'), '3 user · 4 program'],
-        ['Active programs', activePrograms != null ? String(activePrograms) : '12', 'Across 8 institutes'],
-        ['Students', studentCount != null ? String(studentCount) : '486', '42 joined this month'],
-        ['Evaluations', awaitingRelease != null ? String(awaitingRelease) : '1,842', '96 awaiting release'],
+        ['Pending approvals', String(pendingTotal).padStart(2, '0'), `${pendingUsers} user · ${pendingPrograms} program`],
+        ['Active programs', String(activePrograms).padStart(2, '0'), 'Published in directory'],
+        ['Students', String(studentCount).padStart(2, '0'), 'Across all roles'],
+        ['Evaluations', String(awaitingRelease).padStart(2, '0'), `${releasedCount} released`],
       ]} />
       <div className="grid dashboard">
         <section className="panel">
@@ -40,9 +42,9 @@ export function AdminOverview() {
           <div className="panel-head"><h2>Platform health</h2></div>
           <div className="panel-body">
             <InsightList items={[
-              { label: 'Completion', text: '91% of assigned evaluations were submitted on time.' },
-              { label: 'Approval', text: 'Median program approval time is 1.4 days.' },
-              { label: 'Growth', text: '68% of eligible students show improvement across 3+ sessions.' },
+              { label: 'Completion', text: `${releasedCount} of ${releasedCount + awaitingRelease} evaluation sheets released.` },
+              { label: 'Approval', text: pendingTotal === 0 ? 'Approval queue is clear.' : `${pendingTotal} items waiting for review.` },
+              { label: 'Growth', text: `${studentCount} student accounts on the platform.` },
             ]} />
           </div>
         </section>
@@ -242,25 +244,38 @@ export function AdminPrograms() {
 }
 
 /* ---------- Users & institutes (Supabase-backed) ---------- */
+const ROLE_FILTERS = {
+  Student: { col: 'roles', values: ['student'] },
+  Parent: { col: 'roles', values: ['parent'] },
+  Coordinator: { col: 'roles', values: ['coordinator'] },
+  Evaluator: { col: 'roles', values: ['evaluator'] },
+};
 export function AdminUsers() {
   const [q, setQ] = useState('');
   const [role, setRole] = useState('All roles');
   const { data, loading, error } = useSupabaseList({
     table: 'profiles',
     search: q ? { col: 'full_name', term: q } : null,
-    filters: role === 'All roles' ? {} : { role },
+    contains: ROLE_FILTERS[role] || null,
     page: 1,
     pageSize: 20,
   });
+  const { count: studentCount } = useSupabaseList({ table: 'profiles', contains: { col: 'roles', values: ['student'] }, page: 1, pageSize: 1 });
+  const { count: parentCount } = useSupabaseList({ table: 'profiles', contains: { col: 'roles', values: ['parent'] }, page: 1, pageSize: 1 });
+  const { count: coordinatorCount } = useSupabaseList({ table: 'profiles', contains: { col: 'roles', values: ['coordinator'] }, page: 1, pageSize: 1 });
+  const { count: evaluatorCount } = useSupabaseList({ table: 'profiles', contains: { col: 'roles', values: ['evaluator'] }, page: 1, pageSize: 1 });
+  const { count: pendingStudents } = useSupabaseList({ table: 'profiles', filters: { status: 'PendingReview' }, contains: { col: 'roles', values: ['student'] }, page: 1, pageSize: 1 });
+  const { count: linkCount } = useSupabaseList({ table: 'parent_links', page: 1, pageSize: 1 });
+  const { count: assignmentCount } = useSupabaseList({ table: 'program_evaluators', page: 1, pageSize: 1 });
   const users = (data || []).map(toProfile);
   return (
     <div>
       <PageHead kicker="Administration" title="Users & institutes." desc="Manage approved access while protecting student and institutional data." />
       <Metrics items={[
-        ['Students', '486', '18 pending verification'],
-        ['Parents', '291', '312 active links'],
-        ['Coordinators', '34', '3 pending approval'],
-        ['Evaluators', '47', '12 currently assigned'],
+        ['Students', String(studentCount).padStart(2, '0'), `${pendingStudents} pending verification`],
+        ['Parents', String(parentCount).padStart(2, '0'), `${linkCount} active links`],
+        ['Coordinators', String(coordinatorCount).padStart(2, '0'), 'Manage programs'],
+        ['Evaluators', String(evaluatorCount).padStart(2, '0'), `${assignmentCount} currently assigned`],
       ]} />
       <div className="filter-bar">
         <input type="search" placeholder="Search name, email or ElevateMe ID" aria-label="Search users" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -298,12 +313,33 @@ export function AdminInstitutes() {
 /* ---------- Evaluations (Supabase-backed release via audited RPC) ---------- */
 export function AdminEvaluations() {
   const { data: awaitingRows, loading, error, refetch } = useSupabaseList({ table: 'evaluations', filters: { released: false }, page: 1, pageSize: 20 });
-  const { data: releasedRows } = useSupabaseList({ table: 'evaluations', filters: { released: true }, page: 1, pageSize: 5 });
+  const { data: releasedRows } = useSupabaseList({ table: 'evaluations', filters: { released: true }, page: 1, pageSize: 20 });
+  const { data: sessionRows } = useSupabaseList({ table: 'sessions', page: 1, pageSize: 50 });
+  const { data: programRows } = useSupabaseList({ table: 'programs', page: 1, pageSize: 50 });
+  const { data: profileRows } = useSupabaseList({ table: 'profiles', page: 1, pageSize: 100 });
   const [released, setReleased] = useState(false);
   const [busy, setBusy] = useState(false);
   const [releaseError, setReleaseError] = useState('');
   const awaiting = awaitingRows || [];
-  const releasedCount = (releasedRows || []).length;
+  const releasedList = releasedRows || [];
+  const sessionById = new Map((sessionRows || []).map((s) => [s.id, s]));
+  const programById = new Map((programRows || []).map((p) => [p.id, p]));
+  const nameById = new Map((profileRows || []).map(toProfile).map((p) => [p.userId, p.name]));
+  const evalRow = (e, isReleased) => {
+    const s = sessionById.get(e.session_id);
+    const p = programById.get(e.program_id);
+    return [
+      <span key={`t-${e.id}`}><strong>{p?.title || 'Program'}</strong><br />{s?.title || 'Session'}</span>,
+      nameById.get(e.evaluator_id) || 'Evaluator',
+      e.state || (isReleased ? 'Locked' : 'Submitted'),
+      e.updated_at ? String(e.updated_at).slice(0, 10) : '—',
+      <Status key={`s-${e.id}`} value={isReleased ? 'Released' : 'Ready to release'} />,
+      !isReleased && !released
+        ? <Button key={`b-${e.id}`} small disabled={busy} onClick={releaseAll}>{busy ? 'Releasing…' : 'Release'}</Button>
+        : <Button key={`b-${e.id}`} variant="secondary" small>View</Button>,
+    ];
+  };
+  const tableRows = [...awaiting.map((e) => evalRow(e, false)), ...releasedList.map((e) => evalRow(e, true))];
 
   const releaseAll = async () => {
     setReleaseError('');
@@ -336,16 +372,11 @@ export function AdminEvaluations() {
         <select aria-label="Program"><option>All programs</option></select>
         <select aria-label="Status"><option>Awaiting release</option><option>Submitted</option><option>Released</option></select>
       </div>
-      <DataTable headers={['Program / session', 'Evaluator', 'Sheets', 'Submitted', 'Status', '']}
-        rows={[
-          [<span key="a"><strong>Academic Speaking</strong><br />Session 06</span>, 'Dr. Jayasinghe', String(awaiting.length || 18), '18 Sep',
-            <Status key="s" value={released || awaiting.length === 0 ? 'Released' : 'Ready to release'} />,
-            released || awaiting.length === 0
-              ? <Button key="b" variant="secondary" small>View</Button>
-              : <Button key="b" small disabled={busy} onClick={releaseAll}>{busy ? 'Releasing…' : 'Release'}</Button>],
-          [<span key="c"><strong>Friendly Debate</strong><br />Session 02</span>, 'Ms. Wickramasinghe', String(releasedCount || 32), '12 Sep',
-            <Status key="t" value="Released" />, <Button key="d" variant="secondary" small>View</Button>],
-        ]} />
+      {tableRows.length > 0 ? (
+        <DataTable headers={['Program / session', 'Evaluator', 'State', 'Updated', 'Status', '']} rows={tableRows} />
+      ) : (
+        <Empty title="No evaluations yet." body="Submitted sheets will appear here for release." />
+      )}
       {releaseError && <p role="alert" className="field-error" style={{ marginTop: 12 }}>{releaseError}</p>}
       {released && <div className="notice" style={{ marginTop: 18 }}><strong>{awaiting.length} results released.</strong> Students and linked parents can now see them. Audit entry created.</div>}
     </div>
@@ -354,20 +385,53 @@ export function AdminEvaluations() {
 
 /* ---------- Reports / config / audit ---------- */
 export function AdminReports() {
+  const { data: programRows } = useSupabaseList({ table: 'programs', page: 1, pageSize: 50 });
+  const { data: sessionRows } = useSupabaseList({ table: 'sessions', page: 1, pageSize: 100 });
+  const { data: evalRows } = useSupabaseList({ table: 'evaluations', page: 1, pageSize: 200 });
+  const { data: scoreRows } = useSupabaseList({ table: 'evaluation_scores', page: 1, pageSize: 500 });
+  const programs = (programRows || []).map(toProgram);
+  const sessions = (sessionRows || []).map(toSession);
+  const evals = evalRows || [];
+  const releasedIds = new Set(evals.filter((e) => e.released).map((e) => e.id));
+  const releasedScores = (scoreRows || []).filter((s) => releasedIds.has(s.evaluation_id));
+  const avgByCriterion = TEN_CRITERIA.map((c) => {
+    const vals = releasedScores
+      .filter((s) => s.criterion_key === c.key)
+      .map((s) => Number(s.score))
+      .filter((n) => Number.isFinite(n));
+    return [c.label, vals.length > 0 ? String(Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10) : '—'];
+  });
+  const completionRows = sessions.map((s) => {
+    const mine = evals.filter((e) => (e.session_id ?? e.sessionId) === s.id);
+    const done = mine.filter((e) => e.state === 'Submitted' || e.state === 'Locked' || e.released).length;
+    return [s.title, String(mine.length), String(done)];
+  });
   return (
     <div>
       <PageHead kicker="Administration" title="Reports." desc="Pilot trio: registrations · evaluation completion · average by criterion." action={<Button variant="secondary">Export CSV</Button>} />
       <div className="grid two">
-        <Panel title="Registrations by program" action={<Tag>Mock figures</Tag>}>
-          <DataTable headers={['Program', 'Registered', 'Capacity']} rows={[['Colombo Youth MUN 2026', '64', '72'], ['Academic Speaking — Cohort 03', '18', '24']]} />
+        <Panel title="Registrations by program" action={<Tag>{programs.length} programs</Tag>}>
+          {programs.length > 0 ? (
+            <DataTable headers={['Program', 'Registered', 'Capacity']} rows={programs.map((p) => [p.title, String(p.registered ?? 0), String(p.capacity ?? 0)])} />
+          ) : (
+            <Empty title="No programs yet." body="Registration figures appear once programs exist." />
+          )}
         </Panel>
-        <Panel title="Evaluation completion" action={<Tag>Target 95%</Tag>}>
-          <DataTable headers={['Session', 'Assigned', 'Submitted']} rows={[['WHO Committee', '16', '14'], ['Session 06 — Speaking', '18', '18']]} />
+        <Panel title="Evaluation completion" action={<Tag>{completionRows.length} sessions</Tag>}>
+          {completionRows.length > 0 ? (
+            <DataTable headers={['Session', 'Assigned', 'Submitted']} rows={completionRows} />
+          ) : (
+            <Empty title="No sessions yet." body="Completion figures appear once sessions exist." />
+          )}
         </Panel>
       </div>
       <div style={{ height: 22 }} />
       <Panel title="Average by criterion" action={<Tag>Released only</Tag>}>
-          <DataTable headers={['Criterion', 'Average / 100']} rows={[['Preparation', '85'], ['Confidence', '79'], ['Counter Arguments', '74']]} />
+        {releasedScores.length > 0 ? (
+          <DataTable headers={['Criterion', 'Average / 100']} rows={avgByCriterion} />
+        ) : (
+          <Empty title="No released scores yet." body="Averages appear once evaluations are released." />
+        )}
       </Panel>
     </div>
   );
@@ -444,13 +508,15 @@ export function AdminRecommendations() {
   const [title, setTitle] = useState('');
   const [action, setAction] = useState('');
   const [skill, setSkill] = useState('Counter Arguments');
-  const [recipient, setRecipient] = useState('Nimuthu Fernando · EM-00124');
+  const [recipient, setRecipient] = useState('All students');
   const [preview, setPreview] = useState(false);
   const [published, setPublished] = useState(false);
   const [composeError, setComposeError] = useState('');
   const { create, saving } = useSupabaseMutation({ table: 'recommendations' });
   const { data: liveRows } = useSupabaseList({ table: 'recommendations', page: 1, pageSize: 5 });
+  const { data: studentRows } = useSupabaseList({ table: 'profiles', contains: { col: 'roles', values: ['student'] }, page: 1, pageSize: 50 });
   const live = (liveRows || []).map(toRecommendation);
+  const studentOptions = (studentRows || []).map(toProfile);
 
   return (
     <div>
@@ -459,7 +525,10 @@ export function AdminRecommendations() {
         <div className="panel-head"><h2>Compose</h2><span className="tag">Draft → publish · audience preview required</span></div>
         <div className="panel-body form-grid">
           <div className="field"><label>Recipient<select value={recipient} onChange={(e) => setRecipient(e.target.value)}>
-            <option>Nimuthu Fernando · EM-00124</option><option>Academic Speaking — Cohort 03 (18 students)</option><option>Role: all students</option>
+            <option>All students</option>
+            {studentOptions.map((s) => (
+              <option key={s.userId || s.email} value={s.email}>{s.name}{s.elevateMeId ? ` · ${s.elevateMeId}` : ''}</option>
+            ))}
           </select></label></div>
           <div className="field"><label>Skill<select value={skill} onChange={(e) => setSkill(e.target.value)}>
             <option>Counter Arguments</option><option>Confidence</option><option>Clarity</option><option>Preparation</option>
@@ -503,7 +572,9 @@ export function AdminAnnouncements() {
   const [composeError, setComposeError] = useState('');
   const { create, saving } = useSupabaseMutation({ table: 'announcements' });
   const { data: liveRows } = useSupabaseList({ table: 'announcements', filters: { status: 'Published' }, page: 1, pageSize: 5 });
+  const { count: studentCount } = useSupabaseList({ table: 'profiles', contains: { col: 'roles', values: ['student'] }, page: 1, pageSize: 1 });
   const liveCount = (liveRows || []).map(toAnnouncement).length;
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
     <div>
@@ -514,7 +585,7 @@ export function AdminAnnouncements() {
           <div className="field"><label>Audience<select value={audience} onChange={(e) => setAudience(e.target.value)}>
             <option>All students</option><option>All parents</option><option>Specific program</option><option>Coordinators</option>
           </select></label></div>
-          <div className="field"><label>Publish date<input type="date" defaultValue="2026-09-19" /></label></div>
+          <div className="field"><label>Publish date<input type="date" defaultValue={today} /></label></div>
           <div className="field span-two"><label>Title<input placeholder="Announcement title" value={title} onChange={(e) => setTitle(e.target.value)} /></label></div>
           <div className="field span-two"><label>Message<textarea placeholder="Write the update..." value={body} onChange={(e) => setBody(e.target.value)} /></label></div>
           {composeError && <p role="alert" className="field-error span-two">{composeError}</p>}
@@ -532,11 +603,11 @@ export function AdminAnnouncements() {
               }
             }}>{saving ? 'Scheduling…' : 'Schedule'}</Button>
           </div>
-          {preview && <div className="notice span-two"><strong>Audience preview — {audience}.</strong> “{title || '(untitled)'}” reaches ~{audience === 'All students' ? '119 students + linked parents' : '32 recipients'}. No raw HTML is rendered.</div>}
+          {preview && <div className="notice span-two"><strong>Audience preview — {audience}.</strong> “{title || '(untitled)'}” reaches ~{audience === 'All students' ? `${studentCount} students + linked parents` : 'the selected recipients'}. No raw HTML is rendered.</div>}
           {scheduled && <div className="notice span-two"><strong>Announcement scheduled — plain text only, no raw HTML.</strong></div>}
         </div>
       </section>
-      <ChartSummary label="Published" value={liveCount > 0 ? `${liveCount} live` : '3 live'} status={<Status value="Active" />} />
+      <ChartSummary label="Published" value={liveCount > 0 ? `${liveCount} live` : 'None live'} status={<Status value="Active" />} />
     </div>
   );
 }

@@ -11,8 +11,8 @@ import { NotFound } from './public.jsx';
 /* ---------- Student overview (prototype studentDashboard) ---------- */
 export function StudentDashboard() {
   const { session } = useAuth();
-  const firstName = session?.name ? session.name.split(' ')[0] : 'Nimuthu';
-  const elevateMeId = session?.elevateMeId || 'EM-00124';
+  const firstName = session?.name ? session.name.split(' ')[0] : 'Student';
+  const elevateMeId = session?.elevateMeId || 'Pending approval';
 
   const { data: regRows, count: regCount, loading: regsLoading } = useSupabaseList({
     table: 'registrations',
@@ -176,6 +176,7 @@ export function StudentPerformance() {
     pageSize: 20,
   });
   const { data: scoreRows } = useSupabaseList({ table: 'evaluation_scores', page: 1, pageSize: 100 });
+  const { data: sessionRows } = useSupabaseList({ table: 'sessions', page: 1, pageSize: 50 });
   const evals = (evalRows || []).map(toEvaluation).filter((e) => e.released);
   const evalIds = new Set(evals.map((e) => e.id));
   const myScores = (scoreRows || []).filter((s) => evalIds.has(s.evaluation_id ?? s.evaluationId));
@@ -193,7 +194,7 @@ export function StudentPerformance() {
   const insightItems = [
     { label: 'Improving', text: totals.length >= 2 ? `Final score ${firstTotal.scaled} → ${currentTotal.scaled} across the last ${totals.length} sessions.` : currentTotal != null ? `Latest released final score is ${currentTotal.scaled} / 100.` : 'No released evaluations yet.', small: `Based on ${evals.length} released evaluation${evals.length === 1 ? '' : 's'}` },
     { label: 'Strongest', text: 'Preparation remains the strongest skill, most often above 85.', small: 'Across all programs' },
-    { label: 'Next focus', text: 'Counter Arguments is the clearest development opportunity.', small: 'Recommended next: Friendly Debate' },
+    { label: 'Next focus', text: 'Counter Arguments is the clearest development opportunity.', small: 'See recommendations' },
   ];
 
   return (
@@ -202,7 +203,7 @@ export function StudentPerformance() {
       <div className="filter-bar">
         <select aria-label="Select skill"><option>Confidence</option><option>Clarity</option><option>Critical Analysis</option><option>Counter Arguments</option></select>
         <select aria-label="Select time period"><option>Last 6 months</option><option>Last 3 months</option><option>All time</option></select>
-        <select aria-label="Select sessions"><option>All sessions</option><option>Academic Speaking</option><option>Colombo Youth MUN</option></select>
+        <select aria-label="Select sessions"><option>All sessions</option>{(sessionRows || []).map(toSession).map((s) => <option key={s.id}>{s.title}</option>)}</select>
         <Button small onClick={() => setApplied(true)}>{applied ? 'Filters applied' : 'Apply filters'}</Button>
       </div>
       {loading && <SkeletonRows rows={4} />}
@@ -362,25 +363,26 @@ export function StudentAnnouncements() {
   );
 }
 
-/* ---------- Profile (prototype) ---------- */
+/* ---------- Profile (Supabase-backed) ---------- */
 export function StudentProfile() {
   const { session } = useAuth();
-  const fullName = session?.name || 'Nimuthu Fernando';
-  const emId = session?.elevateMeId || 'EM-00124';
-  const email = session?.email || 'nimuthu@example.com';
-  const status = session?.status || 'Approved';
+  const { data: profile } = useSupabaseRecord({ table: 'profiles', id: session?.userId });
+  const fullName = profile?.full_name || session?.name || '';
+  const emId = profile?.elevate_me_id || session?.elevateMeId || 'Pending approval';
+  const email = profile?.email || session?.email || '';
+  const status = profile?.status || session?.status || 'PendingReview';
   return (
     <div>
-      <PageHead kicker="Account" title="Your profile." desc="Keep your student and contact information accurate." action={<Button>Save changes</Button>} />
+      <PageHead kicker="Account" title="Your profile." desc="Keep your student and contact information accurate." />
       <section className="panel">
         <div className="panel-head"><h2>Student details</h2><Status value={status} /></div>
         <div className="panel-body form-grid">
-          <div className="field"><label>Full name<input defaultValue={fullName} /></label></div>
+          <div className="field"><label>Full name<input defaultValue={fullName} key={fullName} /></label></div>
           <div className="field"><label>ElevateMe ID<input defaultValue={emId} disabled /></label></div>
-          <div className="field"><label>Institute<input defaultValue="Royal College, Colombo" /></label></div>
+          <div className="field"><label>Institute<input defaultValue={profile?.institute || ''} key={profile?.institute || 'inst'} /></label></div>
           <div className="field"><label>Email<input defaultValue={email} type="email" /></label></div>
-          <div className="field"><label>Telephone<input defaultValue="+94 77 123 4567" /></label></div>
-          <div className="field"><label>Date of birth<input defaultValue="2008-05-14" type="date" /></label></div>
+          <div className="field"><label>Telephone<input defaultValue={profile?.phone || ''} key={profile?.phone || 'phone'} /></label></div>
+          <div className="field"><label>Date of birth<input defaultValue={profile?.dob || ''} key={profile?.dob || 'dob'} type="date" /></label></div>
         </div>
       </section>
     </div>
@@ -389,14 +391,23 @@ export function StudentProfile() {
 
 /* ---------- Kept extras ---------- */
 export function StudentDevelopment() {
+  const { data: programRows } = useSupabaseList({ table: 'programs', page: 1, pageSize: 5 });
+  const programs = (programRows || []).map(toProgram).filter((p) => p.status === 'Published' || p.status === 'InProgress');
+  const suggestion = programs[0];
   return (
     <div>
       <PageHead kicker="Development" title="Further development." desc="Follow-on programs matched to your insights." />
       <div className="grid two">
-        <Panel title="Suggested next" action={<Tag>Counter Arguments</Tag>}>
-          <p style={{ color: 'var(--muted)', fontSize: '.92rem' }}>Friendly Debate — Right vs Might. One evaluation round, rebuttal-heavy format.</p>
-          <div style={{ marginTop: 12 }}><Link to="/student/programs/p-debate" className="button small">View program →</Link></div>
-        </Panel>
+        {suggestion ? (
+          <Panel title="Suggested next" action={<Tag>{suggestion.typeLabel || suggestion.category || 'Program'}</Tag>}>
+            <p style={{ color: 'var(--muted)', fontSize: '.92rem' }}>{suggestion.title}. {suggestion.meta || ''}</p>
+            <div style={{ marginTop: 12 }}><Link to={`/student/programs/${suggestion.id}`} className="button small">View program →</Link></div>
+          </Panel>
+        ) : (
+          <Panel title="Suggested next" action={<Tag>No programs</Tag>}>
+            <div className="panel-body"><Empty title="No programs published yet." body="Follow-on programs will be suggested here." /></div>
+          </Panel>
+        )}
         <Empty title="No enrolments yet" body="Completed development actions will be tracked here." />
       </div>
     </div>
@@ -404,12 +415,33 @@ export function StudentDevelopment() {
 }
 
 export function StudentParentAccess() {
+  const { session } = useAuth();
+  const { data: linkRows } = useSupabaseList({
+    table: 'parent_links',
+    filters: session?.userId ? { student_id: session.userId } : {},
+    page: 1,
+    pageSize: 5,
+  });
+  const { data: profileRows } = useSupabaseList({ table: 'profiles', page: 1, pageSize: 50 });
+  const links = linkRows || [];
+  const nameById = new Map((profileRows || []).map(toProfile).map((p) => [p.userId || p.id, p]));
   return (
     <div>
-      <PageHead kicker="Family" title="Parent access." desc="Invite a parent via time-limited invitation — never open ID lookup." action={<Button>Issue invitation</Button>} />
-      <Panel title="Linked parent" action={<Status value="Approved" />}>
-        <p style={{ fontSize: '.92rem' }}>S. Fernando · s.fernando@example.com · sees same released data as student.</p>
-      </Panel>
+      <PageHead kicker="Family" title="Parent access." desc="Invite a parent via time-limited invitation — never open ID lookup." />
+      {links.length > 0 ? (
+        links.map((l) => {
+          const p = nameById.get(l.parent_id);
+          return (
+            <Panel key={l.parent_id || l.id} title="Linked parent" action={<Status value={l.status || 'Pending'} />}>
+              <p style={{ fontSize: '.92rem' }}>{p?.name || 'Parent'}{p?.email ? ` · ${p.email}` : ''} · sees same released data as student.</p>
+            </Panel>
+          );
+        })
+      ) : (
+        <Panel title="Linked parent" action={<Status value="None" />}>
+          <div className="panel-body"><Empty title="No parent linked." body="Issue an invitation to link a parent account." /></div>
+        </Panel>
+      )}
     </div>
   );
 }
