@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Button, PageHead, Status, Empty, Pagination } from '../components/ui.jsx';
+import { Button, PageHead, Status, Empty, Pagination, SkeletonRows } from '../components/ui.jsx';
 import { ProgramListRow, RegistrationPanel } from '../components/domain.jsx';
-import { mockPrograms, mockRegistrations, mockSessions, publishedPrograms } from '../lib/mock-data.js';
+import { useSupabaseList, useSupabaseRecord } from '../lib/useSupabase.js';
+import { toProgram, toSession, toRegistration } from '../lib/adapters.js';
+import { useAuth } from '../lib/auth.jsx';
 
 /* ---------- Landing (prototype index.html) ---------- */
 export function Home() {
@@ -129,7 +131,7 @@ export function About() {
   );
 }
 
-/* ---------- Public program directory (prototype programs.html) ---------- */
+/* ---------- Public program directory (Supabase-backed) ---------- */
 const PAGE_SIZE = 6;
 
 export function Programs() {
@@ -137,13 +139,17 @@ export function Programs() {
   const [type, setType] = useState('');
   const [page, setPage] = useState(1);
 
-  const all = publishedPrograms();
-  const filtered = all.filter((p) => {
-    const hay = `${p.date} ${p.typeLabel} ${p.title} ${p.meta}`.toLowerCase();
-    return (!q || hay.includes(q.toLowerCase())) && (!type || p.typeLabel === type);
+  const { data, loading, error, totalPages } = useSupabaseList({
+    table: 'programs',
+    search: q ? { col: 'title', term: q } : null,
+    filters: type ? { type_label: type } : {},
+    order: { col: 'start_date', ascending: true },
+    page,
+    pageSize: PAGE_SIZE,
   });
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const programs = (data || []).map(toProgram).filter((p) => p.status === 'Published' || p.status === 'InProgress');
+  const hasActiveFilter = Boolean(q || type);
 
   return (
     <>
@@ -163,18 +169,24 @@ export function Programs() {
             <option>Competition</option>
           </select>
         </div>
-        <div className="flat-list">
-          {visible.length === 0 ? (
-            <Empty title="No programs found." body="Try another search or program type." action={(q || type) && <Button variant="secondary" small onClick={() => { setQ(''); setType(''); setPage(1); }}>Clear filters</Button>} />
-          ) : (
-            visible.map((p) => (
-              <ProgramListRow key={p.id} date={p.date} type={p.typeLabel} title={p.title} meta={p.meta}
-                status={p.registered >= p.capacity ? 'RegistrationClosed' : 'Open'}
-                linkTo={`/programs/${p.id}`} actionLabel="View & register →" />
-            ))
-          )}
-        </div>
-        <Pagination page={page} totalPages={totalPages} onPage={setPage} />
+        {loading && <SkeletonRows rows={4} />}
+        {error && <div className="notice"><strong>Couldn’t load programs.</strong> {error.message}</div>}
+        {!loading && !error && (
+          <>
+            <div className="flat-list">
+              {programs.length === 0 ? (
+                <Empty title="No programs found." body="Try another search or program type." action={hasActiveFilter && <Button variant="secondary" small onClick={() => { setQ(''); setType(''); setPage(1); }}>Clear filters</Button>} />
+              ) : (
+                programs.map((p) => (
+                  <ProgramListRow key={p.id} date={p.date} type={p.typeLabel} title={p.title} meta={p.meta}
+                    status={(p.registered ?? 0) >= (p.capacity ?? 0) ? 'RegistrationClosed' : 'Open'}
+                    linkTo={`/programs/${p.id}`} actionLabel="View & register →" />
+                ))
+              )}
+            </div>
+            <Pagination page={page} totalPages={totalPages} onPage={setPage} />
+          </>
+        )}
       </main>
     </>
   );
@@ -183,9 +195,39 @@ export function Programs() {
 /* ---------- Public program detail + registration ---------- */
 export function ProgramDetail() {
   const { id } = useParams();
-  const program = mockPrograms.find((p) => p.id === id);
-  if (!program) return <NotFound />;
-  const sessions = mockSessions.filter((s) => s.programId === program.id);
+  const { data: row, loading: programLoading, error: programError } = useSupabaseRecord({ table: 'programs', id });
+  const { data: sessionRows, loading: sessionsLoading, error: sessionsError } = useSupabaseList({
+    table: 'sessions',
+    filters: { program_id: id },
+    page: 1,
+    pageSize: 50,
+  });
+
+  if (programLoading) {
+    return (
+      <>
+        <header className="public-nav"><div className="inner">
+          <Link className="public-brand" to="/">Elevate<span>Me</span></Link>
+          <nav className="public-links"><Link to="/programs">Programs</Link><Link className="button" to="/student">Open app →</Link></nav>
+        </div></header>
+        <main className="public-main"><p>Loading…</p><SkeletonRows rows={4} /></main>
+      </>
+    );
+  }
+  if (programError) {
+    return (
+      <>
+        <header className="public-nav"><div className="inner">
+          <Link className="public-brand" to="/">Elevate<span>Me</span></Link>
+          <nav className="public-links"><Link to="/programs">Programs</Link><Link className="button" to="/student">Open app →</Link></nav>
+        </div></header>
+        <main className="public-main"><div className="notice"><strong>Couldn’t load this program.</strong> {programError.message}</div></main>
+      </>
+    );
+  }
+  if (!row) return <NotFound />;
+  const program = toProgram(row);
+  const sessions = (sessionRows || []).map(toSession);
 
   return (
     <>
@@ -202,19 +244,23 @@ export function ProgramDetail() {
             <p style={{ color: 'var(--muted)', maxWidth: 640 }}>{program.description}</p>
             <p style={{ fontSize: '.85rem', color: 'var(--muted)' }}>{program.registered}/{program.capacity} registered · {program.meta}</p>
             <h2 className="section-title">Sessions, committees and tracks</h2>
-            <div className="flat-list">
-              {sessions.length === 0 && <p style={{ color: 'var(--muted)' }}>No sessions published yet.</p>}
-              {sessions.map((s) => (
-                <article key={s.id} className="list-row">
-                  <div className="row-meta">{s.date}</div>
-                  <div className="row-main"><h3>{s.title}</h3><p>{s.topic} · {s.venue}</p></div>
-                </article>
-              ))}
-            </div>
+            {sessionsLoading && <p>Loading…</p>}
+            {sessionsError && <div className="notice"><strong>Couldn’t load sessions.</strong> {sessionsError.message}</div>}
+            {!sessionsLoading && !sessionsError && (
+              <div className="flat-list">
+                {sessions.length === 0 && <p style={{ color: 'var(--muted)' }}>No sessions published yet.</p>}
+                {sessions.map((s) => (
+                  <article key={s.id} className="list-row">
+                    <div className="row-meta">{s.date}</div>
+                    <div className="row-main"><h3>{s.title}</h3><p>{s.topic} · {s.venue}</p></div>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
           <section className="panel"><div className="panel-head"><h2>Registration</h2></div>
             <div className="panel-body">
-              <RegistrationPanel programTitle={program.title} sessions={sessions} closed={program.status === 'RegistrationClosed'} />
+              <RegistrationPanel programTitle={program.title} programId={program.id} sessions={sessions} closed={program.status === 'RegistrationClosed'} />
               <div style={{ marginTop: 14 }}>
                 <p style={{ fontSize: '.82rem', color: 'var(--muted)' }}>After you join: request enters <strong>Pending</strong> → coordinator confirms → outcome under My Registrations.</p>
                 <Link to="/sign-up" className="link-quiet">New here? Create an account first →</Link>
@@ -229,17 +275,40 @@ export function ProgramDetail() {
 
 export function StudentProgramDetail() {
   const { programId } = useParams();
-  const program = mockPrograms.find((p) => p.id === programId);
-  if (!program) return <NotFound />;
-  const sessions = mockSessions.filter((s) => s.programId === program.id);
-  const mine = mockRegistrations.find((r) => r.programId === program.id);
+  const { session } = useAuth();
+  const { data: row, loading: programLoading, error: programError } = useSupabaseRecord({ table: 'programs', id: programId });
+  const { data: sessionRows, loading: sessionsLoading, error: sessionsError } = useSupabaseList({
+    table: 'sessions',
+    filters: { program_id: programId },
+    page: 1,
+    pageSize: 50,
+  });
+  const { data: regRows, loading: regsLoading, error: regsError } = useSupabaseList({
+    table: 'registrations',
+    filters: session?.userId ? { student_id: session.userId, program_id: programId } : { program_id: programId },
+    page: 1,
+    pageSize: 10,
+  });
+
+  if (programLoading) return <div><p>Loading…</p><SkeletonRows rows={3} /></div>;
+  if (programError) return <div className="notice"><strong>Couldn’t load this program.</strong> {programError.message}</div>;
+  if (!row) return <NotFound />;
+  const program = toProgram(row);
+  const sessions = (sessionRows || []).map(toSession);
+  const regs = (regRows || []).map(toRegistration);
+  const mine = session?.userId ? regs[0] : null;
+
   return (
     <div>
       <PageHead kicker={program.typeLabel} title={`${program.title}.`} desc={`${program.institute} · ${program.startDate} → ${program.endDate}`} action={<Status value={program.status} />} />
       <div className="notice" style={{ marginBottom: 22 }}>
-        <strong>My registration:</strong> {mine ? `${mine.status} · ${mine.allocation}` : 'Not registered'}
+        <strong>My registration:</strong> {regsLoading ? 'Loading…' : regsError ? 'Couldn’t load registration.' : mine ? `${mine.status} · ${mine.allocation}` : 'Not registered'}
       </div>
-      <RegistrationPanel programTitle={program.title} sessions={sessions} closed={program.status === 'RegistrationClosed'} />
+      {sessionsLoading && <p>Loading…</p>}
+      {sessionsError && <div className="notice"><strong>Couldn’t load sessions.</strong> {sessionsError.message}</div>}
+      {!sessionsLoading && !sessionsError && (
+        <RegistrationPanel programTitle={program.title} programId={program.id} sessions={sessions} closed={program.status === 'RegistrationClosed'} />
+      )}
     </div>
   );
 }

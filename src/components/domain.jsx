@@ -1,5 +1,8 @@
+import { useState as useStateSafe } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Status, Tag } from './ui.jsx';
+import { useAuth } from '../lib/auth.jsx';
+import { useSupabaseMutation } from '../lib/useSupabase.js';
 
 /* ---------- Program flat-list row ---------- */
 export function ProgramListRow({ date, type, title, meta, status, linkTo, actionLabel = 'View →' }) {
@@ -129,12 +132,15 @@ export function ScoreInput({ index, label, value, onChange }) {
   );
 }
 
-/* ---------- Registration panel (engineered flow, prototype classes) ---------- */
-export function RegistrationPanel({ programTitle, sessions, closed, notify }) {
-  const [choice, setChoice] = useStateSafe(sessions[0]?.id || '');
+/* ---------- Registration panel (Supabase-backed, prototype classes kept) ---------- */
+export function RegistrationPanel({ programTitle, programId, sessions = [], closed, notify }) {
+  const { session } = useAuth();
+  const { create, saving, error: mutationError } = useSupabaseMutation({ table: 'registrations' });
+  const [choiceState, setChoiceState] = useStateSafe('');
+  const choice = choiceState || sessions[0]?.id || '';
+  const setChoice = setChoiceState;
   const [confirming, setConfirming] = useStateSafe(false);
   const [submitted, setSubmitted] = useStateSafe(false);
-  const [submitting, setSubmitting] = useStateSafe(false);
   const [error, setError] = useStateSafe('');
 
   if (closed) {
@@ -142,29 +148,41 @@ export function RegistrationPanel({ programTitle, sessions, closed, notify }) {
   }
 
   if (submitted) {
-    const session = sessions.find((s) => s.id === choice);
+    const doneSession = sessions.find((s) => s.id === choice);
     return (
       <div className="notice">
         <strong>Registration pending.</strong> Your request for <strong>{programTitle}</strong>
-        {session && <> — <strong>{session.title}</strong></>} is <strong>Pending</strong>.
+        {doneSession && <> — <strong>{doneSession.title}</strong></>} is <strong>Pending</strong>.
         A coordinator will confirm or waitlist it; you will be notified of the outcome.
       </div>
     );
   }
 
+  const combinedError = error || mutationError?.message || '';
+
   return (
     <form
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
         if (!confirming) { setConfirming(true); return; }
         setError('');
-        setSubmitting(true);
-        setTimeout(() => {
-          setSubmitting(false);
-          if (!choice) { setError('Choose a session or committee before submitting. Your selection is preserved.'); return; }
+        if (!choice) { setError('Choose a session or committee before submitting. Your selection is preserved.'); return; }
+        const resolvedProgramId = programId || sessions.find((s) => s.id === choice)?.programId || sessions[0]?.programId;
+        if (!resolvedProgramId) { setError('Program is still loading. Your selection is preserved.'); return; }
+        if (!session?.userId) { setError('Sign in with a student profile to register. Your selection is preserved.'); return; }
+        try {
+          const res = await create({
+            program_id: resolvedProgramId,
+            session_id: choice || null,
+            student_id: session.userId,
+            status: 'Pending',
+          });
+          if (res?.error) throw new Error(res.error.message);
           setSubmitted(true);
           notify?.('Registration submitted — Pending coordinator confirmation');
-        }, 500);
+        } catch (err) {
+          setError(`${err?.message || 'Registration failed. Please try again.'} Your selection is preserved.`);
+        }
       }}
     >
       {sessions.length > 0 && (
@@ -184,18 +202,15 @@ export function RegistrationPanel({ programTitle, sessions, closed, notify }) {
           Submitting creates a <strong>Pending</strong> registration for coordinator confirmation.
         </div>
       )}
-      {error && <p role="alert" className="field-error" style={{ marginBottom: 14 }}>{error}</p>}
+      {combinedError && <p role="alert" className="field-error" style={{ marginBottom: 14 }}>{combinedError}</p>}
       <div style={{ display: 'flex', gap: 10 }}>
-        <Button type="submit" disabled={submitting}>{submitting ? 'Submitting…' : confirming ? 'Confirm registration' : 'Join this program'}</Button>
+        <Button type="submit" disabled={saving}>{saving ? 'Submitting…' : confirming ? 'Confirm registration' : 'Join this program'}</Button>
         {confirming && <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>Back</Button>}
       </div>
       <p style={{ fontSize: '.78rem', color: 'var(--muted)' }}>Sign-in with a student profile is required. Duplicate, capacity, and eligibility checks run on submit.</p>
     </form>
   );
 }
-
-// Tiny local useState alias to keep the panel self-contained.
-import { useState as useStateSafe } from 'react';
 
 /* ---------- Workspace tabs (engineered flow) ---------- */
 export function Tabs({ tabs, active, base }) {

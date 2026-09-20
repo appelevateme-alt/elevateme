@@ -1,9 +1,9 @@
 import { Route, Routes } from 'react-router-dom';
-import { MockAuthProvider } from './lib/auth.jsx';
-import { RequireRole, Shell } from './components/shell.jsx';
+import { AuthProvider } from './lib/auth.jsx';
+import { RequireAuth, RequireRole, Shell } from './components/shell.jsx';
 
 import { About, Home, NotFound, ProgramDetail, Programs, StudentProgramDetail } from './views/public.jsx';
-import { ForgotPassword, ResetPassword, SignIn, SignUp } from './views/auth.jsx';
+import { AccountRejected, AccountSuspended, CheckEmail, ForgotPassword, PendingApproval, ResetPassword, SignIn, SignUp } from './views/auth.jsx';
 import {
   EvaluationDetail, StudentAnnouncements, StudentDashboard, StudentDevelopment,
   StudentParentAccess, StudentPerformance, StudentProfile, StudentPrograms,
@@ -32,24 +32,24 @@ import {
 } from './views/admin.jsx';
 
 function StudentShell({ children }) {
-  return <Shell role="student"><RequireRole allow={['student']} label="Student">{children}</RequireRole></Shell>;
+  return <RequireAuth><Shell role="student"><RequireRole allow={['student']} label="Student">{children}</RequireRole></Shell></RequireAuth>;
 }
 function ParentShell({ children }) {
-  return <Shell role="parent"><RequireRole allow={['parent']} label="Parent">{children}</RequireRole></Shell>;
+  return <RequireAuth><Shell role="parent"><RequireRole allow={['parent']} label="Parent">{children}</RequireRole></Shell></RequireAuth>;
 }
 function CoordinatorShell({ children }) {
-  return <Shell role="coordinator"><RequireRole allow={['coordinator']} label="Coordinator">{children}</RequireRole></Shell>;
+  return <RequireAuth><Shell role="coordinator"><RequireRole allow={['coordinator']} label="Coordinator">{children}</RequireRole></Shell></RequireAuth>;
 }
 function EvaluatorShell({ children }) {
-  return <Shell role="evaluator"><RequireRole allow={['evaluator', 'coordinator']} label="Evaluator">{children}</RequireRole></Shell>;
+  return <RequireAuth><Shell role="evaluator"><RequireRole allow={['evaluator', 'coordinator']} label="Evaluator">{children}</RequireRole></Shell></RequireAuth>;
 }
 function AdminShell({ children }) {
-  return <Shell role="admin"><RequireRole allow={['admin']} label="Admin">{children}</RequireRole></Shell>;
+  return <RequireAuth><Shell role="admin"><RequireRole allow={['admin']} label="Admin">{children}</RequireRole></Shell></RequireAuth>;
 }
 
 export default function App() {
   return (
-    <MockAuthProvider>
+    <AuthProvider>
       <Routes>
         {/* Public */}
         <Route path="/" element={<Home />} />
@@ -60,6 +60,10 @@ export default function App() {
         <Route path="/sign-up" element={<SignUp />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/check-email" element={<CheckEmail />} />
+        <Route path="/pending-approval" element={<PendingApproval />} />
+        <Route path="/account-rejected" element={<AccountRejected />} />
+        <Route path="/account-suspended" element={<AccountSuspended />} />
 
         {/* Student */}
         <Route path="/student" element={<StudentShell><StudentDashboard /></StudentShell>} />
@@ -130,6 +134,6 @@ export default function App() {
 
         <Route path="*" element={<NotFound />} />
       </Routes>
-    </MockAuthProvider>
+    </AuthProvider>
   );
 }

@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Supabase / env secrets — never commit
+.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

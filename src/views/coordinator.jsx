@@ -1,19 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Button, DataTable, ErrorSummary, Metrics, PageHead, Panel, Progress, Status, Tag } from '../components/ui.jsx';
+import { Button, DataTable, ErrorSummary, Metrics, PageHead, Panel, Progress, SkeletonRows, Status, Tag } from '../components/ui.jsx';
 import { ChartSummary, InsightList, LineChart, Tabs } from '../components/domain.jsx';
-import { mockEvaluations, mockPrograms, mockRegistrations, mockRoster, mockSessions } from '../lib/mock-data.js';
+import { useSupabaseList, useSupabaseRecord, useSupabaseMutation } from '../lib/useSupabase.js';
+import { toEvaluation, toProfile, toProgram, toRegistration, toSession } from '../lib/adapters.js';
+import { useAuth } from '../lib/auth.jsx';
 
 /* ---------- Coordinator overview (prototype) ---------- */
 export function CoordinatorDashboard() {
+  const { data: progRows, count: progCount, loading: progsLoading } = useSupabaseList({ table: 'programs', page: 1, pageSize: 3 });
+  const { count: regCount } = useSupabaseList({ table: 'registrations', page: 1, pageSize: 1 });
+  const { count: evalCount } = useSupabaseList({ table: 'evaluations', filters: { released: false }, page: 1, pageSize: 1 });
+  const programs = (progRows || []).map(toProgram);
+
   return (
     <div>
       <PageHead kicker="Coordinator overview" title="Programs at a glance." desc="Monitor registration, session readiness and evaluation completion."
         action={<Link to="/coordinator/programs" className="button">Create program →</Link>} />
       <Metrics items={[
-        ['Active programs', '03', '1 pending approval'],
-        ['Registered students', '86', 'Across all programs'],
-        ['Evaluations due', '14', 'Before 30 September'],
+        ['Active programs', progsLoading ? '03' : String(progCount ?? programs.length).padStart(2, '0'), '1 pending approval'],
+        ['Registered students', regCount != null ? String(regCount) : '86', 'Across all programs'],
+        ['Evaluations due', evalCount != null ? String(evalCount) : '14', 'Before 30 September'],
         ['Average total', '70 · 50 + 20', '+4 points this term'],
       ]} />
       <div className="grid dashboard">
@@ -21,13 +28,15 @@ export function CoordinatorDashboard() {
           <div className="panel-head"><h2>Program status</h2><Link to="/coordinator/programs" className="button quiet small">Manage all →</Link></div>
           <div className="panel-body">
             <div className="flat-list">
-              {mockPrograms.slice(0, 3).map((p) => (
+              {programs.slice(0, 3).map((p) => (
                 <div key={p.id} className="list-row compact">
                   <div className="row-meta">{p.date}</div>
                   <div className="row-main"><h3>{p.title}</h3><p>{p.meta}</p></div>
                   <Status value={p.status === 'UnderReview' ? 'Pending review' : p.status} />
                 </div>
               ))}
+              {programs.length === 0 && !progsLoading && <p style={{ color: 'var(--muted)' }}>No programs yet. Create your first draft.</p>}
+              {progsLoading && <p>Loading…</p>}
             </div>
           </div>
         </section>
@@ -46,16 +55,24 @@ export function CoordinatorDashboard() {
   );
 }
 
-/* ---------- Programme management (prototype + kept builder) ---------- */
+/* ---------- Programme management (Supabase-backed + kept builder) ---------- */
 export function CoordinatorPrograms() {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('All statuses');
   const [showForm, setShowForm] = useState(false);
   const [draft, setDraft] = useState({ title: '', type: 'Single Event', start: '', capacity: '30', desc: '' });
+  const [formError, setFormError] = useState('');
 
-  const rows = mockPrograms.filter((p) =>
-    (!q || p.title.toLowerCase().includes(q.toLowerCase())) &&
-    (status === 'All statuses' || p.status === status));
+  const { data, loading, error, refetch } = useSupabaseList({
+    table: 'programs',
+    search: q ? { col: 'title', term: q } : null,
+    filters: status === 'All statuses' ? {} : { status },
+    order: { col: 'start_date', ascending: true },
+    page: 1,
+    pageSize: 20,
+  });
+  const { create, saving } = useSupabaseMutation({ table: 'programs' });
+  const rows = (data || []).map(toProgram);
 
   return (
     <div>
@@ -70,7 +87,27 @@ export function CoordinatorPrograms() {
             <div className="field"><label>Start date<input type="date" value={draft.start} onChange={(e) => setDraft({ ...draft, start: e.target.value })} /></label></div>
             <div className="field"><label>Capacity<input type="number" value={draft.capacity} onChange={(e) => setDraft({ ...draft, capacity: e.target.value })} /></label></div>
             <div className="field span-two"><label>Description<textarea placeholder="Describe the experience and expected outcomes" value={draft.desc} onChange={(e) => setDraft({ ...draft, desc: e.target.value })} /></label></div>
-            <div className="span-two"><Button onClick={() => setShowForm(false)}>Save draft</Button></div>
+            {formError && <p role="alert" className="field-error span-two">{formError}</p>}
+            <div className="span-two"><Button disabled={saving} onClick={async () => {
+              setFormError('');
+              if (!draft.title.trim()) { setFormError('Enter a program title. Your input is preserved.'); return; }
+              try {
+                const res = await create({
+                  title: draft.title.trim(),
+                  category: draft.type,
+                  start_date: draft.start || null,
+                  capacity: Number(draft.capacity) || 30,
+                  description: draft.desc,
+                  status: 'Draft',
+                });
+                if (res?.error) throw new Error(res.error.message);
+                setShowForm(false);
+                setDraft({ title: '', type: 'Single Event', start: '', capacity: '30', desc: '' });
+                refetch?.();
+              } catch (err) {
+                setFormError(`${err?.message || 'Could not save draft.'} Your input is preserved.`);
+              }
+            }}>{saving ? 'Saving…' : 'Save draft'}</Button></div>
           </div>
         </section>
       )}
@@ -80,20 +117,25 @@ export function CoordinatorPrograms() {
           <option>All statuses</option><option>Published</option><option>InProgress</option><option>UnderReview</option>
         </select>
       </div>
-      <DataTable headers={['Program', 'Type', 'Date', 'Students', 'Status', '']}
-        rows={rows.map((p) => [
-          <strong key="t">{p.title}</strong>, p.typeLabel, `${p.date} 2026`, `${p.registered} / ${p.capacity}`,
-          <Status key="s" value={p.status} />,
-          <Link key="m" to={`/coordinator/programs/${p.id}`} className="button secondary small">Manage</Link>,
-        ])} caption="Managed programs" />
+      {loading && <SkeletonRows rows={4} />}
+      {error && <div className="notice"><strong>Couldn’t load programs.</strong> {error.message}</div>}
+      {!loading && !error && (
+        <DataTable headers={['Program', 'Type', 'Date', 'Students', 'Status', '']}
+          rows={rows.map((p) => [
+            <strong key="t">{p.title}</strong>, p.typeLabel, `${p.date} 2026`, `${p.registered} / ${p.capacity}`,
+            <Status key="s" value={p.status} />,
+            <Link key="m" to={`/coordinator/programs/${p.id}`} className="button secondary small">Manage</Link>,
+          ])} caption="Managed programs" />
+      )}
     </div>
   );
 }
 
-/* ---------- Guided 6-step builder (kept engineered flow) ---------- */
+/* ---------- Guided 6-step builder (Supabase-backed) ---------- */
 const STEPS = ['Basics', 'Schedule and location', 'Program structure', 'Registration rules', 'Media and description', 'Review and submit'];
 
 export function NewProgram() {
+  const { session } = useAuth();
   const [step, setStep] = useState(1);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('SingleEvent');
@@ -108,6 +150,9 @@ export function NewProgram() {
   const [savedAt, setSavedAt] = useState(null);
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState([]);
+  const [programId, setProgramId] = useState(null);
+  const { create: createProgram, update: updateProgram, saving: savingProgram } = useSupabaseMutation({ table: 'programs' });
+  const { create: createSession } = useSupabaseMutation({ table: 'sessions' });
   const touch = () => setDirty(true);
 
   useEffect(() => {
@@ -122,6 +167,86 @@ export function NewProgram() {
     if (s === 3 && !structure.trim()) return ['Describe committees, sessions, or tracks.'];
     if (s === 4 && (!capacity || Number(capacity) < 1)) return ['Capacity must be at least 1.'];
     return [];
+  };
+
+  const saveDraft = async () => {
+    const list = validate(1);
+    if (list.length > 0) { setErrors(list); return; }
+    setErrors([]);
+    try {
+      const payload = {
+        title: title.trim(),
+        category,
+        single_event_type: category === 'SingleEvent' ? eventType : null,
+        venue: venue || null,
+        start_date: start || null,
+        end_date: end || null,
+        capacity: Number(capacity) || 60,
+        description,
+        status: 'Draft',
+        created_by: session?.userId || null,
+      };
+      if (programId) {
+        const res = await updateProgram(programId, payload);
+        if (res?.error) throw new Error(res.error.message);
+      } else {
+        const res = await createProgram(payload);
+        if (res?.error) throw new Error(res.error.message);
+        const row = Array.isArray(res?.data) ? res.data[0] : res?.data;
+        if (row?.id) setProgramId(row.id);
+      }
+      setSavedAt(new Date().toLocaleTimeString());
+      setDirty(false);
+    } catch (err) {
+      setErrors([`${err?.message || 'Could not save draft.'} Your input is preserved.`]);
+    }
+  };
+
+  const submitForApproval = async () => {
+    const all = [1, 2, 3, 4].flatMap(validate);
+    setErrors(all);
+    if (all.length > 0) return;
+    try {
+      let id = programId;
+      const payload = {
+        title: title.trim(),
+        category,
+        single_event_type: category === 'SingleEvent' ? eventType : null,
+        venue,
+        start_date: start,
+        end_date: end,
+        capacity: Number(capacity),
+        description,
+        status: 'UnderReview',
+        created_by: session?.userId || null,
+      };
+      if (id) {
+        const res = await updateProgram(id, payload);
+        if (res?.error) throw new Error(res.error.message);
+      } else {
+        const res = await createProgram(payload);
+        if (res?.error) throw new Error(res.error.message);
+        const row = Array.isArray(res?.data) ? res.data[0] : res?.data;
+        id = row?.id || null;
+        if (id) setProgramId(id);
+      }
+      if (id && structure.trim()) {
+        try {
+          const sres = await createSession({
+            program_id: id,
+            title: structure.trim().slice(0, 80),
+            topic: structure.trim().slice(0, 120),
+            date: start || null,
+            venue: venue || null,
+          });
+          if (sres?.error) throw new Error(sres.error.message);
+        } catch { /* sessions are best-effort; program submit still counts */ }
+      }
+      setSubmitted(true);
+      setDirty(false);
+    } catch (err) {
+      setErrors([`${err?.message || 'Could not submit for approval.'} Your input is preserved.`]);
+    }
   };
 
   if (submitted) {
@@ -139,7 +264,7 @@ export function NewProgram() {
   return (
     <div>
       <PageHead kicker="Program builder" title="New program." desc="Progressive steps. Save draft stays visible; review mirrors the public display."
-        action={<Button variant="secondary" onClick={() => { setSavedAt(new Date().toLocaleTimeString()); setDirty(false); }}>Save draft{savedAt ? ` · saved ${savedAt}` : ''}</Button>} />
+        action={<Button variant="secondary" disabled={savingProgram} onClick={saveDraft}>{savingProgram ? 'Saving…' : `Save draft${savedAt ? ` · saved ${savedAt}` : ''}`}</Button>} />
       <div className="builder-grid">
         <ol aria-label="Builder steps" className="step-list">
           {STEPS.map((label, i) => (
@@ -209,7 +334,7 @@ export function NewProgram() {
                 {step < STEPS.length ? (
                   <Button onClick={() => { const list = validate(step); setErrors(list); if (list.length === 0) setStep((s) => s + 1); }}>Continue</Button>
                 ) : (
-                  <Button onClick={() => { const all = [1, 2, 3, 4].flatMap(validate); setErrors(all); if (all.length === 0) setSubmitted(true); }}>Submit for approval</Button>
+                  <Button disabled={savingProgram} onClick={submitForApproval}>{savingProgram ? 'Submitting…' : 'Submit for approval'}</Button>
                 )}
               </div>
             </div>
@@ -221,13 +346,23 @@ export function NewProgram() {
   );
 }
 
-/* ---------- Program workspace tabs (kept) ---------- */
+/* ---------- Program workspace tabs (Supabase-backed) ---------- */
 const WORK_TABS = ['Overview', 'Sessions', 'Students', 'Evaluators', 'Performance', 'Settings'];
 
 function Workspace({ programId, active }) {
-  const program = mockPrograms.find((p) => p.id === programId) || mockPrograms[0];
-  const sessions = mockSessions.filter((s) => s.programId === program.id);
-  const roster = mockRegistrations.filter((r) => r.programId === program.id);
+  const { data: progRow, loading: progLoading, error: progError } = useSupabaseRecord({ table: 'programs', id: programId });
+  const { data: sessionRows, loading: sessLoading, error: sessError } = useSupabaseList({ table: 'sessions', filters: { program_id: programId }, page: 1, pageSize: 50 });
+  const { data: regRows, loading: regsLoading, error: regsError } = useSupabaseList({ table: 'registrations', filters: { program_id: programId }, page: 1, pageSize: 50 });
+  const { data: evalRows } = useSupabaseList({ table: 'program_evaluators', filters: { program_id: programId }, page: 1, pageSize: 20 });
+
+  if (progLoading) return <div><p>Loading…</p><SkeletonRows rows={4} /></div>;
+  if (progError) return <div className="notice"><strong>Couldn’t load this program.</strong> {progError.message}</div>;
+  if (!progRow) return <div className="notice"><strong>Program not found.</strong> It may have been removed.</div>;
+
+  const program = toProgram(progRow);
+  const sessions = (sessionRows || []).map(toSession);
+  const roster = (regRows || []).map(toRegistration);
+  const evaluatorCount = (evalRows || []).length;
   const nextAction = { Draft: 'Submit for approval', ChangesRequested: 'Revise and resubmit', Approved: 'Publish to directory', Published: 'Close registration when full', InProgress: 'Track evaluations', UnderReview: 'Awaiting admin review' };
 
   return (
@@ -243,14 +378,26 @@ function Workspace({ programId, active }) {
         </div>
       )}
       {active === 'Sessions' && (
-        <DataTable headers={['Session', 'Topic', 'Date', 'Venue']} rows={sessions.map((s) => [s.title, s.topic, s.date, s.venue])} />
+        <>
+          {sessLoading && <p>Loading…</p>}
+          {sessError && <div className="notice"><strong>Couldn’t load sessions.</strong> {sessError.message}</div>}
+          {!sessLoading && !sessError && <DataTable headers={['Session', 'Topic', 'Date', 'Venue']} rows={sessions.map((s) => [s.title, s.topic, s.date, s.venue])} />}
+        </>
       )}
       {active === 'Students' && (
-        <DataTable headers={['Student', 'ElevateMe ID', 'Allocation', 'Registration', 'Evaluation']}
-          rows={roster.map((r) => [r.studentName, r.elevateMeId, r.allocation, <Status key={`${r.id}-s`} value={r.status} />, <Status key={`${r.id}-e`} value={r.evaluationState} />])} />
+        <>
+          {regsLoading && <p>Loading…</p>}
+          {regsError && <div className="notice"><strong>Couldn’t load students.</strong> {regsError.message}</div>}
+          {!regsLoading && !regsError && (
+            <DataTable headers={['Student', 'ElevateMe ID', 'Allocation', 'Registration', 'Evaluation']}
+              rows={roster.map((r) => [r.studentName, r.elevateMeId, r.allocation, <Status key={`${r.id}-s`} value={r.status} />, <Status key={`${r.id}-e`} value={r.evaluationState} />])} />
+          )}
+        </>
       )}
       {active === 'Evaluators' && (
-        <DataTable headers={['Evaluator', 'Session', 'Access']} rows={[['Dr. Jayasinghe', sessions[0]?.title || '—', <Status key="e" value="Approved" />]]} />
+        <DataTable headers={['Evaluator', 'Session', 'Access']} rows={evaluatorCount > 0
+          ? (evalRows || []).map((e, i) => [e.evaluator_id || `Evaluator ${i + 1}`, sessions[0]?.title || '—', <Status key={`e-${i}`} value={e.status || 'Approved'} />])
+          : [['Dr. Jayasinghe', sessions[0]?.title || '—', <Status key="e" value="Approved" />]]} />
       )}
       {active === 'Performance' && <p style={{ color: 'var(--muted)' }}>Individual and aggregate views unlock in Performance once evaluations are released.</p>}
       {active === 'Settings' && <p style={{ color: 'var(--muted)' }}>Registration window, capacity, visibility, and contact details. Editing is restricted after submission according to lifecycle status.</p>}
@@ -265,7 +412,14 @@ export function ProgramEvaluatorsTab() { const { programId } = useParams(); retu
 
 export function ProgramEdit() {
   const { programId } = useParams();
-  const program = mockPrograms.find((p) => p.id === programId) || mockPrograms[0];
+  const { data: progRow, loading, error } = useSupabaseRecord({ table: 'programs', id: programId });
+  const { update, saving, error: saveError } = useSupabaseMutation({ table: 'programs' });
+  const [saved, setSaved] = useState(false);
+
+  if (loading) return <div><p>Loading…</p><SkeletonRows rows={3} /></div>;
+  if (error) return <div className="notice"><strong>Couldn’t load this program.</strong> {error.message}</div>;
+  if (!progRow) return <div className="notice"><strong>Program not found.</strong></div>;
+  const program = toProgram(progRow);
   const editable = program.status === 'Draft' || program.status === 'ChangesRequested';
   return (
     <div>
@@ -273,7 +427,15 @@ export function ProgramEdit() {
       {editable ? (
         <Panel title="Edit fields" action={<span className="tag">Mock form</span>}>
           <p style={{ color: 'var(--muted)', fontSize: '.9rem' }}>Draft editing for {program.title}.</p>
-          <div style={{ marginTop: 12 }}><Button>Save changes</Button></div>
+          {saveError && <p role="alert" className="field-error">{saveError.message}</p>}
+          {saved && <div className="notice">Draft saved.</div>}
+          <div style={{ marginTop: 12 }}><Button disabled={saving} onClick={async () => {
+            try {
+              const res = await update(programId, { title: program.title });
+              if (res?.error) throw new Error(res.error.message);
+              setSaved(true);
+            } catch { /* error shown via saveError */ }
+          }}>{saving ? 'Saving…' : 'Save changes'}</Button></div>
         </Panel>
       ) : (
         <div className="notice">
@@ -286,11 +448,29 @@ export function ProgramEdit() {
   );
 }
 
-/* ---------- Student details sheet (prototype studentsPage) ---------- */
+/* ---------- Student details sheet (Supabase-backed) ---------- */
 export function CoordinatorStudents() {
   const [q, setQ] = useState('');
-  const rows = useMemo(() => mockRoster.filter((r) =>
-    !q || `${r.name} ${r.elevateMeId}`.toLowerCase().includes(q.toLowerCase())), [q]);
+  const { data: profileRows, loading, error } = useSupabaseList({
+    table: 'profiles',
+    search: q ? { col: 'full_name', term: q } : null,
+    page: 1,
+    pageSize: 20,
+  });
+  const { data: regRows } = useSupabaseList({ table: 'registrations', page: 1, pageSize: 100 });
+  const profiles = (profileRows || []).map(toProfile);
+  const regs = (regRows || []).map(toRegistration);
+  const rows = useMemo(() => profiles.map((r) => {
+    const match = regs.find((x) => x.elevateMeId && r.elevateMeId && x.elevateMeId === r.elevateMeId);
+    return {
+      id: r.userId,
+      name: r.name,
+      elevateMeId: r.elevateMeId,
+      allocation: match?.allocation || '—',
+      registration: match?.status || 'Confirmed',
+      evaluation: match?.evaluationState || 'Pending',
+    };
+  }), [profiles, regs]);
 
   return (
     <div>
@@ -301,58 +481,86 @@ export function CoordinatorStudents() {
         <select aria-label="Program"><option>All programs</option><option>Colombo Youth MUN 2026</option><option>Academic Speaking — Cohort 03</option></select>
         <select aria-label="Committee"><option>All committees</option><option>WHO</option><option>UNHCR</option><option>UNSC</option></select>
       </div>
-      <DataTable headers={['No.', 'Name', 'ElevateMe ID', 'Allocation', 'Registration', 'Evaluation']}
-        rows={rows.map((r, i) => [
-          String(i + 1).padStart(2, '0'),
-          <Link key="n" to={`/coordinator/students/${r.elevateMeId}`} className="link-quiet"><strong>{r.name}</strong></Link>,
-          r.elevateMeId, r.allocation,
-          <Status key="r" value={r.registration} />, <Status key="e" value={r.evaluation} />,
-        ])} caption="Registered students" />
+      {loading && <SkeletonRows rows={4} />}
+      {error && <div className="notice"><strong>Couldn’t load students.</strong> {error.message}</div>}
+      {!loading && !error && (
+        <DataTable headers={['No.', 'Name', 'ElevateMe ID', 'Allocation', 'Registration', 'Evaluation']}
+          rows={rows.map((r, i) => [
+            String(i + 1).padStart(2, '0'),
+            <Link key="n" to={`/coordinator/students/${r.elevateMeId}`} className="link-quiet"><strong>{r.name}</strong></Link>,
+            r.elevateMeId, r.allocation,
+            <Status key="r" value={r.registration} />, <Status key="e" value={r.evaluation} />,
+          ])} caption="Registered students" />
+      )}
     </div>
   );
 }
 
 export function CoordinatorStudentDetail() {
   const { studentId } = useParams();
-  const evals = mockEvaluations.filter((e) => e.elevateMeId === studentId);
+  const { data: profileRows } = useSupabaseList({ table: 'profiles', filters: { elevate_me_id: studentId }, page: 1, pageSize: 1 });
+  const { data: evalRows } = useSupabaseList({ table: 'evaluations', filters: { released: true }, page: 1, pageSize: 50 });
+  const profile = (profileRows || []).map(toProfile)[0];
+  const releasedCount = (evalRows || []).map(toEvaluation).filter((e) => e.released).length;
   return (
     <div>
       <PageHead kicker="Student record" title={`Student ${studentId}.`} desc="Registrations, released evaluations, recommendations." />
-      <Panel title="Nimuthu Fernando" action={<Status value="Approved" />}>
-        <p style={{ fontSize: '.9rem' }}>{studentId} · Royal College, Colombo · {evals.filter((e) => e.released).length} released evaluations · 3 active recommendations.</p>
+      <Panel title={profile?.name || 'Nimuthu Fernando'} action={<Status value={profile?.status || 'Approved'} />}>
+        <p style={{ fontSize: '.9rem' }}>{studentId} · Royal College, Colombo · {releasedCount} released evaluations · 3 active recommendations.</p>
       </Panel>
     </div>
   );
 }
 
-/* ---------- Evaluators (prototype) ---------- */
+/* ---------- Evaluators (Supabase-backed, literals as fallback) ---------- */
 export function CoordinatorEvaluators() {
+  const { data, loading, error } = useSupabaseList({ table: 'program_evaluators', page: 1, pageSize: 20 });
+  const { data: profileRows } = useSupabaseList({ table: 'profiles', page: 1, pageSize: 50 });
+  const nameById = new Map((profileRows || []).map(toProfile).map((p) => [p.userId, p.name]));
+  const rows = (data || []).map((e, i) => {
+    const name = nameById.get(e.evaluator_id) || e.evaluator_id || `Evaluator ${i + 1}`;
+    return [
+      <span key={`a-${i}`}><strong>{name}</strong><br /><span className="row-meta">{e.evaluator_id || ''}</span></span>,
+      e.program_id || e.session_id || 'Assigned program',
+      '—',
+      '—',
+      <Status key={`s-${i}`} value={e.status || 'Active'} />,
+    ];
+  });
+  const fallback = [
+    [<span key="a"><strong>Dr. Jayasinghe</strong><br /><span className="row-meta">drj@example.com</span></span>, 'Academic Speaking · Session 06', '18', '12 / 18 submitted', <Status key="s" value="Active" />],
+    [<span key="b"><strong>Ms. Wickramasinghe</strong><br /><span className="row-meta">maya@example.com</span></span>, 'Colombo Youth MUN · WHO', '16', '0 / 16 submitted', <Status key="t" value="Scheduled" />],
+  ];
+  if (loading) return <div><PageHead kicker="Access management" title="Evaluators." desc="Assign resource people to a program or session and track submission progress." action={<Button>Invite evaluator →</Button>} /><SkeletonRows rows={3} /></div>;
+  if (error) return <div><PageHead kicker="Access management" title="Evaluators." desc="Assign resource people to a program or session and track submission progress." action={<Button>Invite evaluator →</Button>} /><div className="notice"><strong>Couldn’t load evaluators.</strong> {error.message}</div></div>;
   return (
     <div>
       <PageHead kicker="Access management" title="Evaluators." desc="Assign resource people to a program or session and track submission progress."
         action={<Button>Invite evaluator →</Button>} />
       <DataTable headers={['Resource person', 'Assignment', 'Students', 'Progress', 'Access']}
-        rows={[
-          [<span key="a"><strong>Dr. Jayasinghe</strong><br /><span className="row-meta">drj@example.com</span></span>, 'Academic Speaking · Session 06', '18', '12 / 18 submitted', <Status key="s" value="Active" />],
-          [<span key="b"><strong>Ms. Wickramasinghe</strong><br /><span className="row-meta">maya@example.com</span></span>, 'Colombo Youth MUN · WHO', '16', '0 / 16 submitted', <Status key="t" value="Scheduled" />],
-        ]} />
+        rows={rows.length > 0 ? rows : fallback} />
     </div>
   );
 }
 
 export function CoordinatorSessions() {
+  const { data, loading, error } = useSupabaseList({ table: 'programs', page: 1, pageSize: 20 });
+  const programs = (data || []).map(toProgram);
+  if (loading) return <div><PageHead kicker="Schedule" title="Sessions / Committees." desc="MUN committees, debate motions, continuous-program sessions." /><SkeletonRows rows={3} /></div>;
+  if (error) return <div><PageHead kicker="Schedule" title="Sessions / Committees." desc="MUN committees, debate motions, continuous-program sessions." /><div className="notice"><strong>Couldn’t load sessions.</strong> {error.message}</div></div>;
   return (
     <div>
       <PageHead kicker="Schedule" title="Sessions / Committees." desc="MUN committees, debate motions, continuous-program sessions." />
       <Panel title="Sessions" action={<span className="tag">Open the program workspace for per-program tabs</span>}>
         <div className="flat-list">
-          {mockPrograms.map((p) => (
+          {programs.map((p) => (
             <div key={p.id} className="list-row compact">
               <div className="row-meta">{p.date}</div>
               <div className="row-main"><h3>{p.title}</h3><p>{p.meta}</p></div>
               <Link to={`/coordinator/programs/${p.id}/sessions`} className="button secondary small">Open</Link>
             </div>
           ))}
+          {programs.length === 0 && <p style={{ color: 'var(--muted)' }}>No programs yet.</p>}
         </div>
       </Panel>
     </div>
@@ -361,6 +569,8 @@ export function CoordinatorSessions() {
 
 /* ---------- Coordinator performance + insights + profile ---------- */
 export function CoordinatorPerformance() {
+  const { data: evalRows } = useSupabaseList({ table: 'evaluations', filters: { released: true }, page: 1, pageSize: 5 });
+  const releasedCount = (evalRows || []).length;
   return (
     <div>
       <PageHead kicker="Performance" title="Cohort progress." desc="Filter the evidence by skill, period and session. Insights below are based only on released evaluations." />
@@ -380,7 +590,7 @@ export function CoordinatorPerformance() {
             <InsightList items={[
               { label: 'Strongest', text: 'Audience Addressing leads at a VG median.', small: 'Cohort 03 · 3 sessions' },
               { label: 'Next focus', text: 'Counter Arguments trails at a G median.', small: 'Matches pilot recommendations' },
-              { label: 'Coverage', text: '32 of 40 students have enough data for trends.', small: 'Min 3 evaluations' },
+              { label: 'Coverage', text: releasedCount > 0 ? `${releasedCount} released evaluations in scope.` : '32 of 40 students have enough data for trends.', small: 'Min 3 evaluations' },
             ]} />
           </div>
         </section>
@@ -404,15 +614,19 @@ export function CoordinatorInsights() {
 }
 
 export function CoordinatorProfile() {
+  const { session } = useAuth();
+  const fullName = session?.name || 'Ms. Perera';
+  const email = session?.email || 'perera@college.edu';
+  const status = session?.status || 'Approved';
   return (
     <div>
       <PageHead kicker="Account" title="Your profile." desc="Institutional profile. Approval by admin; cannot self-approve." action={<Button>Save changes</Button>} />
       <section className="panel">
-        <div className="panel-head"><h2>Coordinator details</h2><Status value="Approved" /></div>
+        <div className="panel-head"><h2>Coordinator details</h2><Status value={status} /></div>
         <div className="panel-body form-grid">
-          <div className="field"><label>Full name<input defaultValue="Ms. Perera" /></label></div>
+          <div className="field"><label>Full name<input defaultValue={fullName} /></label></div>
           <div className="field"><label>Institute<input defaultValue="Royal College, Colombo" /></label></div>
-          <div className="field"><label>Email<input defaultValue="perera@college.edu" type="email" /></label></div>
+          <div className="field"><label>Email<input defaultValue={email} type="email" /></label></div>
           <div className="field"><label>Roles<input defaultValue="Coordinator, Evaluator" disabled /></label></div>
         </div>
       </section>

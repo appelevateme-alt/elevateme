@@ -1,0 +1,72 @@
+# ElevateMe — Admin bootstrap (fresh Supabase project, email confirmation ON)
+
+> Replace the placeholder `admin@diplomaticimpact.org` below with the real
+> admin email before running anything.
+
+## 1. Run the migrations in order
+
+In the Supabase dashboard open **SQL editor → New query**, paste one file at a
+time, press **Run**, and wait for success before the next:
+
+1. `supabase/migrations/001_core.sql` — institutes, profiles, parent_links, programs, sessions
+2. `supabase/migrations/002_participation.sql` — registrations, evaluations (+scores, templates), recommendations, announcements, message threads/replies, evaluator assignments, audit log
+3. `supabase/migrations/003_rls.sql` — RLS + role policies
+4. `supabase/migrations/004_logic.sql` — signup trigger, ElevateMe-ID trigger, counter trigger, guards, RPCs
+
+Each file is idempotent (`IF NOT EXISTS` / `DROP … IF EXISTS` / `CREATE OR REPLACE`).
+
+## 2. Run the seed
+
+New query → paste `supabase/seed.sql` → **Run**. Safe to re-run. This inserts
+the 3 institutes, 5 user placeholder profiles + 6 roster students, 4 programs,
+3 sessions, assignments, registrations, evaluations, recommendations,
+announcements, threads + reply, audit rows, and the active `v1` rubric.
+
+## 3. Sign up the admin through the app
+
+1. Open the Vite app sign-up page and register with the admin email
+   (`admin@diplomaticimpact.org` or your replacement).
+2. **Confirm via the email link first** (confirmation is ON — the account cannot
+   sign in until verified).
+3. Sign in once. The `handle_new_user` trigger adopts the seeded placeholder
+   profile row (matched by email) and re-keys it to the real `auth.users` id,
+   so all seeded FK rows follow automatically. The account lands in
+   `PendingReview` and sees the pending-approval screen.
+
+## 4. Promote that account to admin
+
+New query → paste the block below (**with the email replaced**) → **Run**.
+It flips the profile to `Approved` with the `admin` role. No ElevateMe ID is
+assigned (students only — the trigger skips non-students automatically).
+
+```sql
+-- Replace the email, then run:
+UPDATE public.profiles
+SET status      = 'Approved',
+    roles       = '{admin}',
+    active_role = 'admin',
+    updated_at  = now()
+WHERE email = 'admin@diplomaticimpact.org';
+
+-- Verify (expect 1 row: Approved | {admin} | admin | elevate_me_id NULL):
+SELECT email, status, roles, active_role, elevate_me_id
+FROM public.profiles
+WHERE email = 'admin@diplomaticimpact.org';
+```
+
+## 5. Sanity checks
+
+```sql
+SELECT slug, status, registered FROM public.programs ORDER BY slug;
+SELECT slug, state, released FROM public.evaluations ORDER BY slug;
+SELECT count(*) AS score_rows_for_e1
+FROM public.evaluation_scores
+WHERE evaluation_id = (SELECT id FROM public.evaluations WHERE slug = 'e-1');
+-- expect 6
+SELECT version, is_active FROM public.evaluation_templates;
+SELECT status, count(*) FROM public.profiles GROUP BY status;
+```
+
+Sign out/in as the admin in the app — the admin shell and approval queue
+should now be reachable. Repeat steps 3–4 (with `coordinator`/`evaluator`
+roles as needed) for the other seed users.
