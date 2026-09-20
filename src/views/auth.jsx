@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, ErrorSummary, PageHead, Progress } from '../components/ui.jsx';
 import { roleHome, useAuth } from '../lib/auth.jsx';
-import { supabase } from '../lib/supabaseClient.js';
+import { SITE_URL, isSupabaseConfigured, supabase } from '../lib/supabaseClient.js';
 
 // Shared public header for auth pages.
 function AuthHead({ children }) {
@@ -190,8 +190,14 @@ export function SignUp() {
   };
 
   const createAuthAccount = async () => {
+    if (!isSupabaseConfigured) {
+      throw new Error(
+        'Backend is not connected (missing Supabase configuration). Stop the dev server, make sure .env exists, then run npm run dev again.',
+      );
+    }
     const cleanEmail = draft.email.trim();
-    const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/check-email?email=${encodeURIComponent(cleanEmail)}` : undefined;
+    // TEMPORARY-DEPLOY-URL: SITE_URL overrides window.location.origin.
+    const redirectTo = `${SITE_URL || (typeof window !== 'undefined' ? window.location.origin : '')}/check-email?email=${encodeURIComponent(cleanEmail)}`;
     const { data, error: signError } = await supabase.auth.signUp({
       email: cleanEmail,
       password,
@@ -461,7 +467,8 @@ export function ForgotPassword() {
     }
     setBusy(true);
     try {
-      const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : undefined;
+      // TEMPORARY-DEPLOY-URL: SITE_URL overrides window.location.origin.
+      const redirectTo = `${SITE_URL || (typeof window !== 'undefined' ? window.location.origin : '')}/reset-password`;
       await supabase.auth.resetPasswordForEmail(clean, redirectTo ? { redirectTo } : undefined);
       setSent(true);
     } catch {

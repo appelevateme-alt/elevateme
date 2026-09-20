@@ -28,16 +28,15 @@ CREATE TABLE IF NOT EXISTS public.institutes (
 );
 
 -- ----------------------------------------------------------------------------
--- Profiles: one row per auth user. id is BOTH the PK and the FK to auth.users.
--- Seeded placeholder rows (supabase/seed.sql) carry deterministic UUIDs; when
--- the real person signs up, handle_new_user() in 004_logic.sql re-keys the
--- placeholder row to the real auth.users id (all FKs below are ON UPDATE
--- CASCADE so dependent rows follow the id change).
--- Users may UPDATE their own contact fields only; status / roles /
--- elevate_me_id are admin-only (RLS policy in 003 + guard trigger in 004).
+-- Profiles: one row per auth user. id is the PK and normally equals the
+-- auth.users id (adopted at signup by handle_new_user()). There is
+-- deliberately NO foreign key to auth.users: seed placeholder rows must be
+-- able to exist before their person signs up (verified live 2026-09-20 —
+-- the FK made every seed insert fail silently). Linkage is maintained by
+-- adopt-by-email in the trigger; never invent FK UUIDs in app code.
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.profiles (
-  id            uuid  PRIMARY KEY REFERENCES auth.users (id) ON DELETE CASCADE ON UPDATE CASCADE,
+  id            uuid  PRIMARY KEY,
   email         text  UNIQUE NOT NULL,
   full_name     text  NOT NULL DEFAULT '',
   elevate_me_id text  UNIQUE, -- e.g. 'EM-00124' (EM- + 5 zero-padded digits); students only

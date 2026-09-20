@@ -1,5 +1,13 @@
 # ElevateMe — Admin bootstrap (fresh Supabase project, email confirmation ON)
 
+> **STATUS 2026-09-20: database is LIVE.** All 4 migrations + seed were executed
+> against the project via the Management API and verified (15 tables, 52 RLS
+> policies, all triggers/RPCs, full seed: 4 programs, 11 profiles, e-1 total
+> 61). Do NOT re-run sections 1–2 unless rebuilding from scratch.
+> Note: `profiles.id` has no FK to `auth.users` (placeholder rows must exist
+> before signup — see `001_core.sql`); the query API silently skips failing
+> statements, so any future re-seed must be verified with row counts.
+
 > **TEMPORARY (remove when told):** until the bootstrap option is removed from
 > sign-up, admins self-register via **Create account → Administrator (temporary
 > bootstrap)** and are activated immediately after email confirmation. Steps 3–4
