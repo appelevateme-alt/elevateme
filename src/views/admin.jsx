@@ -3,14 +3,15 @@ import { Link } from 'react-router-dom';
 import { Button, DataTable, Empty, Metrics, PageHead, Panel, SkeletonRows, Status, Tag } from '../components/ui.jsx';
 import { ChartSummary, InsightList } from '../components/domain.jsx';
 import { useSupabaseList, useSupabaseMutation } from '../lib/useSupabase.js';
+import { supabase } from '../lib/supabaseClient.js';
 import { toAnnouncement, toProfile, toProgram, toRecommendation, toThread } from '../lib/adapters.js';
 
 /* ---------- Platform overview (Supabase-backed counts) ---------- */
 export function AdminOverview() {
   const { count: pendingPrograms } = useSupabaseList({ table: 'programs', filters: { status: 'UnderReview' }, page: 1, pageSize: 1 });
-  const { count: pendingUsers } = useSupabaseList({ table: 'profiles', filters: { status: 'Pending' }, page: 1, pageSize: 1 });
+  const { count: pendingUsers } = useSupabaseList({ table: 'profiles', filters: { status: 'PendingReview' }, page: 1, pageSize: 1 });
   const { count: activePrograms } = useSupabaseList({ table: 'programs', filters: { status: 'Published' }, page: 1, pageSize: 1 });
-  const { count: studentCount } = useSupabaseList({ table: 'profiles', filters: { role: 'student' }, page: 1, pageSize: 1 });
+  const { count: studentCount } = useSupabaseList({ table: 'profiles', contains: { col: 'roles', values: ['student'] }, page: 1, pageSize: 1 });
   const { count: awaitingRelease } = useSupabaseList({ table: 'evaluations', filters: { released: false }, page: 1, pageSize: 1 });
   const pendingTotal = (pendingPrograms ?? 3) + (pendingUsers ?? 4);
 
@@ -57,57 +58,43 @@ export function AdminApprovals() {
   const [statusFilter, setStatusFilter] = useState('Pending review');
 
   const { data: progRows, refetch: refetchProgs } = useSupabaseList({ table: 'programs', filters: { status: 'UnderReview' }, page: 1, pageSize: 10 });
-  const { data: userRows, refetch: refetchUsers } = useSupabaseList({ table: 'profiles', filters: { status: 'Pending' }, page: 1, pageSize: 10 });
+  const { data: userRows, refetch: refetchUsers } = useSupabaseList({ table: 'profiles', filters: { status: 'PendingReview' }, page: 1, pageSize: 10 });
   const { data: evalRows, refetch: refetchEvals } = useSupabaseList({ table: 'evaluations', filters: { released: false }, page: 1, pageSize: 10 });
-  const { create: logAudit } = useSupabaseMutation({ table: 'audit_log' });
-  const { update: updateProgram } = useSupabaseMutation({ table: 'programs' });
-  const { update: updateProfile } = useSupabaseMutation({ table: 'profiles' });
-  const { update: updateEval } = useSupabaseMutation({ table: 'evaluations' });
 
   const programs = (progRows || []).map(toProgram);
   const users = (userRows || []).map(toProfile);
 
-  const audit = async (action, entity) => {
-    try {
-      const res = await logAudit({ actor: 'admin', action, entity });
-      if (res?.error) throw new Error(res.error.message);
-    } catch { /* audit is best-effort */ }
-  };
-
-  const decideProgram = async (id, label, title) => {
+  // All decisions go through the audited RPCs (approve_program,
+  // decide_profile, release_evaluations) — never direct updates — so every
+  // outcome is state-checked server-side and written to audit_log.
+  const decideProgram = async (id, label) => {
     if ((label === 'Request changes' || label === 'Reject') && !note.trim()) {
       setToast('A note is required for Request changes and Reject.');
       return;
     }
     try {
-      let res;
-      if (label === 'Approve') res = await updateProgram(id, { status: 'Published' });
-      else if (label === 'Reject') res = await updateProgram(id, { status: 'Rejected' });
-      else res = await updateProgram(id, { status: 'ChangesRequested' });
-      if (res?.error) throw new Error(res.error.message);
-      setDecided((d) => ({ ...d, [id]: label === 'Approve' ? 'Approved' : label === 'Reject' ? 'Rejected' : 'ChangesRequested' }));
+      const decision = label === 'Approve' ? 'Approved' : label === 'Reject' ? 'Rejected' : 'ChangesRequested';
+      const { error } = await supabase.rpc('approve_program', { p_program_id: id, p_decision: decision, p_note: note.trim() || null });
+      if (error) throw new Error(error.message);
+      setDecided((d) => ({ ...d, [id]: decision }));
       setToast(`${label} recorded — audit entry created.`);
-      audit(`${label} program`, title);
       refetchProgs?.();
     } catch (err) {
       setToast(err?.message || 'Could not record decision.');
     }
   };
 
-  const decideUser = async (id, label, name) => {
+  const decideUser = async (id, label) => {
     if ((label === 'Request changes' || label === 'Reject') && !note.trim()) {
       setToast('A note is required for Request changes and Reject.');
       return;
     }
     try {
-      let res;
-      if (label === 'Approve') res = await updateProfile(id, { status: 'Approved' });
-      else if (label === 'Reject') res = await updateProfile(id, { status: 'Rejected' });
-      else res = await updateProfile(id, { status: 'ChangesRequested' });
-      if (res?.error) throw new Error(res.error.message);
-      setDecided((d) => ({ ...d, [id]: label === 'Approve' ? 'Approved' : label === 'Reject' ? 'Rejected' : 'ChangesRequested' }));
-      setToast(`${label} recorded — audit entry created.`);
-      audit(`${label} user`, name);
+      const decision = label === 'Approve' ? 'Approved' : label === 'Reject' ? 'Rejected' : 'ChangesRequested';
+      const { error } = await supabase.rpc('decide_profile', { p_profile_id: id, p_decision: decision, p_note: note.trim() || null });
+      if (error) throw new Error(error.message);
+      setDecided((d) => ({ ...d, [id]: decision }));
+      setToast(`${label} recorded — audit entry created.${decision === 'Approved' ? ' ElevateMe ID assigned for students.' : ''}`);
       refetchUsers?.();
     } catch (err) {
       setToast(err?.message || 'Could not record decision.');
@@ -121,14 +108,25 @@ export function AdminApprovals() {
     }
     try {
       if (label === 'Approve') {
-        for (const id of ids) {
-          const res = await updateEval(id, { released: true });
-          if (res?.error) throw new Error(res.error.message);
+        // Release is per session (locks Submitted sheets, stamps released_at).
+        const wanted = new Set(ids || []);
+        const sessionIds = [...new Set((evalRows || [])
+          .filter((e) => wanted.size === 0 || wanted.has(e.id))
+          .map((e) => e.session_id)
+          .filter(Boolean))];
+        if (sessionIds.length === 0) throw new Error('No sessions to release.');
+        let total = 0;
+        for (const sid of sessionIds) {
+          const { data, error } = await supabase.rpc('release_evaluations', { p_session_id: sid });
+          if (error) throw new Error(error.message);
+          total += data || 0;
         }
+        setDecided((d) => ({ ...d, release: 'Approved' }));
+        setToast(`Released ${total} evaluation${total === 1 ? '' : 's'} — audit entry created.`);
+      } else {
+        setDecided((d) => ({ ...d, release: 'ChangesRequested' }));
+        setToast('Request changes recorded.');
       }
-      setDecided((d) => ({ ...d, release: label === 'Approve' ? 'Approved' : 'ChangesRequested' }));
-      setToast(`${label} recorded — audit entry created.`);
-      audit(`${label} release`, 'Session results');
       refetchEvals?.();
     } catch (err) {
       setToast(err?.message || 'Could not record decision.');
@@ -145,10 +143,10 @@ export function AdminApprovals() {
     'Coordinator',
     p.institute,
     <Status key={`s-${p.id}`} value={decided[p.id] || 'Pending review'} />,
-    <span key={`a-${p.id}`} style={{ display: 'flex', gap: 6 }}>
-      <Button small onClick={() => decideProgram(p.id, 'Approve', p.title)}>Approve</Button>
-      <Button small variant="secondary" onClick={() => decideProgram(p.id, 'Request changes', p.title)}>Changes</Button>
-    </span>,
+      <span key={`a-${p.id}`} style={{ display: 'flex', gap: 6 }}>
+        <Button small onClick={() => decideProgram(p.id, 'Approve')}>Approve</Button>
+        <Button small variant="secondary" onClick={() => decideProgram(p.id, 'Request changes')}>Changes</Button>
+      </span>,
   ])) : [];
   const userItems = showUsers ? users.map((u, i) => {
     const uid = u.userId || u.id;
@@ -159,8 +157,8 @@ export function AdminApprovals() {
       '—',
       <Status key={`us-${uid || i}`} value={decided[uid] || u.status || 'Pending review'} />,
       <span key={`ua-${uid || i}`} style={{ display: 'flex', gap: 6 }}>
-        <Button small onClick={() => decideUser(uid, 'Approve', u.name)}>Approve</Button>
-        <Button small variant="secondary" onClick={() => decideUser(uid, 'Request changes', u.name)}>Changes</Button>
+        <Button small onClick={() => decideUser(uid, 'Approve')}>Approve</Button>
+        <Button small variant="secondary" onClick={() => decideUser(uid, 'Request changes')}>Changes</Button>
       </span>,
     ]);
   }) : [];
@@ -299,30 +297,35 @@ export function AdminInstitutes() {
   );
 }
 
-/* ---------- Evaluations (Supabase-backed release) ---------- */
+/* ---------- Evaluations (Supabase-backed release via audited RPC) ---------- */
 export function AdminEvaluations() {
   const { data: awaitingRows, loading, error, refetch } = useSupabaseList({ table: 'evaluations', filters: { released: false }, page: 1, pageSize: 20 });
   const { data: releasedRows } = useSupabaseList({ table: 'evaluations', filters: { released: true }, page: 1, pageSize: 5 });
-  const { update, saving } = useSupabaseMutation({ table: 'evaluations' });
-  const { create: logAudit } = useSupabaseMutation({ table: 'audit_log' });
   const [released, setReleased] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [releaseError, setReleaseError] = useState('');
   const awaiting = awaitingRows || [];
   const releasedCount = (releasedRows || []).length;
 
   const releaseAll = async () => {
+    setReleaseError('');
+    setBusy(true);
     try {
-      for (const e of awaiting) {
-        const res = await update(e.id, { released: true });
-        if (res?.error) throw new Error(res.error.message);
+      // Per session: locks Submitted sheets, stamps released_at, audits.
+      const sessionIds = [...new Set(awaiting.map((e) => e.session_id).filter(Boolean))];
+      if (sessionIds.length === 0) throw new Error('No sessions to release.');
+      let total = 0;
+      for (const sid of sessionIds) {
+        const { data, error: rpcError } = await supabase.rpc('release_evaluations', { p_session_id: sid });
+        if (rpcError) throw new Error(rpcError.message);
+        total += data || 0;
       }
       setReleased(true);
-      try {
-        const ares = await logAudit({ actor: 'admin', action: 'Released evaluation', entity: 'Session results' });
-        if (ares?.error) throw new Error(ares.error.message);
-      } catch { /* best-effort */ }
       refetch?.();
-    } catch {
-      /* error shown via list error on refetch; keep prototype notice hidden until success */
+    } catch (err) {
+      setReleaseError(err?.message || 'Could not release evaluations.');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -341,10 +344,11 @@ export function AdminEvaluations() {
             <Status key="s" value={released || awaiting.length === 0 ? 'Released' : 'Ready to release'} />,
             released || awaiting.length === 0
               ? <Button key="b" variant="secondary" small>View</Button>
-              : <Button key="b" small disabled={saving} onClick={releaseAll}>{saving ? 'Releasing…' : 'Release'}</Button>],
+              : <Button key="b" small disabled={busy} onClick={releaseAll}>{busy ? 'Releasing…' : 'Release'}</Button>],
           [<span key="c"><strong>Friendly Debate</strong><br />Session 02</span>, 'Ms. Wickramasinghe', String(releasedCount || 32), '12 Sep',
             <Status key="t" value="Released" />, <Button key="d" variant="secondary" small>View</Button>],
         ]} />
+      {releaseError && <p role="alert" className="field-error" style={{ marginTop: 12 }}>{releaseError}</p>}
       {released && <div className="notice" style={{ marginTop: 18 }}><strong>{awaiting.length} results released.</strong> Students and linked parents can now see them. Audit entry created.</div>}
     </div>
   );

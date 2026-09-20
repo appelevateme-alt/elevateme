@@ -143,6 +143,10 @@ export function RequireRole({ allow, label, children }) {
 
   if (!session) return null;
   if (allow.includes(session.role)) return <>{children}</>;
+  // The user is signed in but opened a workspace they don't belong to (e.g. a
+  // stale ?next= URL after sign-in). Send them to their OWN workspace, never
+  // back to the denied one.
+  const ownHome = roleHome(session.role) || '/';
   const fallback = roleHome(allow[0]) || '/';
   const canSwitch = session.availableRoles?.includes(allow[0]);
   return (
@@ -150,7 +154,7 @@ export function RequireRole({ allow, label, children }) {
       <h2>Permission denied</h2>
       <p>The {label} workspace requires one of: {allow.join(', ')}. You are signed in as {session.role}.</p>
       <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-        <Link to={fallback} className="button secondary">Open {allow[0]} workspace</Link>
+        <Link to={ownHome} className="button secondary">Open {session.role} workspace</Link>
         {canSwitch && <Button onClick={async () => { await switchActiveRole(allow[0]); navigate(fallback); }}>Switch to {allow[0]}</Button>}
       </div>
     </div>

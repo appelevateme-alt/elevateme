@@ -8,6 +8,13 @@
 > helpers — without it, any authenticated profile read 500s and users strand
 > on pending-approval. Do NOT re-run sections 1–2 unless rebuilding
 > from scratch.
+>
+> 2026-09-20 audit fixes: non-admin signups now get roles from metadata
+> (previously roles '{}' + NULL active_role — every student/parent/
+> coordinator/evaluator signup was broken); approval queue + metrics use the
+> real `PendingReview` vocabulary; all decisions (program/user/release/
+> submit/confirm) go through audited RPCs; coordinators can Confirm/Waitlist/
+> Reject registrations (previously stuck Pending forever).
 > Note: `profiles.id` has no FK to `auth.users` (placeholder rows must exist
 > before signup — see `001_core.sql`); the query API silently skips failing
 > statements, so any future re-seed must be verified with row counts.
@@ -41,6 +48,7 @@ time, press **Run**, and wait for success before the next:
 4. `supabase/migrations/004_logic.sql` — signup trigger, ElevateMe-ID trigger, counter trigger, guards, RPCs
 5. `supabase/migrations/005_scoring_rework.sql` — 1000-point model (score 0–100 per criterion)
 6. `supabase/migrations/006_rls_recursion_fix.sql` — SECURITY DEFINER helpers, recursion-free policies (REQUIRED — without it sign-in breaks)
+7. `supabase/migrations/007_signup_roles_audit.sql` — signup trigger reads `requested_role` + persists enrichment; `decide_profile` RPC for audited user approvals
 
 Each file is idempotent (`IF NOT EXISTS` / `DROP … IF EXISTS` / `CREATE OR REPLACE`).
 

@@ -4,6 +4,7 @@ import { Button, DataTable, Empty, Metrics, PageHead, Panel, SkeletonRows, Statu
 import { ScoreInput } from '../components/domain.jsx';
 import { SCORE_GUIDE, TEN_CRITERIA, clampScore, formatTotal, total1000 } from '../lib/scores.js';
 import { useSupabaseList, useSupabaseRecord, useSupabaseMutation, useSupabaseUpsert } from '../lib/useSupabase.js';
+import { supabase } from '../lib/supabaseClient.js';
 import { toProfile, toRegistration, toSession } from '../lib/adapters.js';
 import { useAuth } from '../lib/auth.jsx';
 
@@ -259,7 +260,7 @@ export function PerStudentEvaluate() {
           program_id: programId,
           session_id: assignmentId,
           evaluator_id: authSession?.userId || null,
-          state: 'Locked',
+          state: 'Draft',
           released: false,
           remarks,
         });
@@ -267,10 +268,13 @@ export function PerStudentEvaluate() {
         const row = Array.isArray(cres?.data) ? cres.data[0] : cres?.data;
         id = row?.id || null;
       } else {
-        const ures = await updateEval(id, { state: 'Locked', remarks });
+        const ures = await updateEval(id, { remarks });
         if (ures?.error) throw new Error(ures.error.message);
       }
       if (id) await upsertScores(id);
+      // Audited, state-checked transition (Draft -> Submitted) server-side.
+      const { error: rpcError } = await supabase.rpc('submit_evaluation', { p_evaluation_id: id });
+      if (rpcError) throw new Error(rpcError.message);
       setConfirming(false);
       setDirty(false);
       refetchEvals?.();

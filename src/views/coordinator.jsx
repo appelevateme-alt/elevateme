@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { Button, DataTable, ErrorSummary, Metrics, PageHead, Panel, Progress, SkeletonRows, Status, Tag } from '../components/ui.jsx';
 import { ChartSummary, InsightList, LineChart, Tabs } from '../components/domain.jsx';
 import { useSupabaseList, useSupabaseRecord, useSupabaseMutation } from '../lib/useSupabase.js';
+import { supabase } from '../lib/supabaseClient.js';
 import { toEvaluation, toProfile, toProgram, toRegistration, toSession } from '../lib/adapters.js';
 import { useAuth } from '../lib/auth.jsx';
 
@@ -352,8 +353,25 @@ const WORK_TABS = ['Overview', 'Sessions', 'Students', 'Evaluators', 'Performanc
 function Workspace({ programId, active }) {
   const { data: progRow, loading: progLoading, error: progError } = useSupabaseRecord({ table: 'programs', id: programId });
   const { data: sessionRows, loading: sessLoading, error: sessError } = useSupabaseList({ table: 'sessions', filters: { program_id: programId }, page: 1, pageSize: 50 });
-  const { data: regRows, loading: regsLoading, error: regsError } = useSupabaseList({ table: 'registrations', filters: { program_id: programId }, page: 1, pageSize: 50 });
+  const { data: regRows, loading: regsLoading, error: regsError, refetch: refetchRegs } = useSupabaseList({ table: 'registrations', filters: { program_id: programId }, page: 1, pageSize: 50 });
   const { data: evalRows } = useSupabaseList({ table: 'program_evaluators', filters: { program_id: programId }, page: 1, pageSize: 20 });
+  const [deciding, setDeciding] = useState(null);
+  const [decideError, setDecideError] = useState('');
+
+  // Owning-coordinator decision via the audited, capacity-checked RPC.
+  const decideRegistration = async (regId, decision) => {
+    setDecideError('');
+    setDeciding(regId);
+    try {
+      const { error } = await supabase.rpc('confirm_registration', { p_registration_id: regId, p_decision: decision });
+      if (error) throw new Error(error.message);
+      refetchRegs?.();
+    } catch (err) {
+      setDecideError(err?.message || 'Could not record decision.');
+    } finally {
+      setDeciding(null);
+    }
+  };
 
   if (progLoading) return <div><p>Loading…</p><SkeletonRows rows={4} /></div>;
   if (progError) return <div className="notice"><strong>Couldn’t load this program.</strong> {progError.message}</div>;
@@ -388,9 +406,17 @@ function Workspace({ programId, active }) {
         <>
           {regsLoading && <p>Loading…</p>}
           {regsError && <div className="notice"><strong>Couldn’t load students.</strong> {regsError.message}</div>}
+          {decideError && <p role="alert" className="field-error">{decideError}</p>}
           {!regsLoading && !regsError && (
-            <DataTable headers={['Student', 'ElevateMe ID', 'Allocation', 'Registration', 'Evaluation']}
-              rows={roster.map((r) => [r.studentName, r.elevateMeId, r.allocation, <Status key={`${r.id}-s`} value={r.status} />, <Status key={`${r.id}-e`} value={r.evaluationState} />])} />
+            <DataTable headers={['Student', 'ElevateMe ID', 'Allocation', 'Registration', 'Evaluation', '']}
+              rows={roster.map((r) => [r.studentName, r.elevateMeId, r.allocation, <Status key={`${r.id}-s`} value={r.status} />, <Status key={`${r.id}-e`} value={r.evaluationState} />,
+                r.status === 'Pending'
+                  ? <span key={`${r.id}-a`} style={{ display: 'flex', gap: 6 }}>
+                    <Button small disabled={deciding === r.id} onClick={() => decideRegistration(r.id, 'Confirmed')}>Confirm</Button>
+                    <Button small variant="secondary" disabled={deciding === r.id} onClick={() => decideRegistration(r.id, 'Waitlisted')}>Waitlist</Button>
+                    <Button small variant="secondary" disabled={deciding === r.id} onClick={() => decideRegistration(r.id, 'Rejected')}>Reject</Button>
+                  </span>
+                  : <span key={`${r.id}-a`} style={{ color: 'var(--muted)', fontSize: '.82rem' }}>Decided</span>])} />
           )}
         </>
       )}

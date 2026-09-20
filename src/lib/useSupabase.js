@@ -29,6 +29,7 @@ export function useSupabaseList({
   table,
   select = '*',
   filters = {},
+  contains = null,
   search = null,
   order = null,
   page = 1,
@@ -43,6 +44,7 @@ export function useSupabaseList({
   const refetch = useCallback(() => setNonce((n) => n + 1), []);
 
   const filtersKey = JSON.stringify(filters ?? {});
+  const containsKey = JSON.stringify(contains ?? null);
   const searchKey = JSON.stringify(search ?? null);
   const orderKey = JSON.stringify(order ?? null);
 
@@ -79,6 +81,12 @@ export function useSupabaseList({
           } else {
             query = query.eq(col, value);
           }
+        }
+
+        // Array-column contains, e.g. { col: 'roles', values: ['student'] }.
+        const parsedContains = JSON.parse(containsKey);
+        if (parsedContains && parsedContains.col && Array.isArray(parsedContains.values) && parsedContains.values.length > 0) {
+          query = query.contains(parsedContains.col, parsedContains.values);
         }
 
         const parsedSearch = JSON.parse(searchKey);
@@ -120,7 +128,7 @@ export function useSupabaseList({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table, select, filtersKey, searchKey, orderKey, page, pageSize, nonce]);
+  }, [table, select, filtersKey, containsKey, searchKey, orderKey, page, pageSize, nonce]);
 
   const safeSize = Number.isFinite(Number(pageSize)) && Number(pageSize) >= 1 ? Math.floor(Number(pageSize)) : 6;
   const safeCount = Number.isFinite(Number(count)) && Number(count) >= 0 ? Number(count) : 0;

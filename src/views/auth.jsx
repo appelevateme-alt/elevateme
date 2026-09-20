@@ -31,6 +31,19 @@ function statusRoute(status, activeRole) {
   return roleHome(activeRole) || '/';
 }
 
+// A stale ?next= (e.g. /student kept from before sign-out) must not drop a
+// user into a workspace they don't belong to. Only honour it when it is
+// their own workspace home (or a non-workspace page); otherwise go home.
+const WORKSPACE_PREFIXES = ['/student', '/parent', '/coordinator', '/evaluator', '/admin'];
+function safeHomeNext(next, activeRole) {
+  const home = roleHome(activeRole) || '/';
+  if (!next) return home;
+  if (WORKSPACE_PREFIXES.some((p) => next === p || next.startsWith(`${p}/`))) {
+    return next === home || next.startsWith(`${home}/`) ? next : home;
+  }
+  return next;
+}
+
 export function SignIn() {
   const { session, loading } = useAuth();
   const navigate = useNavigate();
@@ -46,7 +59,7 @@ export function SignIn() {
   useEffect(() => {
     if (loading || !session) return;
     if (session.status === 'Approved') {
-      navigate(next || roleHome(session.role) || '/', { replace: true });
+      navigate(safeHomeNext(next, session.role), { replace: true });
     } else {
       navigate(statusRoute(session.status, session.role), { replace: true });
     }
@@ -83,7 +96,7 @@ export function SignIn() {
       }
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('status,active_role')
+        .select('status,active_role,institute,dob,phone,referee')
         .eq('id', user.id)
         .single();
       if (profileError || !profile) {
@@ -94,7 +107,21 @@ export function SignIn() {
         navigate(statusRoute(profile.status, profile.active_role));
         return;
       }
-      navigate(next || roleHome(profile.active_role) || '/');
+      // Safety net: if the signup trigger missed enrichment (older accounts),
+      // fill blanks from signup metadata now that we are authenticated. Only
+      // unprotected columns, only empty targets — never overwrites.
+      try {
+        const meta = user.user_metadata || {};
+        const patch = {};
+        if (!profile.institute && meta.institute) patch.institute = meta.institute;
+        if (!profile.dob && meta.dob) patch.dob = meta.dob;
+        if (!profile.phone && meta.phone) patch.phone = meta.phone;
+        if (!profile.referee && meta.referee) patch.referee = meta.referee;
+        if (Object.keys(patch).length > 0) {
+          await supabase.from('profiles').update(patch).eq('id', user.id);
+        }
+      } catch { /* enrichment is best-effort */ }
+      navigate(safeHomeNext(next, profile.active_role));
     } finally {
       setBusy(false);
     }
@@ -196,7 +223,15 @@ export function SignUp() {
       );
     }
     const cleanEmail = draft.email.trim();
-    // TEMPORARY-DEPLOY-URL: SITE_URL overrides window.location.origin.
+    // The signup trigger (handle_new_user) builds the profile from metadata:
+    // `roles[]` is the role source it reads, `requested_role` drives the
+    // admin-bootstrap branch, and enrichment is persisted server-side so the
+    // row is complete even though there is no session yet (email confirm ON).
+    const enrichment = {};
+    if (draft.institute.trim()) enrichment.institute = draft.institute.trim();
+    if (draft.dob) enrichment.dob = draft.dob;
+    if (draft.phone.trim()) enrichment.phone = draft.phone.trim();
+    if (draft.referee.trim()) enrichment.referee = draft.referee.trim();
     const redirectTo = `${SITE_URL || (typeof window !== 'undefined' ? window.location.origin : '')}/check-email?email=${encodeURIComponent(cleanEmail)}`;
     const { data, error: signError } = await supabase.auth.signUp({
       email: cleanEmail,
@@ -204,7 +239,9 @@ export function SignUp() {
       options: {
         // TEMPORARY-BOOTSTRAP: requested_role=admin lets the signup trigger
         // activate the account immediately. Remove with the admin option.
-        data: { full_name: draft.fullName.trim(), requested_role: draft.role },
+        // `roles[]` is what the trigger reads for every other role; the
+        // enrichment fields are persisted server-side by the same trigger.
+        data: { full_name: draft.fullName.trim(), roles: [draft.role], requested_role: draft.role, ...enrichment },
         ...(redirectTo ? { emailRedirectTo: redirectTo } : {}),
       },
     });
@@ -275,23 +312,25 @@ export function SignUp() {
           dob: draft.dob || null,
           phone: draft.phone.trim() || null,
           referee: draft.referee.trim() || null,
-          // TEMPORARY-BOOTSTRAP: admin self-registration activates immediately
-          // (matches the signup-trigger exception). Remove when told to.
-          status: draft.role === 'admin' ? 'Approved' : 'PendingReview',
-          active_role: draft.role,
-          roles: [draft.role],
+          // NOTE: status/roles/active_role are intentionally NOT written here.
+          // The signup trigger owns them (roles come from signup metadata);
+          // writing them client-side would trip the protected-column guard.
+          // TEMPORARY-BOOTSTRAP: admin row is created Approved by the trigger.
         },
         { onConflict: 'id' },
       );
       if (upsertError) {
-        // TEMPORARY-BOOTSTRAP: with email confirmation ON there is no session
-        // yet, so RLS denies this upsert — but the signup trigger already
-        // created the Approved admin profile. Proceed for admin; other roles
-        // must confirm their email first. Remove with the admin option.
-        if (draft.role !== 'admin') {
-          setSubmitErrors([upsertError.message || 'Could not save your profile. Try again.']);
-          return;
-        }
+        // With email confirmation ON there is no session yet, so RLS denies
+        // this upsert — but the signup trigger already created the full
+        // profile from metadata. Only fail when a session exists (then the
+        // write should have worked) — otherwise proceed to the status screen.
+        try {
+          const { data: sess } = await supabase.auth.getSession();
+          if (sess?.session) {
+            setSubmitErrors([upsertError.message || 'Could not save your profile. Try again.']);
+            return;
+          }
+        } catch { /* fall through: trigger owns the row */ }
       }
       try {
         sessionStorage.removeItem(DRAFT_KEY);
