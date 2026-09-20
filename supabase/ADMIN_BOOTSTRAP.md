@@ -1,7 +1,22 @@
 # ElevateMe — Admin bootstrap (fresh Supabase project, email confirmation ON)
 
-> Replace the placeholder `admin@diplomaticimpact.org` below with the real
-> admin email before running anything.
+> **TEMPORARY (remove when told):** until the bootstrap option is removed from
+> sign-up, admins self-register via **Create account → Administrator (temporary
+> bootstrap)** and are activated immediately after email confirmation. Steps 3–4
+> below remain as the permanent (non-bootstrap) path. Removal checklist:
+> 1. `src/views/auth.jsx` — delete the `admin` role option + `isAdmin` branches
+>    (marked `TEMPORARY-BOOTSTRAP`).
+> 2. `supabase/migrations/004_logic.sql` — delete the `TEMPORARY-BOOTSTRAP`
+>    block in `handle_new_user()` and re-run that file.
+> 3. This file — delete this notice.
+
+## Fast path (temporary bootstrap, recommended for now)
+
+1. Complete steps 1–2 below (migrations + seed).
+2. Open the app → **Create account** → choose **Administrator (temporary
+   bootstrap)** → complete the 5 steps.
+3. Confirm via the email link, then **sign in** — you land straight in the
+   admin workspace. No manual SQL promotion needed.
 
 ## 1. Run the migrations in order
 

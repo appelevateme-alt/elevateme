@@ -196,7 +196,9 @@ export function SignUp() {
       email: cleanEmail,
       password,
       options: {
-        data: { full_name: draft.fullName.trim() },
+        // TEMPORARY-BOOTSTRAP: requested_role=admin lets the signup trigger
+        // activate the account immediately. Remove with the admin option.
+        data: { full_name: draft.fullName.trim(), requested_role: draft.role },
         ...(redirectTo ? { emailRedirectTo: redirectTo } : {}),
       },
     });
@@ -267,15 +269,23 @@ export function SignUp() {
           dob: draft.dob || null,
           phone: draft.phone.trim() || null,
           referee: draft.referee.trim() || null,
-          status: 'PendingReview',
+          // TEMPORARY-BOOTSTRAP: admin self-registration activates immediately
+          // (matches the signup-trigger exception). Remove when told to.
+          status: draft.role === 'admin' ? 'Approved' : 'PendingReview',
           active_role: draft.role,
           roles: [draft.role],
         },
         { onConflict: 'id' },
       );
       if (upsertError) {
-        setSubmitErrors([upsertError.message || 'Could not save your profile. Try again.']);
-        return;
+        // TEMPORARY-BOOTSTRAP: with email confirmation ON there is no session
+        // yet, so RLS denies this upsert — but the signup trigger already
+        // created the Approved admin profile. Proceed for admin; other roles
+        // must confirm their email first. Remove with the admin option.
+        if (draft.role !== 'admin') {
+          setSubmitErrors([upsertError.message || 'Could not save your profile. Try again.']);
+          return;
+        }
       }
       try {
         sessionStorage.removeItem(DRAFT_KEY);
@@ -290,19 +300,32 @@ export function SignUp() {
   };
 
   if (done) {
+    // TEMPORARY-BOOTSTRAP: admin accounts activate immediately; remove branch.
+    const isAdmin = draft.role === 'admin';
     return (
       <AuthHead>
-        <PageHead kicker="Account created" title="Pending approval." desc="Your account is awaiting email verification and role approval." />
+        <PageHead
+          kicker={isAdmin ? 'Account active' : 'Account created'}
+          title={isAdmin ? 'You are an administrator.' : 'Pending approval.'}
+          desc={isAdmin
+            ? 'Confirm your email, then sign in to open the admin workspace.'
+            : 'Your account is awaiting email verification and role approval.'}
+        />
         <div className="notice" style={{ marginBottom: 22 }}>
-          <strong>What happens next.</strong> Verify your email, then a Diplomatic Impact administrator reviews {draft.role} access.
-          You will be notified when your account is approved. Students receive an ElevateMe ID at that point.
+          <strong>What happens next.</strong>{' '}
+          {isAdmin
+            ? 'We sent a confirmation link to your email. Confirm it, then sign in — no further approval is needed during bootstrap.'
+            : <>Verify your email, then a Diplomatic Impact administrator reviews {draft.role} access. You will be notified when your account is approved. Students receive an ElevateMe ID at that point.</>}
         </div>
         <div className="notice" style={{ marginBottom: 22 }}>
-          <strong>Check your inbox.</strong> We sent a confirmation link to {draft.email || 'your email'}. Confirm it, then track progress on the pending approval page.
+          <strong>Check your inbox.</strong> We sent a confirmation link to {draft.email || 'your email'}.{' '}
+          {isAdmin ? 'Confirm it, then sign in.' : 'Confirm it, then track progress on the pending approval page.'}
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <Link to={`/check-email?email=${encodeURIComponent(draft.email.trim())}`} className="button">Verify email steps</Link>
-          <Link to="/pending-approval" className="button secondary">Continue to status</Link>
+          {isAdmin
+            ? <Link to="/sign-in" className="button secondary">Go to sign in</Link>
+            : <Link to="/pending-approval" className="button secondary">Continue to status</Link>}
           <Button variant="secondary" onClick={() => { try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ } setDraft(EMPTY); setPassword(''); setStep(1); setDone(false); setAuthUserId(null); }}>Start over</Button>
         </div>
       </AuthHead>
@@ -323,13 +346,23 @@ export function SignUp() {
         <div className="panel-head"><h2>{STEPS[step - 1]}</h2><span className="tag">Step {step} of {STEPS.length}</span></div>
         <div className="panel-body">
           {step === 1 && (
-            <div className="field"><label> Choose your role
-              <select value={draft.role} onChange={(e) => set('role', e.target.value)}>
-                <option value="student">Student</option>
-                <option value="coordinator">Teacher / programme coordinator</option>
-                <option value="parent">Parent or guardian (via invitation)</option>
-              </select></label>
-            </div>
+            <>
+              <div className="field"><label> Choose your role
+                <select value={draft.role} onChange={(e) => set('role', e.target.value)}>
+                  <option value="student">Student</option>
+                  <option value="coordinator">Teacher / programme coordinator</option>
+                  <option value="parent">Parent or guardian (via invitation)</option>
+                  {/* TEMPORARY-BOOTSTRAP: remove this option when the user says so. */}
+                  <option value="admin">Administrator (temporary bootstrap)</option>
+                </select></label>
+              </div>
+              {draft.role === 'admin' && (
+                <div className="notice" style={{ marginTop: 14 }}>
+                  <strong>Temporary bootstrap.</strong> Administrator self-registration is enabled only until the first
+                  admin team is in place. Admin accounts are activated immediately — this option will be removed.
+                </div>
+              )}
+            </>
           )}
           {step === 2 && (
             <div className="form-grid">

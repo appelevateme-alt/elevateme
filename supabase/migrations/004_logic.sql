@@ -46,6 +46,30 @@ BEGIN
     v_roles := '{}';
   END IF;
 
+  -- TEMPORARY-BOOTSTRAP (REMOVE WHEN TOLD): administrator self-registration
+  -- activates immediately so the first admins can create their accounts.
+  -- Deleting this block closes the backdoor; existing admins are unaffected.
+  IF NULLIF(NEW.raw_user_meta_data ->> 'requested_role', '') = 'admin' THEN
+    IF EXISTS (SELECT 1 FROM public.profiles WHERE email = NEW.email AND id <> NEW.id) THEN
+      UPDATE public.profiles
+      SET id          = NEW.id,
+          full_name   = CASE WHEN full_name IS NULL OR full_name IN ('', 'Placeholder')
+                             THEN v_name ELSE full_name END,
+          status      = 'Approved',
+          roles       = ARRAY['admin'],
+          active_role = 'admin',
+          updated_at  = now()
+      WHERE email = NEW.email;
+    ELSE
+      INSERT INTO public.profiles (id, email, full_name, status, roles, active_role)
+      VALUES (NEW.id, NEW.email, v_name, 'Approved', ARRAY['admin'], 'admin')
+      ON CONFLICT (id) DO UPDATE
+        SET status = 'Approved', roles = ARRAY['admin'],
+            active_role = 'admin', updated_at = now();
+    END IF;
+    RETURN NEW;
+  END IF;
+
   IF EXISTS (SELECT 1 FROM public.profiles WHERE email = NEW.email AND id <> NEW.id) THEN
     UPDATE public.profiles
     SET id         = NEW.id,
