@@ -7,7 +7,8 @@
 --   registrations.status: Pending | Confirmed | Waitlisted | Rejected | Cancelled
 --   registrations.evaluation_state: NotStarted | Pending | Submitted (default NotStarted)
 --   evaluations.state: Draft | Submitted | Locked
---   evaluation_scores.level: L | G | VG | E  (SCORE_MAP: L+0 G+1 VG+2 E+3, baseline 50)
+--   evaluation_scores.score: numeric 0-100 per criterion (1000-point model:
+--   10 criteria x 0-100 = total/1000, final = total/10 out of 100)
 --   recommendations.priority: 'High priority' | 'In progress' | 'Complete' (exact mock strings)
 --   recommendations.status: New | Viewed | Completed
 --   announcements.status: Draft | Scheduled | Published
@@ -75,14 +76,14 @@ CREATE INDEX IF NOT EXISTS evaluations_evaluator_id_idx ON public.evaluations (e
 
 -- ----------------------------------------------------------------------------
 -- One row per criterion per evaluation. criterion_key uses TEN_CRITERIA keys
--- from mock-data.js (preparation, clarity, confidence, focus, ...).
--- points stores the SCORE_MAP add-on (L=0, G=1, VG=2, E=3); total = 50 + sum.
+-- from src/lib/scores.js (preparation, clarity, confidence, focus, ...).
+-- score is 0-100 per criterion; sheet total = sum (0-1000);
+-- final score = total / 10 (0-100).
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.evaluation_scores (
   evaluation_id uuid NOT NULL REFERENCES public.evaluations (id) ON DELETE CASCADE ON UPDATE CASCADE,
   criterion_key text NOT NULL,
-  level         text NOT NULL CHECK (level IN ('L', 'G', 'VG', 'E')),
-  points        int  NOT NULL CHECK (points >= 0),
+  score         numeric(5,2) NOT NULL CHECK (score >= 0 AND score <= 100),
   PRIMARY KEY (evaluation_id, criterion_key)
 );
 

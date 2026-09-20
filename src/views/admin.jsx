@@ -365,7 +365,7 @@ export function AdminReports() {
       </div>
       <div style={{ height: 22 }} />
       <Panel title="Average by criterion" action={<Tag>Released only</Tag>}>
-          <DataTable headers={['Criterion', 'Average level']} rows={[['Preparation', 'VG'], ['Confidence', 'G'], ['Counter Arguments', 'G']]} />
+          <DataTable headers={['Criterion', 'Average / 100']} rows={[['Preparation', '85'], ['Confidence', '79'], ['Counter Arguments', '74']]} />
       </Panel>
     </div>
   );
@@ -378,13 +378,13 @@ export function AdminConfig() {
   return (
     <div>
       <PageHead kicker="Administration" title="Configuration." desc="Program types, criteria, rubrics — all versioned. History keeps its original rubric." />
-      <Panel title={template?.name || 'Evaluation template v1'} action={<Tag>10 criteria · 50+ model</Tag>}>
+      <Panel title={template?.name || 'Evaluation template v1'} action={<Tag>10 criteria · 1000-point sheet</Tag>}>
         <div className="grid two">
           {criteria.map((c) => (
             <div key={c} style={{ border: '1px solid var(--line)', padding: '10px 14px', fontSize: '.88rem' }}><strong>{c}</strong></div>
           ))}
         </div>
-        <p style={{ fontSize: '.82rem', color: 'var(--muted)', marginTop: 12 }}>Scale: L Low (+0) · G Good (+1) · VG Very Good (+2) · E Excellent (+3) — provisional mapping, to confirm.</p>
+        <p style={{ fontSize: '.82rem', color: 'var(--muted)', marginTop: 12 }}>Scale: each criterion 0–100 · sheet total out of 1000 · final score total ÷ 10, out of 100.</p>
       </Panel>
     </div>
   );

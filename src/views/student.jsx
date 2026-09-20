@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Button, Empty, Metrics, PageHead, Panel, SkeletonRows, Status, Tag } from '../components/ui.jsx';
 import { ChartSummary, InsightList, LineChart, ProgramListRow, RecommendationRecord } from '../components/domain.jsx';
-import { LEVEL_HELP, total50 } from '../lib/scores.js';
+import { formatTotal, total1000 } from '../lib/scores.js';
 import { useSupabaseList, useSupabaseRecord, useSupabaseMutation } from '../lib/useSupabase.js';
 import { toAnnouncement, toEvaluation, toProgram, toRecommendation, toRegistration } from '../lib/adapters.js';
 import { useAuth } from '../lib/auth.jsx';
@@ -43,7 +43,7 @@ export function StudentDashboard() {
         action={<Link to="/student/programs" className="button">Find a program →</Link>} />
       <Metrics items={[
         ['ElevateMe ID', elevateMeId, 'Your permanent student ID'],
-        ['Overall total', '72 · 50 + 22', '+6 points this term'],
+        ['Overall total', '800 / 1000 → 80 / 100', '+6 points this term'],
         ['Active programs', activePrograms, '1 upcoming session'],
         ['Recommendations', recLabel, highPriority > 0 ? `${highPriority} marked high priority` : '1 marked high priority'],
       ]} />
@@ -165,21 +165,23 @@ export function StudentPerformance() {
   const evalIds = new Set(evals.map((e) => e.id));
   const myScores = (scoreRows || []).filter((s) => evalIds.has(s.evaluation_id ?? s.evaluationId));
   const totals = evals.map((e) => {
-    const levels = myScores.filter((s) => (s.evaluation_id ?? s.evaluationId) === e.id).map((s) => s.level);
-    const calc = levels.length > 0 ? total50(levels.map((l) => ({ level: l }))) : total50(e.scores || []);
-    return calc.total;
+    const nums = myScores
+      .filter((s) => (s.evaluation_id ?? s.evaluationId) === e.id)
+      .map((s) => s.score ?? s.value);
+    const calc = nums.length > 0 ? total1000(nums) : total1000((e.scores || []).map((s) => s.score));
+    return calc;
   });
   const currentTotal = totals.length > 0 ? totals[totals.length - 1] : null;
   const firstTotal = totals.length > 0 ? totals[0] : null;
   const latestId = evals.length > 0 ? evals[evals.length - 1].id : 'e-1';
-  const summaryValue = currentTotal != null ? `${currentTotal} · 50 + ${currentTotal - 50}` : '72 · 50 + 22';
+  const summaryValue = currentTotal != null ? formatTotal(currentTotal) : '800 / 1000 → 80 / 100';
   const insightItems = evals.length >= 1 ? [
-    { label: 'Improving', text: totals.length >= 2 ? `Total ${firstTotal} → ${currentTotal} across the last ${totals.length} sessions.` : `Latest released total is ${currentTotal}.`, small: `Based on ${evals.length} released evaluation${evals.length === 1 ? '' : 's'}` },
-    { label: 'Strongest', text: 'Preparation remains the strongest skill, most often VG.', small: 'Across all programs' },
+    { label: 'Improving', text: totals.length >= 2 ? `Final score ${firstTotal.scaled} → ${currentTotal.scaled} across the last ${totals.length} sessions.` : `Latest released final score is ${currentTotal.scaled} / 100.`, small: `Based on ${evals.length} released evaluation${evals.length === 1 ? '' : 's'}` },
+    { label: 'Strongest', text: 'Preparation remains the strongest skill, most often above 85.', small: 'Across all programs' },
     { label: 'Next focus', text: 'Counter Arguments is the clearest development opportunity.', small: 'Recommended next: Friendly Debate' },
   ] : [
-    { label: 'Improving', text: 'Total rose from 64 to 72 across the last four sessions.', small: 'Based on 4 released evaluations' },
-    { label: 'Strongest', text: 'Preparation remains the strongest skill, most often VG.', small: 'Across all programs' },
+    { label: 'Improving', text: 'Final score rose from 64 to 80 across the last four sessions.', small: 'Based on 4 released evaluations' },
+    { label: 'Strongest', text: 'Preparation remains the strongest skill, most often above 85.', small: 'Across all programs' },
     { label: 'Next focus', text: 'Counter Arguments is the clearest development opportunity.', small: 'Recommended next: Friendly Debate' },
   ];
 
@@ -233,24 +235,24 @@ export function EvaluationDetail() {
   if (!evaluation.released) return <NotFound />;
   const scores = (scoreRows || []).map((s) => ({
     criterion: s.criterion_key ?? s.criterion ?? s.criterionKey ?? 'Criterion',
-    level: s.level,
+    score: s.score ?? s.value ?? null,
   }));
   const displayScores = scores.length > 0 ? scores : (evaluation.scores || []);
-  const calc = total50(displayScores.map((s) => ({ level: s.level })));
+  const calc = total1000(displayScores.map((s) => s.score));
 
   return (
     <div>
       <PageHead kicker="Released evaluation" title={`${evaluation.session}.`} desc={`${evaluation.studentName} · ${evaluation.elevateMeId} · ${evaluation.state}`} action={<Status value="Locked" />} />
       <div className="grid two">
-        <Panel title="Criterion scores" action={<span className="tag">50+ model</span>}>
+        <Panel title="Criterion scores" action={<span className="tag">1000-point sheet</span>}>
           {displayScores.map((s) => (
             <div key={s.criterion} className="list-row compact">
-              <div className="row-main"><h3>{s.criterion}</h3><p>{LEVEL_HELP[s.level] || s.level} · +{total50([{ level: s.level }]).added} pts</p></div>
-              <div className="row-action"><strong style={{ fontSize: '1.2rem' }}>{s.level}</strong></div>
+              <div className="row-main"><h3>{s.criterion}</h3><p>Criterion score out of 100</p></div>
+              <div className="row-action"><strong style={{ fontSize: '1.2rem' }}>{s.score ?? '–'}</strong></div>
             </div>
           ))}
           <div className="list-row compact">
-            <div className="row-main"><h3>Total</h3><p>Baseline 50 + {calc.added} across {displayScores.length} criteria</p></div>
+            <div className="row-main"><h3>Total</h3><p>{calc.total} across {displayScores.length} criteria · final {calc.scaled} / 100</p></div>
             <div className="row-action"><strong style={{ fontSize: '1.4rem' }}>{calc.total}</strong></div>
           </div>
         </Panel>

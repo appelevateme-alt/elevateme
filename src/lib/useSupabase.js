@@ -266,3 +266,42 @@ export function useSupabaseMutation({ table } = {}) {
 
   return { create, update, saving, error };
 }
+
+export function useSupabaseUpsert({ table } = {}) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Upsert for tables with composite primary keys (e.g. evaluation_scores),
+  // which have no single `id` column for update().
+  const upsert = useCallback(
+    async (payload, { onConflict } = {}) => {
+      if (!table) {
+        const err = { code: 'invalid_arguments', message: 'Missing table name.' };
+        setError(err);
+        return { data: null, error: err };
+      }
+      setSaving(true);
+      setError(null);
+      try {
+        let query = supabase.from(table).upsert(payload, onConflict ? { onConflict } : undefined);
+        const { data, error: queryError } = await query.select();
+        if (queryError) {
+          const normalized = normalizeError(queryError);
+          setError(normalized);
+          return { data: null, error: normalized };
+        }
+        setError(null);
+        return { data: data ?? null, error: null };
+      } catch (err) {
+        const normalized = normalizeError(err);
+        setError(normalized);
+        return { data: null, error: normalized };
+      } finally {
+        setSaving(false);
+      }
+    },
+    [table],
+  );
+
+  return { upsert, saving, error };
+}

@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Button, DataTable, Empty, Metrics, PageHead, Panel, SkeletonRows, Status } from '../components/ui.jsx';
 import { ScoreInput } from '../components/domain.jsx';
-import { SCORE_GUIDE, TEN_CRITERIA, total50 } from '../lib/scores.js';
-import { useSupabaseList, useSupabaseRecord, useSupabaseMutation } from '../lib/useSupabase.js';
+import { SCORE_GUIDE, TEN_CRITERIA, clampScore, formatTotal, total1000 } from '../lib/scores.js';
+import { useSupabaseList, useSupabaseRecord, useSupabaseMutation, useSupabaseUpsert } from '../lib/useSupabase.js';
 import { toProfile, toRegistration, toSession } from '../lib/adapters.js';
 import { useAuth } from '../lib/auth.jsx';
 
@@ -117,7 +117,7 @@ export function AssignmentPage() {
   );
 }
 
-/* ---------- Per-student sheet, 50+ model (Supabase-backed load-or-create) ---------- */
+/* ---------- Per-student sheet, 1000-point model (Supabase-backed load-or-create) ---------- */
 export function PerStudentEvaluate() {
   const { assignmentId, studentId } = useParams();
   const { session: authSession } = useAuth();
@@ -148,7 +148,7 @@ export function PerStudentEvaluate() {
   });
 
   const { create: createEval, update: updateEval, saving: savingEval } = useSupabaseMutation({ table: 'evaluations' });
-  const { create: createScore, update: updateScore, saving: savingScore } = useSupabaseMutation({ table: 'evaluation_scores' });
+  const { upsert: upsertScoreRows, saving: savingScore } = useSupabaseUpsert({ table: 'evaluation_scores' });
 
   const [overrides, setOverrides] = useState({});
   const [remarksOverride, setRemarksOverride] = useState(null);
@@ -159,7 +159,10 @@ export function PerStudentEvaluate() {
   const serverScores = {};
   (scoreRows || []).forEach((s) => {
     const key = s.criterion_key || s.criterionKey;
-    if (key && s.level != null && serverScores[key] == null) serverScores[key] = s.level;
+    if (key && serverScores[key] == null) {
+      const n = clampScore(s.score ?? s.value);
+      if (n != null) serverScores[key] = n;
+    }
   });
   const scores = { ...serverScores, ...overrides };
   const setScores = (updater) => setOverrides((prev) => {
@@ -192,20 +195,19 @@ export function PerStudentEvaluate() {
   const locked = existing?.state === 'Locked' || existing?.state === 'Submitted';
   const saving = savingEval || savingScore;
 
+  // Criteria missing a usable 0–100 score (null/blank). Note: 0 is valid.
+  const missingCriteria = TEN_CRITERIA.filter((c) => clampScore(scores[c.key]) == null);
+
   const upsertScores = async (evalId) => {
-    const byKey = new Map((scoreRows || []).map((s) => [s.criterion_key || s.criterionKey, s]));
+    const rows = [];
     for (const c of TEN_CRITERIA) {
-      const level = scores[c.key];
-      if (level == null) continue;
-      const found = byKey.get(c.key);
-      if (found?.id) {
-        const ures = await updateScore(found.id, { level, points: level });
-        if (ures?.error) throw new Error(ures.error.message);
-      } else {
-        const cres = await createScore({ evaluation_id: evalId, criterion_key: c.key, level, points: level });
-        if (cres?.error && cres.error.code !== 'duplicate') throw new Error(cres.error.message);
-      }
+      const n = clampScore(scores[c.key]);
+      if (n == null) continue;
+      rows.push({ evaluation_id: evalId, criterion_key: c.key, score: n });
     }
+    if (rows.length === 0) return;
+    const ures = await upsertScoreRows(rows, { onConflict: 'evaluation_id,criterion_key' });
+    if (ures?.error) throw new Error(ures.error.message);
     refetchScores?.();
   };
 
@@ -243,8 +245,7 @@ export function PerStudentEvaluate() {
   };
 
   const submitLocked = async () => {
-    const missing = TEN_CRITERIA.filter((c) => !scores[c.key]);
-    if (missing.length > 0) { setError(`Score every criterion before submitting — ${missing.length} remaining.`); return; }
+    if (missingCriteria.length > 0) { setError(`Score every criterion 0–100 before submitting — ${missingCriteria.length} remaining.`); return; }
     setError('');
     try {
       let id = evaluationId;
@@ -287,7 +288,7 @@ export function PerStudentEvaluate() {
         action={<span>{locked ? <Status value="Locked" /> : <Status value="Draft" />}</span>} />
       {locked ? (
         <div className="notice">
-          <strong>Evaluation submitted and locked.</strong> Final total <strong>50 + {total50(scores).added} = {total50(scores).total}</strong>.
+          <strong>Evaluation submitted and locked.</strong> Final total <strong>{formatTotal(total1000(scores))}</strong>.
           The student sees it only after release.
           <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
             {next && <Link to={`/evaluator/assignments/${session.id}/students/${next.elevateMeId}`} className="button small">Next student →</Link>}
@@ -296,12 +297,12 @@ export function PerStudentEvaluate() {
         </div>
       ) : (
         <>
-          <div className="sticky-context"><strong>{studentName}</strong> · {session.title} · {Object.keys(scores).length}/10 scored{Object.keys(scores).length === 10 ? ` · 50 + ${total50(scores).added} = ${total50(scores).total}` : ''}{dirty ? ' · unsaved changes' : ''}</div>
+          <div className="sticky-context"><strong>{studentName}</strong> · {session.title} · {total1000(scores).count}/10 scored{total1000(scores).count === 10 ? ` · ${formatTotal(total1000(scores))}` : ''}{dirty ? ' · unsaved changes' : ''}</div>
           <div className="notice" style={{ margin: '22px 0 26px' }}><strong>Scoring guide:</strong> {SCORE_GUIDE}</div>
           {error && <p role="alert" className="field-error" style={{ marginBottom: 14 }}>{error}</p>}
           <div className="score-grid">
             {TEN_CRITERIA.map((c, i) => (
-              <ScoreInput key={c.key} index={i} label={c.label} value={scores[c.key] || 0}
+              <ScoreInput key={c.key} index={i} label={c.label} value={scores[c.key] ?? null}
                 onChange={(n) => { setScores((s) => ({ ...s, [c.key]: n })); setDirty(true); }} />
             ))}
           </div>
@@ -315,8 +316,7 @@ export function PerStudentEvaluate() {
             <div>
               <Button variant="secondary" disabled={saving} onClick={saveDraft}>{saving ? 'Saving…' : 'Save draft'}</Button>
               <Button disabled={saving} onClick={() => {
-                const missing = TEN_CRITERIA.filter((c) => !scores[c.key]);
-                if (missing.length > 0) { setError(`Score every criterion before submitting — ${missing.length} remaining.`); return; }
+                if (missingCriteria.length > 0) { setError(`Score every criterion 0–100 before submitting — ${missingCriteria.length} remaining.`); return; }
                 setError(''); setConfirming(true);
               }}>Submit evaluation</Button>
               {prev && <Link to={`/evaluator/assignments/${session.id}/students/${prev.elevateMeId}`} className="button secondary">← Previous</Link>}
@@ -347,7 +347,7 @@ export function LegacyEvaluate() {
 }
 
 function PerStudentEvaluateRouteless() {
-  const [scores, setScores] = useState({ 0: 4, 1: 4, 2: 4, 3: 4, 4: 4 });
+  const [scores, setScores] = useState({ 0: 82, 1: 78, 2: 85, 3: 80, 4: 84, 5: 79, 6: 81, 7: 77, 8: 83, 9: 86 });
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   return (
@@ -358,7 +358,7 @@ function PerStudentEvaluateRouteless() {
       {error && <p role="alert" className="field-error" style={{ marginBottom: 14 }}>{error}</p>}
       <div className="score-grid">
         {TEN_CRITERIA.map((c, i) => (
-          <ScoreInput key={c.key} index={i} label={c.label} value={scores[i] || 0} onChange={(n) => setScores((s) => ({ ...s, [i]: n }))} />
+          <ScoreInput key={c.key} index={i} label={c.label} value={scores[i] ?? null} onChange={(n) => setScores((s) => ({ ...s, [i]: n }))} />
         ))}
       </div>
       <div className="form-grid" style={{ marginTop: 26 }}>
@@ -376,7 +376,7 @@ function PerStudentEvaluateRouteless() {
           }}>Submit evaluation</Button>
         </div>
       </div>
-      {submitted && <div className="notice" style={{ marginTop: 18 }}><strong>Evaluation submitted and locked.</strong> Final total <strong>50 + {total50(scores).added} = {total50(scores).total}</strong>.</div>}
+      {submitted && <div className="notice" style={{ marginTop: 18 }}><strong>Evaluation submitted and locked.</strong> Final total <strong>{formatTotal(total1000(scores))}</strong>.</div>}
     </div>
   );
 }

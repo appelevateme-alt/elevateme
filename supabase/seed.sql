@@ -163,15 +163,19 @@ INSERT INTO public.evaluations
    'Submitted', false, NULL, '')
 ON CONFLICT (id) DO NOTHING;
 
--- --------------------------------- e-1 scores: numeric 5->E, 4->VG, 3->G ---
-INSERT INTO public.evaluation_scores (evaluation_id, criterion_key, level, points) VALUES
-  ((SELECT id FROM public.evaluations WHERE slug = 'e-1'), 'preparation',    'E',  3),
-  ((SELECT id FROM public.evaluations WHERE slug = 'e-1'), 'clarity',        'VG', 2),
-  ((SELECT id FROM public.evaluations WHERE slug = 'e-1'), 'confidence',     'VG', 2),
-  ((SELECT id FROM public.evaluations WHERE slug = 'e-1'), 'vocal-delivery', 'G',  1),
-  ((SELECT id FROM public.evaluations WHERE slug = 'e-1'), 'counter',        'G',  1),
-  ((SELECT id FROM public.evaluations WHERE slug = 'e-1'), 'overall',        'VG', 2)
-ON CONFLICT (evaluation_id, criterion_key) DO NOTHING;
+-- ----------------- e-1 scores: 10 criteria x 0-100 = 800/1000 -> 80/100 --
+INSERT INTO public.evaluation_scores (evaluation_id, criterion_key, score) VALUES
+  ((SELECT id FROM public.evaluations WHERE slug = 'e-1'), 'preparation',       85),
+  ((SELECT id FROM public.evaluations WHERE slug = 'e-1'), 'clarity',           78),
+  ((SELECT id FROM public.evaluations WHERE slug = 'e-1'), 'confidence',        82),
+  ((SELECT id FROM public.evaluations WHERE slug = 'e-1'), 'focus',             76),
+  ((SELECT id FROM public.evaluations WHERE slug = 'e-1'), 'critical-analysis', 80),
+  ((SELECT id FROM public.evaluations WHERE slug = 'e-1'), 'vocal-delivery',    74),
+  ((SELECT id FROM public.evaluations WHERE slug = 'e-1'), 'audience',          81),
+  ((SELECT id FROM public.evaluations WHERE slug = 'e-1'), 'counter',           77),
+  ((SELECT id FROM public.evaluations WHERE slug = 'e-1'), 'wit',               83),
+  ((SELECT id FROM public.evaluations WHERE slug = 'e-1'), 'overall',           84)
+ON CONFLICT (evaluation_id, criterion_key) DO UPDATE SET score = EXCLUDED.score;
 
 -- ------------------------------------------------------- active rubric (v1) -
 INSERT INTO public.evaluation_templates (version, criteria, scale_map, is_active) VALUES
@@ -186,9 +190,12 @@ INSERT INTO public.evaluation_templates (version, criteria, scale_map, is_active
    || '{"key":"counter","label":"Counter Arguments","help":"Responds to opposing points directly."},'
    || '{"key":"wit","label":"Wit","help":"Timely, appropriate sharpness."},'
    || '{"key":"overall","label":"Overall Performance","help":"Holistic impression for this session."}]',
-   '{"L":0,"G":1,"VG":2,"E":3,"baseline":50}',
-   true)
-ON CONFLICT (version) DO NOTHING;
+    '{"max_per_criterion":100,"criteria_count":10,"max_total":1000,"scaled_max":100}',
+    true)
+ON CONFLICT (version) DO UPDATE SET
+  criteria = EXCLUDED.criteria,
+  scale_map = EXCLUDED.scale_map,
+  is_active = EXCLUDED.is_active;
 
 -- -------------------------------------------------------- 3 recommendations
 INSERT INTO public.recommendations

@@ -91,18 +91,18 @@ function normalizeScores(input) {
   if (!input) return [];
   if (Array.isArray(input)) {
     return input.map((s) => {
-      if (s === null || s === undefined) return { criterion: '', level: null };
+      if (s === null || s === undefined) return { criterion: '', score: null };
       if (typeof s === 'object') {
         return {
-          criterion: pick(s, 'criterion', 'label', 'key', 'name') ?? '',
-          level: pick(s, 'level', 'value', 'grade', 'score') ?? null,
+          criterion: pick(s, 'criterion', 'criterion_key', 'criterionKey', 'label', 'key', 'name') ?? '',
+          score: pick(s, 'score', 'value', 'points', 'grade') ?? null,
         };
       }
-      return { criterion: '', level: s };
+      return { criterion: '', score: s };
     });
   }
   if (typeof input === 'object') {
-    return Object.entries(input).map(([criterion, level]) => ({ criterion, level: level ?? null }));
+    return Object.entries(input).map(([criterion, score]) => ({ criterion, score: score ?? null }));
   }
   return [];
 }

@@ -4,7 +4,7 @@ import { Button, Empty, Metrics, PageHead, Panel, SkeletonRows, Status, Tag } fr
 import { ChartSummary, InsightList, LineChart, RecommendationRecord, ThreadMessage } from '../components/domain.jsx';
 import { useSupabaseList, useSupabaseRecord, useSupabaseMutation } from '../lib/useSupabase.js';
 import { toEvaluation, toProfile, toRecommendation, toReply, toThread } from '../lib/adapters.js';
-import { total50 } from '../lib/scores.js';
+import { formatTotal, total1000 } from '../lib/scores.js';
 import { useAuth } from '../lib/auth.jsx';
 import { NotFound } from './public.jsx';
 
@@ -23,7 +23,7 @@ export function ParentOverview() {
       <div className="notice">You are viewing information released for <strong>Nimuthu Fernando · EM-00124</strong>.</div>
       <div style={{ height: 22 }} />
       <Metrics items={[
-        ['Overall total', '72 · 50 + 22', '+6 points this term'],
+        ['Overall total', '800 / 1000 → 80 / 100', '+6 points this term'],
         ['Evaluations', evals.length > 0 ? String(evals.length).padStart(2, '0') : '06', 'All released'],
         ['Active programs', '02', 'Next session 24 October'],
         ['Open actions', recs.length > 0 ? String(recs.length).padStart(2, '0') : '02', '1 high priority'],
@@ -40,7 +40,7 @@ export function ParentOverview() {
         <section className="panel">
           <div className="panel-head"><h2>Latest performance</h2><Link to="/parent/performance" className="button quiet small">View detail →</Link></div>
           <div className="panel-body">
-            <ChartSummary label="Overall total" value="72 · 50 + 22" status={<Status value="Improving" />} />
+            <ChartSummary label="Overall total" value="800 / 1000 → 80 / 100" status={<Status value="Improving" />} />
             <div className="progress-track"><div className="progress-fill" style={{ width: '72%' }} /></div>
           </div>
         </section>
@@ -57,11 +57,13 @@ export function ParentPerformance() {
   const evalIds = new Set(evals.map((e) => e.id));
   const myScores = (scoreRows || []).filter((s) => evalIds.has(s.evaluation_id ?? s.evaluationId));
   const totals = evals.map((e) => {
-    const levels = myScores.filter((s) => (s.evaluation_id ?? s.evaluationId) === e.id).map((s) => s.level);
-    return (levels.length > 0 ? total50(levels.map((l) => ({ level: l }))) : total50(e.scores || [])).total;
+    const nums = myScores
+      .filter((s) => (s.evaluation_id ?? s.evaluationId) === e.id)
+      .map((s) => s.score ?? s.value);
+    return nums.length > 0 ? total1000(nums) : total1000((e.scores || []).map((s) => s.score));
   });
   const currentTotal = totals.length > 0 ? totals[totals.length - 1] : null;
-  const summaryValue = currentTotal != null ? `${currentTotal} · 50 + ${currentTotal - 50}` : '72 · 50 + 22';
+  const summaryValue = currentTotal != null ? formatTotal(currentTotal) : '800 / 1000 → 80 / 100';
 
   if (loading) return <div><PageHead kicker="Performance" title="Nimuthu’s progress." desc="Same released scores and remarks the student sees. Scoped to your linked student." /><SkeletonRows rows={3} /></div>;
   if (error) return <div><PageHead kicker="Performance" title="Nimuthu’s progress." desc="Same released scores and remarks the student sees. Scoped to your linked student." /><div className="notice"><strong>Couldn’t load performance.</strong> {error.message}</div></div>;
@@ -77,8 +79,8 @@ export function ParentPerformance() {
           <div className="panel-head"><h2>Insights</h2><span className="tag">3 findings</span></div>
           <div className="panel-body">
             <InsightList items={[
-              { label: 'Improving', text: totals.length >= 2 ? `Total rose from ${totals[0]} to ${currentTotal} across the last ${totals.length} sessions.` : 'Total rose from 64 to 72 across the last four sessions.', small: `Based on ${evals.length || 4} released evaluations` },
-              { label: 'Strongest', text: 'Preparation remains the strongest skill, most often VG.' },
+              { label: 'Improving', text: totals.length >= 2 ? `Final score rose from ${totals[0].scaled} to ${currentTotal.scaled} across the last ${totals.length} sessions.` : 'Final score rose from 64 to 80 across the last four sessions.', small: `Based on ${evals.length || 4} released evaluations` },
+              { label: 'Strongest', text: 'Preparation remains the strongest skill, most often above 85.' },
               { label: 'Next focus', text: 'Counter Arguments is the clearest development opportunity.' },
             ]} />
           </div>
@@ -165,7 +167,7 @@ export function ParentStudentPerformance() {
       <PageHead kicker="Linked student" title="Performance." desc={`Nimuthu Fernando · ${studentId}`} />
       <StudentBanner studentId={studentId} />
       <section className="chart-panel">
-        <ChartSummary label="Current total" value="72 · 50 + 22" status={<Status value="Improving" />} />
+        <ChartSummary label="Current total" value="800 / 1000 → 80 / 100" status={<Status value="Improving" />} />
         <LineChart />
         <p style={{ fontSize: '.82rem', color: 'var(--muted)', marginTop: 8 }}>Based on {evals.length} released evaluation{evals.length === 1 ? '' : 's'} in scope.</p>
       </section>

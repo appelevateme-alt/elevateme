@@ -108,25 +108,25 @@ export function ThreadMessage({ author, when, body, admin }) {
   );
 }
 
-/* ---------- L/G/VG/E score input (50+ model) ---------- */
+/* ---------- 0–100 score input (1000-point model) ---------- */
 export function ScoreInput({ index, label, value, onChange }) {
   return (
     <div className="score-row">
       <span className="number">{String(index + 1).padStart(2, '0')}</span>
       <strong>{label}</strong>
-      <div className="score-options" role="radiogroup" aria-label={`${label} score`}>
-        {[1, 2, 3, 4, 5].map((n) => (
-          <button
-            key={n}
-            type="button"
-            className={`score-option${value === n ? ' selected' : ''}`}
-            role="radio"
-            aria-checked={value === n}
-            onClick={() => onChange(n)}
-          >
-            {n}
-          </button>
-        ))}
+      <div className="score-options" style={{ alignItems: 'center', gap: 8 }}>
+        <input
+          type="number"
+          min={0}
+          max={100}
+          step={1}
+          aria-label={`${label} score out of 100`}
+          value={value ?? ''}
+          placeholder="0–100"
+          onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+          style={{ width: 110 }}
+        />
+        <span style={{ color: 'var(--muted)', fontSize: '.82rem' }}>/ 100</span>
       </div>
     </div>
   );

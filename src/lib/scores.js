@@ -1,23 +1,38 @@
-// 50+ scoring model: every student starts from a baseline of 50 and adds
-// points per criterion level. PROVISIONAL mapping — confirm exact add-ons:
-//   L (Low) +0 · G (Good) +1 · VG (Very Good) +2 · E (Excellent) +3
-// With ten criteria the ceiling is 50 + 30 = 80. Change SCORE_MAP in one
-// place once the business mapping is finalized.
-export const SCORE_GUIDE = 'Baseline 50 · L Low (+0) · G Good (+1) · VG Very Good (+2) · E Excellent (+3)';
-export const LEVELS = ['L', 'G', 'VG', 'E'];
-export const LEVEL_HELP = { L: 'Low', G: 'Good', VG: 'Very Good', E: 'Excellent' };
-export const SCORE_MAP = { L: 0, G: 1, VG: 2, E: 3 };
+// 1000-point scoring model: ten criteria, each scored 0–100.
+// Sheet total = sum (0–1000). Final score = total ÷ 10, out of 100
+// (e.g. 800/1000 scales to 80/100). No baseline, no level bands.
+export const MAX_PER_CRITERION = 100;
+export const CRITERIA_COUNT = 10;
+export const MAX_TOTAL = 1000;
+export const SCALE_DIVISOR = 10;
 
-export function addedPoints(level) {
-  return SCORE_MAP[level] ?? 0;
+export const SCORE_GUIDE =
+  'Each criterion is scored out of 100. The sheet total is out of 1000; the final score is the total ÷ 10, out of 100.';
+
+// Coerce to a number within 0–100. Returns null when not a usable score.
+export function clampScore(value) {
+  const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+  if (typeof n !== 'number' || !Number.isFinite(n)) return null;
+  if (n < 0) return 0;
+  if (n > MAX_PER_CRITERION) return MAX_PER_CRITERION;
+  return Math.round(n * 100) / 100;
 }
 
-// Accepts an object ({criterionKey: level}) or an array ([{level}] or [level]).
-// Returns { added, total } where total = 50 + added.
-export function total50(levels) {
-  const arr = Array.isArray(levels) ? levels.map((l) => l?.level ?? l) : Object.values(levels || {});
-  const added = arr.reduce((sum, l) => sum + (SCORE_MAP[l] ?? 0), 0);
-  return { added, total: 50 + added };
+// Accepts an object ({ criterionKey: score }) or an array ([{ score }] or [score]).
+// Returns { total, scaled, count } where scaled = total / 10 (final score out of 100).
+export function total1000(scores) {
+  const arr = Array.isArray(scores)
+    ? scores.map((s) => (s != null && typeof s === 'object' ? s.score ?? s.value ?? null : s))
+    : Object.values(scores || {});
+  const nums = arr.map((v) => clampScore(v)).filter((v) => v != null);
+  const total = nums.reduce((sum, n) => sum + n, 0);
+  const scaled = Math.round((total / SCALE_DIVISOR) * 10) / 10;
+  return { total: Math.round(total * 100) / 100, scaled, count: nums.length };
+}
+
+// Short display: "800 / 1000 → 80 / 100".
+export function formatTotal(calc) {
+  return `${calc.total} / ${MAX_TOTAL} → ${calc.scaled} / 100`;
 }
 
 export const TEN_CRITERIA = [

@@ -21,7 +21,7 @@ export function CoordinatorDashboard() {
         ['Active programs', progsLoading ? '03' : String(progCount ?? programs.length).padStart(2, '0'), '1 pending approval'],
         ['Registered students', regCount != null ? String(regCount) : '86', 'Across all programs'],
         ['Evaluations due', evalCount != null ? String(evalCount) : '14', 'Before 30 September'],
-        ['Average total', '70 · 50 + 20', '+4 points this term'],
+        ['Average total', '800 / 1000 → 80 / 100', '+4 points this term'],
       ]} />
       <div className="grid dashboard">
         <section className="panel">
@@ -581,7 +581,7 @@ export function CoordinatorPerformance() {
       </div>
       <div className="grid dashboard">
         <section className="chart-panel">
-          <ChartSummary label="Cohort average total" value="70 · 50 + 20" status={<Status value="Improving" />} />
+          <ChartSummary label="Cohort average total" value="800 / 1000 → 80 / 100" status={<Status value="Improving" />} />
           <LineChart />
         </section>
         <section className="panel">
