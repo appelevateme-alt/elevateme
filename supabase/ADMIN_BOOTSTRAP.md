@@ -1,10 +1,12 @@
 # ElevateMe — Admin bootstrap (fresh Supabase project, email confirmation ON)
 
-> **STATUS 2026-09-20: database is LIVE.** All 4 migrations + seed were executed
-> against the project via the Management API and verified (15 tables, 52 RLS
-> policies, all triggers/RPCs, full seed: 4 programs, 11 profiles, e-1 sheet
-> 800/1000 → 80/100). Migration 005 reworked scoring to the 1000-point model
-> (10 × 0–100, final = total/10). Do NOT re-run sections 1–2 unless rebuilding
+> **STATUS 2026-09-20: database is LIVE.** All 6 migrations + seed were executed
+> against the project via the Management API and verified. Migration 005
+> reworked scoring to the 1000-point model (10 × 0–100, final = total/10;
+> e-1 sheet 800/1000 → 80/100). Migration 006 fixed RLS infinite recursion
+> (42P17) by routing every cross-table policy check through SECURITY DEFINER
+> helpers — without it, any authenticated profile read 500s and users strand
+> on pending-approval. Do NOT re-run sections 1–2 unless rebuilding
 > from scratch.
 > Note: `profiles.id` has no FK to `auth.users` (placeholder rows must exist
 > before signup — see `001_core.sql`); the query API silently skips failing
@@ -37,6 +39,8 @@ time, press **Run**, and wait for success before the next:
 2. `supabase/migrations/002_participation.sql` — registrations, evaluations (+scores, templates), recommendations, announcements, message threads/replies, evaluator assignments, audit log
 3. `supabase/migrations/003_rls.sql` — RLS + role policies
 4. `supabase/migrations/004_logic.sql` — signup trigger, ElevateMe-ID trigger, counter trigger, guards, RPCs
+5. `supabase/migrations/005_scoring_rework.sql` — 1000-point model (score 0–100 per criterion)
+6. `supabase/migrations/006_rls_recursion_fix.sql` — SECURITY DEFINER helpers, recursion-free policies (REQUIRED — without it sign-in breaks)
 
 Each file is idempotent (`IF NOT EXISTS` / `DROP … IF EXISTS` / `CREATE OR REPLACE`).
 

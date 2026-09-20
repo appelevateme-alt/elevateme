@@ -1,5 +1,5 @@
 -- ============================================================================
--- ElevateMe seed.sql -- run AFTER 001..004 in the Supabase SQL editor.
+-- ElevateMe seed.sql -- run AFTER 001..006 in the Supabase SQL editor.
 -- Idempotent: every statement is safe to re-run (ON CONFLICT DO NOTHING /
 -- WHERE NOT EXISTS guards). Deterministic UUIDs. FKs are resolved by slug
 -- (programs, sessions) or email (profiles), never by hardcoded FK UUIDs.
