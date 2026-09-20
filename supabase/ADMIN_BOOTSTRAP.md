@@ -15,6 +15,10 @@
 > real `PendingReview` vocabulary; all decisions (program/user/release/
 > submit/confirm) go through audited RPCs; coordinators can Confirm/Waitlist/
 > Reject registrations (previously stuck Pending forever).
+>
+> 2026-09-20 data wipe: all seed/demo rows deleted from the live project.
+> Only `appelevateme@gmail.com` (admin) + the v1 rubric template remain.
+> Re-run `seed.sql` only if demo data is ever wanted back.
 > Note: `profiles.id` has no FK to `auth.users` (placeholder rows must exist
 > before signup — see `001_core.sql`); the query API silently skips failing
 > statements, so any future re-seed must be verified with row counts.

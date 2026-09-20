@@ -12,9 +12,18 @@ import { NotFound } from './public.jsx';
 export function ParentOverview() {
   const { data: recRows } = useSupabaseList({ table: 'recommendations', page: 1, pageSize: 20 });
   const { data: evalRows } = useSupabaseList({ table: 'evaluations', filters: { released: true }, page: 1, pageSize: 20 });
+  const { data: scoreRows } = useSupabaseList({ table: 'evaluation_scores', page: 1, pageSize: 100 });
   const recs = (recRows || []).map(toRecommendation);
   const evals = (evalRows || []).map(toEvaluation);
   const topRec = recs[0];
+  const latestTotals = (() => {
+    if (evals.length === 0) return null;
+    const last = evals[evals.length - 1];
+    const nums = (scoreRows || [])
+      .filter((s) => (s.evaluation_id ?? s.evaluationId) === last.id)
+      .map((s) => s.score ?? s.value);
+    return nums.length > 0 ? total1000(nums) : null;
+  })();
 
   return (
     <div>
@@ -23,25 +32,37 @@ export function ParentOverview() {
       <div className="notice">You are viewing information released for <strong>Nimuthu Fernando · EM-00124</strong>.</div>
       <div style={{ height: 22 }} />
       <Metrics items={[
-        ['Overall total', '800 / 1000 → 80 / 100', '+6 points this term'],
-        ['Evaluations', evals.length > 0 ? String(evals.length).padStart(2, '0') : '06', 'All released'],
-        ['Active programs', '02', 'Next session 24 October'],
-        ['Open actions', recs.length > 0 ? String(recs.length).padStart(2, '0') : '02', '1 high priority'],
+        ['Overall total', latestTotals ? formatTotal(latestTotals) : 'No released scores', evals.length > 0 ? `${evals.length} released` : 'Awaiting first release'],
+        ['Evaluations', String(evals.length).padStart(2, '0'), 'All released'],
+        ['Active programs', '00', 'None yet'],
+        ['Open actions', String(recs.length).padStart(2, '0'), recs.length > 0 ? 'Needs attention' : 'None yet'],
       ]} />
       <div className="grid two">
         <section className="panel">
           <div className="panel-head"><h2>Current development focus</h2><Link to="/parent/recommendations" className="button quiet small">All recommendations →</Link></div>
           <div className="panel-body">
-            <Tag>{topRec?.skill || 'Counter Arguments'}</Tag>
-            <h3 style={{ font: '700 1.5rem Manrope', margin: '10px 0' }}>{topRec?.title || 'Practice structured rebuttals'}</h3>
-            <p style={{ color: 'var(--muted)' }}>{topRec?.body || 'This recommendation is connected to Nimuthu’s last two debate evaluations.'}</p>
+            {topRec ? (
+              <>
+                <Tag>{topRec.skill}</Tag>
+                <h3 style={{ font: '700 1.5rem Manrope', margin: '10px 0' }}>{topRec.title}</h3>
+                <p style={{ color: 'var(--muted)' }}>{topRec.body}</p>
+              </>
+            ) : (
+              <Empty title="No recommendations yet." body="Development actions from evaluators will appear here." />
+            )}
           </div>
         </section>
         <section className="panel">
           <div className="panel-head"><h2>Latest performance</h2><Link to="/parent/performance" className="button quiet small">View detail →</Link></div>
           <div className="panel-body">
-            <ChartSummary label="Overall total" value="800 / 1000 → 80 / 100" status={<Status value="Improving" />} />
-            <div className="progress-track"><div className="progress-fill" style={{ width: '72%' }} /></div>
+            {latestTotals ? (
+              <>
+                <ChartSummary label="Overall total" value={formatTotal(latestTotals)} status={<Status value="Improving" />} />
+                <div className="progress-track"><div className="progress-fill" style={{ width: `${Math.min(100, latestTotals.scaled)}%` }} /></div>
+              </>
+            ) : (
+              <Empty title="No released scores yet." body="Released evaluations will appear here." />
+            )}
           </div>
         </section>
       </div>
@@ -63,7 +84,7 @@ export function ParentPerformance() {
     return nums.length > 0 ? total1000(nums) : total1000((e.scores || []).map((s) => s.score));
   });
   const currentTotal = totals.length > 0 ? totals[totals.length - 1] : null;
-  const summaryValue = currentTotal != null ? formatTotal(currentTotal) : '800 / 1000 → 80 / 100';
+  const summaryValue = currentTotal != null ? formatTotal(currentTotal) : 'No released scores';
 
   if (loading) return <div><PageHead kicker="Performance" title="Nimuthu’s progress." desc="Same released scores and remarks the student sees. Scoped to your linked student." /><SkeletonRows rows={3} /></div>;
   if (error) return <div><PageHead kicker="Performance" title="Nimuthu’s progress." desc="Same released scores and remarks the student sees. Scoped to your linked student." /><div className="notice"><strong>Couldn’t load performance.</strong> {error.message}</div></div>;
@@ -76,13 +97,17 @@ export function ParentPerformance() {
           <LineChart />
         </section>
         <section className="panel">
-          <div className="panel-head"><h2>Insights</h2><span className="tag">3 findings</span></div>
+          <div className="panel-head"><h2>Insights</h2><span className="tag">{evals.length > 0 ? '3 findings' : 'No data'}</span></div>
           <div className="panel-body">
-            <InsightList items={[
-              { label: 'Improving', text: totals.length >= 2 ? `Final score rose from ${totals[0].scaled} to ${currentTotal.scaled} across the last ${totals.length} sessions.` : 'Final score rose from 64 to 80 across the last four sessions.', small: `Based on ${evals.length || 4} released evaluations` },
-              { label: 'Strongest', text: 'Preparation remains the strongest skill, most often above 85.' },
-              { label: 'Next focus', text: 'Counter Arguments is the clearest development opportunity.' },
-            ]} />
+            {evals.length > 0 ? (
+              <InsightList items={[
+                { label: 'Improving', text: totals.length >= 2 ? `Final score rose from ${totals[0].scaled} to ${currentTotal.scaled} across the last ${totals.length} sessions.` : `Latest final score is ${currentTotal.scaled} / 100.`, small: `Based on ${evals.length} released evaluation${evals.length === 1 ? '' : 's'}` },
+                { label: 'Strongest', text: 'Preparation remains the strongest skill, most often above 85.' },
+                { label: 'Next focus', text: 'Counter Arguments is the clearest development opportunity.' },
+              ]} />
+            ) : (
+              <Empty title="No insights yet." body="Insights appear once evaluations are released." />
+            )}
           </div>
         </section>
       </div>

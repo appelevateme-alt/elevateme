@@ -29,9 +29,11 @@ export function AdminOverview() {
         <section className="panel">
           <div className="panel-head"><h2>Approval queue</h2><Link to="/admin/approvals" className="button quiet small">View all →</Link></div>
           <div className="panel-body"><div className="flat-list">
-            <div className="list-row compact"><div className="row-meta">PROGRAM</div><div className="row-main"><h3>Right vs Might</h3><p>Friendly Debate · Submitted by Ms. Perera</p></div><Status value="Review" /></div>
-            <div className="list-row compact"><div className="row-meta">ACCOUNT</div><div className="row-main"><h3>Mr. D. Karunaratne</h3><p>Programme Coordinator · Gateway College</p></div><Status value="Review" /></div>
-            <div className="list-row compact"><div className="row-meta">RESULTS</div><div className="row-main"><h3>Academic Speaking · Session 06</h3><p>18 evaluations ready for release</p></div><Status value="Release" /></div>
+            {pendingTotal > 0 ? (
+              <div className="list-row compact"><div className="row-meta">QUEUE</div><div className="row-main"><h3>{pendingTotal} item{pendingTotal === 1 ? '' : 's'} waiting</h3><p>Programs and accounts awaiting review</p></div><Status value="Review" /></div>
+            ) : (
+              <div className="list-row compact"><div className="row-meta">QUEUE</div><div className="row-main"><h3>Queue is clear</h3><p>New submissions will appear here</p></div><Status value="Clear" /></div>
+            )}
           </div></div>
         </section>
         <section className="panel">
@@ -176,13 +178,6 @@ export function AdminApprovals() {
   ]] : [];
 
   const liveRows = [...progItems, ...userItems, ...releaseItems];
-  const fallbackRows = [
-    ['18 Sep', <span key="t"><strong>Right vs Might</strong><br />Friendly Debate</span>, 'Ms. Perera', 'Diplomatic Impact', <Status key="s" value={decided.p1 || 'Pending review'} />,
-      <span key="a" style={{ display: 'flex', gap: 6 }}><Button small onClick={() => setDecided((d) => ({ ...d, p1: 'Approved' }))}>Approve</Button><Button small variant="secondary" onClick={() => {
-        if (!note.trim()) { setToast('A note is required for Request changes and Reject.'); return; }
-        setDecided((d) => ({ ...d, p1: 'ChangesRequested' })); setToast('Request changes recorded — audit entry created.');
-      }}>Changes</Button></span>],
-  ];
 
   void statusFilter;
 
@@ -198,8 +193,11 @@ export function AdminApprovals() {
           <input placeholder="e.g. Add venue and capacity before approval" value={note} onChange={(e) => setNote(e.target.value)} style={{ width: '100%' }} />
         </label>
       </div>
-      <DataTable headers={['Submitted', 'Request', 'Submitted by', 'Institute', 'Status', '']}
-        rows={liveRows.length > 0 ? liveRows : fallbackRows} />
+      {liveRows.length > 0 ? (
+        <DataTable headers={['Submitted', 'Request', 'Submitted by', 'Institute', 'Status', '']} rows={liveRows} />
+      ) : (
+        <Empty title="Queue is clear." body="New program submissions, account requests, and releases will appear here." />
+      )}
       {toast && <div role="status" className="toast show">{toast}</div>}
     </div>
   );
@@ -396,22 +394,18 @@ export function AdminConfig() {
 
 export function AdminAudit() {
   const { data, loading, error } = useSupabaseList({ table: 'audit_log', order: { col: 'created_at', ascending: false }, page: 1, pageSize: 20 });
-  const rows = (data || []).map((e) => [e.created_at || e.time || '—', e.actor || '—', e.action || '—', e.entity || '—']);
-  const fallback = [
-    ['2026-09-18 10:02', 'admin', 'Released evaluation', 'Session 06'],
-    ['2026-09-18 09:15', 'admin', 'Approved program', 'Right vs Might'],
-    ['2026-09-17 15:40', 'coordinator', 'Confirmed registration', 'EM-00125'],
-  ];
+  const rows = (data || []).map((e) => [e.created_at || e.time || '—', e.actor || e.actor_id || '—', e.action || '—', e.entity || '—']);
   if (loading) return <div><PageHead kicker="Administration" title="Audit log." desc="Immutable history: approvals, score changes, releases, exports, role changes, suspensions." /><SkeletonRows rows={3} /></div>;
-  if (error) return <div><PageHead kicker="Administration" title="Audit log." desc="Immutable history: approvals, score changes, releases, exports, role changes, suspensions." /><Panel title="Recent events" action={<Tag>Mock trail</Tag>}>
-    <DataTable headers={['Time', 'Actor', 'Action', 'Entity']} rows={fallback} />
-  </Panel></div>;
+  if (error) return <div><PageHead kicker="Administration" title="Audit log." desc="Immutable history: approvals, score changes, releases, exports, role changes, suspensions." /><div className="notice"><strong>Couldn’t load the audit log.</strong> {error.message}</div></div>;
   return (
     <div>
       <PageHead kicker="Administration" title="Audit log." desc="Immutable history: approvals, score changes, releases, exports, role changes, suspensions." />
-      <Panel title="Recent events" action={<Tag>{rows.length > 0 ? `${rows.length} events` : 'Mock trail'}</Tag>}>
-        <DataTable headers={['Time', 'Actor', 'Action', 'Entity']}
-          rows={rows.length > 0 ? rows : fallback} />
+      <Panel title="Recent events" action={<Tag>{rows.length > 0 ? `${rows.length} events` : 'No events yet'}</Tag>}>
+        {rows.length > 0 ? (
+          <DataTable headers={['Time', 'Actor', 'Action', 'Entity']} rows={rows} />
+        ) : (
+          <Empty title="No audit events yet." body="Approvals, releases, and decisions will be recorded here." />
+        )}
       </Panel>
     </div>
   );

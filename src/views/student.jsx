@@ -43,15 +43,22 @@ export function StudentDashboard() {
         action={<Link to="/student/programs" className="button">Find a program →</Link>} />
       <Metrics items={[
         ['ElevateMe ID', elevateMeId, 'Your permanent student ID'],
-        ['Overall total', '800 / 1000 → 80 / 100', '+6 points this term'],
-        ['Active programs', activePrograms, '1 upcoming session'],
-        ['Recommendations', recLabel, highPriority > 0 ? `${highPriority} marked high priority` : '1 marked high priority'],
+        ['Overall total', 'See performance', 'Released scores only'],
+        ['Active programs', activePrograms, regs.length > 0 ? 'Across your registrations' : 'None yet'],
+        ['Recommendations', recLabel, highPriority > 0 ? `${highPriority} marked high priority` : 'None yet'],
       ]} />
       <div className="grid dashboard">
-        <section className="program-feature">
-          <div><span className="tag">Next session · 24 October</span><h2>Colombo Youth<br />MUN 2026</h2><p>WHO Committee · Representing Japan<br />Registration confirmed</p></div>
-          <Link to="/student/registrations" className="button">View event details →</Link>
-        </section>
+        {regs.length > 0 ? (
+          <section className="program-feature">
+            <div><span className="tag">Next session</span><h2>Your registration</h2><p>{regs[0].allocation || ''}<br />Registration {regs[0].status}</p></div>
+            <Link to="/student/registrations" className="button">View event details →</Link>
+          </section>
+        ) : (
+          <section className="panel">
+            <div className="panel-head"><h2>Next session</h2></div>
+            <div className="panel-body"><Empty title="No registrations yet." body="Browse programs and register to see your next session here." /></div>
+          </section>
+        )}
         <section className="panel">
           <div className="panel-head"><h2>Latest insight</h2><Status value="Improving" /></div>
           <div className="panel-body">
@@ -65,12 +72,20 @@ export function StudentDashboard() {
       <div className="flat-list">
         <div className="list-row compact">
           <div className="row-meta">Recommendation</div>
-          <div className="row-main"><h3>{topRec?.title || 'Practice structured rebuttals'}</h3><p>{topRec ? `Suggested by Diplomatic Impact · ${topRec.priority}` : 'Suggested by Diplomatic Impact · High priority'}</p></div>
+          {topRec ? (
+            <div className="row-main"><h3>{topRec.title}</h3><p>{`Suggested by Diplomatic Impact · ${topRec.priority}`}</p></div>
+          ) : (
+            <div className="row-main"><h3>No recommendations yet</h3><p>Evaluator feedback will appear here.</p></div>
+          )}
           <Link to="/student/recommendations" className="button secondary small">Review</Link>
         </div>
         <div className="list-row compact">
           <div className="row-meta">Announcement</div>
-          <div className="row-main"><h3>{topAnn?.title || 'Country allocations are now confirmed'}</h3><p>{topAnn ? `${topAnn.title} · Published` : 'Colombo Youth MUN · Published today'}</p></div>
+          {topAnn ? (
+            <div className="row-main"><h3>{topAnn.title}</h3><p>{`${topAnn.title} · Published`}</p></div>
+          ) : (
+            <div className="row-main"><h3>No announcements</h3><p>Published updates will appear here.</p></div>
+          )}
           <Link to="/student/announcements" className="button secondary small">Read</Link>
         </div>
       </div>
@@ -173,14 +188,10 @@ export function StudentPerformance() {
   });
   const currentTotal = totals.length > 0 ? totals[totals.length - 1] : null;
   const firstTotal = totals.length > 0 ? totals[0] : null;
-  const latestId = evals.length > 0 ? evals[evals.length - 1].id : 'e-1';
-  const summaryValue = currentTotal != null ? formatTotal(currentTotal) : '800 / 1000 → 80 / 100';
-  const insightItems = evals.length >= 1 ? [
-    { label: 'Improving', text: totals.length >= 2 ? `Final score ${firstTotal.scaled} → ${currentTotal.scaled} across the last ${totals.length} sessions.` : `Latest released final score is ${currentTotal.scaled} / 100.`, small: `Based on ${evals.length} released evaluation${evals.length === 1 ? '' : 's'}` },
-    { label: 'Strongest', text: 'Preparation remains the strongest skill, most often above 85.', small: 'Across all programs' },
-    { label: 'Next focus', text: 'Counter Arguments is the clearest development opportunity.', small: 'Recommended next: Friendly Debate' },
-  ] : [
-    { label: 'Improving', text: 'Final score rose from 64 to 80 across the last four sessions.', small: 'Based on 4 released evaluations' },
+  const latestId = evals.length > 0 ? evals[evals.length - 1].id : null;
+  const summaryValue = currentTotal != null ? formatTotal(currentTotal) : 'No released scores';
+  const insightItems = [
+    { label: 'Improving', text: totals.length >= 2 ? `Final score ${firstTotal.scaled} → ${currentTotal.scaled} across the last ${totals.length} sessions.` : currentTotal != null ? `Latest released final score is ${currentTotal.scaled} / 100.` : 'No released evaluations yet.', small: `Based on ${evals.length} released evaluation${evals.length === 1 ? '' : 's'}` },
     { label: 'Strongest', text: 'Preparation remains the strongest skill, most often above 85.', small: 'Across all programs' },
     { label: 'Next focus', text: 'Counter Arguments is the clearest development opportunity.', small: 'Recommended next: Friendly Debate' },
   ];
@@ -203,12 +214,14 @@ export function StudentPerformance() {
             <LineChart />
           </section>
           <section className="panel">
-            <div className="panel-head"><h2>Your Insights</h2><span className="tag">3 findings</span></div>
+            <div className="panel-head"><h2>Your Insights</h2><span className="tag">{evals.length > 0 ? '3 findings' : 'No data'}</span></div>
             <div className="panel-body">
               <InsightList items={insightItems} />
-              <p style={{ fontSize: '.82rem', color: 'var(--muted)', marginTop: 12 }}>
-                Detail per sheet: <Link to={`/student/performance/${latestId}`} className="link-quiet">Open latest released evaluation</Link>
-              </p>
+              {latestId && (
+                <p style={{ fontSize: '.82rem', color: 'var(--muted)', marginTop: 12 }}>
+                  Detail per sheet: <Link to={`/student/performance/${latestId}`} className="link-quiet">Open latest released evaluation</Link>
+                </p>
+              )}
             </div>
           </section>
         </div>

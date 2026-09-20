@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Button, DataTable, ErrorSummary, Metrics, PageHead, Panel, Progress, SkeletonRows, Status, Tag } from '../components/ui.jsx';
+import { Button, DataTable, Empty, ErrorSummary, Metrics, PageHead, Panel, Progress, SkeletonRows, Status, Tag } from '../components/ui.jsx';
 import { ChartSummary, InsightList, LineChart, Tabs } from '../components/domain.jsx';
 import { useSupabaseList, useSupabaseRecord, useSupabaseMutation } from '../lib/useSupabase.js';
 import { supabase } from '../lib/supabaseClient.js';
@@ -553,18 +553,17 @@ export function CoordinatorEvaluators() {
       <Status key={`s-${i}`} value={e.status || 'Active'} />,
     ];
   });
-  const fallback = [
-    [<span key="a"><strong>Dr. Jayasinghe</strong><br /><span className="row-meta">drj@example.com</span></span>, 'Academic Speaking · Session 06', '18', '12 / 18 submitted', <Status key="s" value="Active" />],
-    [<span key="b"><strong>Ms. Wickramasinghe</strong><br /><span className="row-meta">maya@example.com</span></span>, 'Colombo Youth MUN · WHO', '16', '0 / 16 submitted', <Status key="t" value="Scheduled" />],
-  ];
   if (loading) return <div><PageHead kicker="Access management" title="Evaluators." desc="Assign resource people to a program or session and track submission progress." action={<Button>Invite evaluator →</Button>} /><SkeletonRows rows={3} /></div>;
   if (error) return <div><PageHead kicker="Access management" title="Evaluators." desc="Assign resource people to a program or session and track submission progress." action={<Button>Invite evaluator →</Button>} /><div className="notice"><strong>Couldn’t load evaluators.</strong> {error.message}</div></div>;
   return (
     <div>
       <PageHead kicker="Access management" title="Evaluators." desc="Assign resource people to a program or session and track submission progress."
         action={<Button>Invite evaluator →</Button>} />
-      <DataTable headers={['Resource person', 'Assignment', 'Students', 'Progress', 'Access']}
-        rows={rows.length > 0 ? rows : fallback} />
+      {rows.length > 0 ? (
+        <DataTable headers={['Resource person', 'Assignment', 'Students', 'Progress', 'Access']} rows={rows} />
+      ) : (
+        <Empty title="No evaluators assigned." body="Invite resource people to a program or session to begin." />
+      )}
     </div>
   );
 }

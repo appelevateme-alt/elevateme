@@ -48,20 +48,7 @@ export function EvaluatorHome() {
           })}
         </div>
       ) : (
-        <div className="flat-list">
-          <article className="list-row">
-            <div className="row-meta">DUE 30 SEP<br />Academic Speaking</div>
-            <div className="row-main"><h3>Session 06 · Final presentations</h3><p>18 students · 12 submitted · 3 drafts</p>
-              <div className="progress-track" style={{ marginTop: 10, maxWidth: 480 }}><div className="progress-fill" style={{ width: '67%' }} /></div>
-            </div>
-            <Link to="/evaluator/assignments/s-spk-6" className="button small">Continue evaluating →</Link>
-          </article>
-          <article className="list-row">
-            <div className="row-meta">24 OCT<br />Colombo Youth MUN</div>
-            <div className="row-main"><h3>WHO Committee</h3><p>16 students · Evaluation opens on event day</p></div>
-            <Status value="Scheduled" />
-          </article>
-        </div>
+        <Empty title="No assignments yet." body="Your assigned sessions will appear here once a coordinator assigns you." />
       )}
     </div>
   );
