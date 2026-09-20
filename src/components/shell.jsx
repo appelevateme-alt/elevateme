@@ -26,7 +26,6 @@ export function Shell({ role, children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
-  const [toast, setToast] = useState('');
   const [previewRole, setPreviewRole] = useState(null);
   const nav = ROLE_NAV[role] || [];
 
@@ -36,12 +35,6 @@ export function Shell({ role, children }) {
     : session
       ? `${ROLE_LABEL[session.role] || session.role} · ${session.email}`
       : 'Signed out';
-
-  const notify = (msg) => {
-    setToast(msg);
-    clearTimeout(window.__emToast);
-    window.__emToast = setTimeout(() => setToast(''), 2500);
-  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -58,8 +51,6 @@ export function Shell({ role, children }) {
           {nav.map((n) => (
             <NavLink key={n.href} to={n.href} end={n.href === `/${role}`} className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
               <span>{n.label}</span>
-              {role === 'student' && n.href === '/student' && <span className="nav-count">03</span>}
-              {role === 'admin' && n.href === '/admin' && <span className="nav-count">03</span>}
             </NavLink>
           ))}
           <div className="nav-group">Website</div>
@@ -89,12 +80,10 @@ export function Shell({ role, children }) {
                 </select>
               </label>
             )}
-            <button className="notification-button" aria-label="Notifications" onClick={() => notify('3 unread notifications')}>03</button>
           </div>
         </header>
         <main id="main" className="main-content" tabIndex={-1}>{children}</main>
       </div>
-      <div role="status" aria-live="polite" className={`toast${toast ? ' show' : ''}`}>{toast}</div>
     </div>
   );
 }
