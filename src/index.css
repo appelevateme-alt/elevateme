@@ -170,6 +170,43 @@ svg{display:block}
 .skeleton-line{height:16px;background:#e8e9ed;margin:8px 0;animation:pulse 1.2s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.45}}
 @media (prefers-reduced-motion:reduce){.skeleton-line{animation:none}}
+/* ---------- Landing motion (entrance, scroll reveal, hovers) ---------- */
+html{scroll-behavior:smooth}
+@keyframes rise-in{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+.hero-enter{animation:rise-in .7s cubic-bezier(.2,.65,.25,1) both;animation-delay:var(--d,0ms)}
+.reveal{opacity:0;transform:translateY(26px);transition:opacity .65s ease var(--reveal-delay,0ms),transform .65s cubic-bezier(.2,.65,.25,1) var(--reveal-delay,0ms)}
+.reveal.revealed{opacity:1;transform:none}
+.stagger-group>*{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.65,.25,1)}
+.stagger-group.revealed>*{opacity:1;transform:none}
+.stagger-group.revealed>*:nth-child(2){transition-delay:.09s}
+.stagger-group.revealed>*:nth-child(3){transition-delay:.18s}
+.stagger-group.revealed>*:nth-child(4){transition-delay:.27s}
+@keyframes draw-line{to{stroke-dashoffset:0}}
+.draw-line{stroke-dasharray:900;stroke-dashoffset:900;animation:draw-line 1.8s ease-out .45s forwards}
+@keyframes fade-in{to{opacity:1}}
+.fade-late{opacity:0;animation:fade-in .6s ease 1.7s forwards}
+.button{transition:transform .18s ease,box-shadow .18s ease,background-color .18s ease,border-color .18s ease}
+.button:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 20px rgba(16,17,20,.16)}
+.step{transition:transform .25s ease,background-color .25s ease}
+.step:hover{transform:translateY(-6px)}
+.role-row{transition:background-color .2s ease}
+.role-row:hover{background:#fff}
+.role-row .role-arrow{display:inline-block;transition:transform .2s ease}
+.role-row:hover .role-arrow{transform:translate(4px,-4px)}
+.landing-links a:not(.button){transition:color .18s ease}
+.metric-band{transition:background-color .25s ease}
+.metric-band:hover{background:#fff}
+.mini-panel{transition:transform .25s ease,box-shadow .25s ease}
+.mini-panel:hover{transform:translate(-3px,-3px);box-shadow:13px 13px 0 var(--ink)}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .hero-enter,.draw-line,.fade-late{animation:none}
+  .hero-enter,.fade-late{opacity:1}
+  .draw-line{stroke-dashoffset:0}
+  .reveal,.stagger-group>*{opacity:1;transform:none;transition:none}
+  .button:hover:not(:disabled),.step:hover,.mini-panel:hover{transform:none;box-shadow:none}
+  .mini-panel:hover{box-shadow:10px 10px 0 var(--ink)}
+}
 .pagination{display:flex;align-items:center;gap:12px;margin-top:18px;font-size:.82rem;color:var(--muted)}
 .builder-grid{display:grid;grid-template-columns:210px 1fr;gap:22px}
 .step-list{list-style:none;margin:0;padding:0;display:grid;gap:5px;align-content:start}

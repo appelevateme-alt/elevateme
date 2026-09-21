@@ -1,10 +1,36 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Button, PageHead, Status, Empty, Pagination, SkeletonRows } from '../components/ui.jsx';
 import { ProgramListRow, RegistrationPanel } from '../components/domain.jsx';
 import { useSupabaseList, useSupabaseRecord } from '../lib/useSupabase.js';
 import { toProgram, toSession, toRegistration } from '../lib/adapters.js';
 import { useAuth } from '../lib/auth.jsx';
+
+/* ---------- Scroll reveal (IntersectionObserver, CSS animates) ---------- */
+function Reveal({ as: Tag = 'div', className = '', delay = 0, children, ...rest }) {
+  const ref = useRef(null);
+  const [shown, setShown] = useState(() => typeof IntersectionObserver === 'undefined');
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setShown(true);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.1, rootMargin: '0px 0px -6% 0px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return (
+    <Tag ref={ref} className={`reveal${shown ? ' revealed' : ''}${className ? ` ${className}` : ''}`} style={{ '--reveal-delay': `${delay}ms` }} {...rest}>
+      {children}
+    </Tag>
+  );
+}
 
 /* ---------- Landing (prototype index.html) ---------- */
 export function Home() {
@@ -23,23 +49,23 @@ export function Home() {
       </div></header>
       <main>
         <section className="hero"><div className="wrap">
-          <div className="hero-eyebrow">Every session becomes progress</div>
+          <div className="hero-eyebrow hero-enter">Every session becomes progress</div>
           <div className="hero-grid">
             <div>
-              <h1>GROWTH,<br />MADE <em>VISIBLE.</em></h1>
-              <p className="hero-copy">ElevateMe turns programmes, evaluations and recommendations into one clear record of how every student is developing.</p>
-              <div className="hero-actions">
+              <h1 className="hero-enter" style={{ '--d': '80ms' }}>GROWTH,<br />MADE <em>VISIBLE.</em></h1>
+              <p className="hero-copy hero-enter" style={{ '--d': '160ms' }}>ElevateMe turns programmes, evaluations and recommendations into one clear record of how every student is developing.</p>
+              <div className="hero-actions hero-enter" style={{ '--d': '240ms' }}>
                 <Link className="button" to="/programs">Explore programs <span aria-hidden="true">→</span></Link>
                 <Link className="button secondary" to="/student">Preview the app</Link>
                 <Link className="button secondary" to="/sign-up">Create account</Link>
               </div>
             </div>
-            <aside className="mini-panel" aria-label="Example performance insight">
+            <aside className="mini-panel hero-enter" style={{ '--d': '200ms' }} aria-label="Example performance insight">
               <div className="panel-top"><span className="panel-title">Your performance</span><span className="status">Improving</span></div>
               <div className="mini-chart">
                 <svg viewBox="0 0 420 130" role="img" aria-label="Confidence score increasing across five sessions">
-                  <polyline points="8,108 106,92 205,98 304,58 412,27" fill="none" stroke="#1a49e7" strokeWidth="5" strokeLinecap="square" />
-                  <g fill="#fff" stroke="#101114" strokeWidth="3">
+                  <polyline className="draw-line" points="8,108 106,92 205,98 304,58 412,27" fill="none" stroke="#1a49e7" strokeWidth="5" strokeLinecap="square" />
+                  <g className="fade-late" fill="#fff" stroke="#101114" strokeWidth="3">
                     <circle cx="8" cy="108" r="6" /><circle cx="106" cy="92" r="6" /><circle cx="205" cy="98" r="6" />
                     <circle cx="304" cy="58" r="6" /><circle cx="412" cy="27" r="7" fill="#c8ff65" />
                   </g>
@@ -51,40 +77,40 @@ export function Home() {
           </div>
         </div></section>
 
-        <section className="metrics-band" aria-label="Platform highlights"><div className="wrap">
+        <section className="metrics-band" aria-label="Platform highlights"><Reveal className="wrap stagger-group">
           <div className="metric-band"><b>01 profile</b><span>One continuous record of student growth</span></div>
           <div className="metric-band"><b>10 skills</b><span>A consistent, structured evaluation</span></div>
           <div className="metric-band"><b>Clear next steps</b><span>Recommendations backed by performance</span></div>
-        </div></section>
+        </Reveal></section>
 
         <section className="landing-section" id="how"><div className="wrap">
           <div className="section-head-grid"><div><div className="hero-eyebrow">The ElevateMe journey</div></div><div><h2>FROM PARTICIPATION<br />TO PROGRESS.</h2><p>Every stage connects. Students join meaningful programs, receive structured feedback, understand their development and know what to work on next.</p></div></div>
-          <div className="flow">
+          <Reveal className="flow stagger-group">
             <article className="step"><div className="step-no">01 / DISCOVER</div><h3>Join a program</h3><p>Explore approved events, continuous programmes and special development opportunities.</p></article>
             <article className="step"><div className="step-no">02 / PARTICIPATE</div><h3>Build real skills</h3><p>Take part in Model UN, debates, speaking programmes and other guided experiences.</p></article>
             <article className="step"><div className="step-no">03 / UNDERSTAND</div><h3>Receive evaluation</h3><p>Qualified evaluators assess ten consistent areas and provide useful remarks.</p></article>
             <article className="step"><div className="step-no">04 / ELEVATE</div><h3>Act on insight</h3><p>See trends, identify strengths and follow clear recommendations for the next level.</p></article>
-          </div>
+          </Reveal>
         </div></section>
 
         <section className="landing-section" id="people"><div className="wrap roles-grid">
-          <div className="role-list">
+          <Reveal className="role-list stagger-group">
             {[['01', 'Students', 'Own your growth journey', '/student'], ['02', 'Teachers & coordinators', 'Create programs and support progress', '/coordinator'], ['03', 'Parents', 'Stay informed with clarity', '/parent'], ['04', 'Resource persons', 'Evaluate with one clear framework', '/evaluator']].map(([i, h, s, to]) => (
               <Link key={i} className="role-row" to={to}><span className="role-index">{i}</span><div><h3>{h}</h3><span className="role-sub">{s}</span></div><span className="role-arrow" aria-hidden="true">↗</span></Link>
             ))}
-          </div>
+          </Reveal>
           <div className="role-copy"><div className="hero-eyebrow">Designed around people</div><h2>ONE SYSTEM.<br />EVERYONE ALIGNED.</h2><p>ElevateMe gives each person exactly what they need. Students see progress. Parents understand it. Teachers coordinate it. Evaluators record it. Diplomatic Impact guides what comes next.</p><div className="quote">Simple enough to use during a live session. Structured enough to support long-term development.</div></div>
         </div></section>
 
-        <section className="landing-section dark" id="performance"><div className="wrap performance-grid">
+        <section className="landing-section dark" id="performance"><Reveal className="wrap performance-grid stagger-group">
           <div><div className="hero-eyebrow">Performance, explained</div><h2>NOT JUST<br />A SCORE.</h2><p>Track performance by skill, period and session. Then turn the numbers into straightforward, evidence-based insights a student can act on.</p><Link className="button" style={{ marginTop: 26, background: 'var(--lime)', color: 'var(--ink)', borderColor: 'var(--lime)' }} to="/student/performance">Preview performance →</Link></div>
           <div className="insights-card">
             <div className="insights-filterbar"><span className="insights-filter">Skill: Confidence⌄</span><span className="insights-filter">Period: 6 months⌄</span><span className="insights-filter">All sessions⌄</span></div>
             <div className="big-chart">
               <svg viewBox="0 0 600 230" role="img" aria-label="Example performance trend rising over six sessions">
-                <path d="M8 194 C70 184,90 158,126 165 S190 180,235 130 S308 102,352 112 S430 81,465 58 S538 48,590 18" fill="none" stroke="#c8ff65" strokeWidth="5" />
+                <path className="draw-line" d="M8 194 C70 184,90 158,126 165 S190 180,235 130 S308 102,352 112 S430 81,465 58 S538 48,590 18" fill="none" stroke="#c8ff65" strokeWidth="5" />
                 <path d="M8 194 C70 184,90 158,126 165 S190 180,235 130 S308 102,352 112 S430 81,465 58 S538 48,590 18 L590 230 L8 230Z" fill="#c8ff65" opacity=".16" />
-                <g fill="#17191e" stroke="#c8ff65" strokeWidth="3">
+                <g className="fade-late" fill="#17191e" stroke="#c8ff65" strokeWidth="3">
                   <circle cx="8" cy="194" r="6" /><circle cx="126" cy="165" r="6" /><circle cx="235" cy="130" r="6" />
                   <circle cx="352" cy="112" r="6" /><circle cx="465" cy="58" r="6" /><circle cx="590" cy="18" r="7" />
                 </g>
@@ -93,19 +119,19 @@ export function Home() {
             <div className="insight-row-dark"><label>Strongest change</label><p>Confidence rose steadily across the last four evaluated sessions.</p></div>
             <div className="insight-row-dark"><label>Next focus</label><p>Counter arguments is the clearest opportunity for your next programme.</p></div>
           </div>
-        </div></section>
+        </Reveal></section>
 
         <section className="landing-section" id="programs"><div className="wrap">
           <div className="section-head-grid"><div><div className="hero-eyebrow">Programs with purpose</div></div><div><h2>LEARN BY<br />DOING.</h2><p>Build communication, leadership and critical-thinking skills through structured experiences—each one connected to your long-term growth record.</p></div></div>
-          <div className="flow">
+          <Reveal className="flow stagger-group">
             <article className="step"><div className="step-no">SINGLE EVENT</div><h3>Model United Nations</h3><p>Committees, country representation and performance feedback in one connected experience.</p></article>
             <article className="step"><div className="step-no">SINGLE EVENT</div><h3>Friendly debates</h3><p>Practice structured argument, counter-arguments, clarity and confident delivery.</p></article>
             <article className="step"><div className="step-no">CONTINUOUS</div><h3>Academic speaking</h3><p>Follow improvement across multiple sessions with longitudinal performance insights.</p></article>
             <article className="step"><div className="step-no">SPECIAL</div><h3>Development programs</h3><p>Focused experiences created around the skills students need most.</p></article>
-          </div>
+          </Reveal>
         </div></section>
 
-        <section className="cta-band" id="join"><div className="wrap cta-grid"><h2>YOUR NEXT LEVEL<br />STARTS HERE.</h2><div><p>Explore the complete application preview and see how every role connects.</p><div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}><Link className="button" to="/student">Open the app <span aria-hidden="true">↗</span></Link><Link className="button" to="/sign-up">Create account</Link></div></div></div></section>
+        <section className="cta-band" id="join"><Reveal className="wrap cta-grid stagger-group"><h2>YOUR NEXT LEVEL<br />STARTS HERE.</h2><div><p>Explore the complete application preview and see how every role connects.</p><div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}><Link className="button" to="/student">Open the app <span aria-hidden="true">↗</span></Link><Link className="button" to="/sign-up">Create account</Link></div></div></Reveal></section>
       </main>
       <footer className="landing-footer"><div className="wrap footer-grid">
         <Link className="brand" to="/">Elevate<span>Me</span></Link>
