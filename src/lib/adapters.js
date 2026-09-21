@@ -174,7 +174,9 @@ export function toReply(row) {
 
 export function toProfile(row) {
   const r = safe(row);
-  const role = pick(r, 'role', 'activeRole', 'active_role') ?? 'student';
+  // NOTE: role intentionally defaults to '' (unknown), never to a real role.
+  // A silent 'student' default here once mislabelled role-less accounts.
+  const role = pick(r, 'role', 'activeRole', 'active_role') ?? '';
   const availableRoles =
     pick(r, 'availableRoles', 'available_roles', 'roles') ?? (role ? [role] : []);
   return {
@@ -185,5 +187,7 @@ export function toProfile(row) {
     availableRoles: Array.isArray(availableRoles) ? availableRoles : [availableRoles].filter(Boolean),
     status: pick(r, 'status', 'state', 'approval_status') ?? '',
     elevateMeId: elevateMeIdFrom(r) || null,
+    institute: pick(r, 'institute', 'institute_name', 'college', 'school') ?? '',
+    joined: pick(r, 'joined', 'created_at', 'createdAt') ?? '',
   };
 }

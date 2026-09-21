@@ -53,6 +53,7 @@ time, press **Run**, and wait for success before the next:
 5. `supabase/migrations/005_scoring_rework.sql` — 1000-point model (score 0–100 per criterion)
 6. `supabase/migrations/006_rls_recursion_fix.sql` — SECURITY DEFINER helpers, recursion-free policies (REQUIRED — without it sign-in breaks)
 7. `supabase/migrations/007_signup_roles_audit.sql` — signup trigger reads `requested_role` + persists enrichment; `decide_profile` RPC for audited user approvals
+8. `supabase/migrations/008_role_correction.sql` — `set_profile_roles` RPC so admins can fix wrongly-assigned roles (audited)
 
 Each file is idempotent (`IF NOT EXISTS` / `DROP … IF EXISTS` / `CREATE OR REPLACE`).
 

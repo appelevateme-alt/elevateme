@@ -159,7 +159,7 @@ export function SignIn() {
 /* 5-step create-account flow: role → account → profile →
    photo/verification → review/consent, with per-step validation, error
    summary, session draft persistence (never the password) and a pending-approval confirmation. */
-const EMPTY = { role: 'student', fullName: '', email: '', institute: '', dob: '', referee: '', phone: '', consent: false };
+const EMPTY = { role: '', fullName: '', email: '', institute: '', dob: '', referee: '', phone: '', consent: false };
 const STEPS = ['Choose role', 'Account details', 'Profile information', 'Photo and verification', 'Review and submit'];
 const DRAFT_KEY = 'em-signup-draft';
 
@@ -210,6 +210,7 @@ export function SignUp() {
   }, [draft, password]);
 
   const stepErrorList = (s) => {
+    if (s === 1) return [!draft.role ? 'Choose your role to continue.' : null].filter(Boolean);
     if (s === 2) return [errors.fullName, errors.email, errors.password].filter(Boolean);
     if (s === 3) return [errors.institute, errors.dob].filter(Boolean);
     if (s === 5) return [...Object.values(errors), ...(!draft.consent ? ['Accept consent and privacy to submit.'] : [])];
@@ -223,6 +224,9 @@ export function SignUp() {
       );
     }
     const cleanEmail = draft.email.trim();
+    if (!draft.role) {
+      throw new Error('Choose your role in step 1 before creating your login.');
+    }
     // The signup trigger (handle_new_user) builds the profile from metadata:
     // `roles[]` is the role source it reads, `requested_role` drives the
     // admin-bootstrap branch, and enrichment is persisted server-side so the
@@ -284,6 +288,10 @@ export function SignUp() {
     const list = stepErrorList(5);
     if (list.length > 0) {
       setSubmitErrors(list);
+      return;
+    }
+    if (!draft.role) {
+      setSubmitErrors(['Choose your role in step 1 before submitting.']);
       return;
     }
     setSubmitErrors([]);
@@ -394,6 +402,7 @@ export function SignUp() {
             <>
               <div className="field"><label> Choose your role
                 <select value={draft.role} onChange={(e) => set('role', e.target.value)}>
+                  <option value="">Choose your role…</option>
                   <option value="student">Student</option>
                   <option value="coordinator">Teacher / programme coordinator</option>
                   <option value="parent">Parent or guardian (via invitation)</option>

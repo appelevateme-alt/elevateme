@@ -148,21 +148,22 @@ export function AdminApprovals() {
     p.institute,
     <Status key={`s-${p.id}`} value={decided[p.id] || 'Pending review'} />,
       <span key={`a-${p.id}`} style={{ display: 'flex', gap: 6 }}>
-        <Button small onClick={() => decideProgram(p.id, 'Approve')}>Approve</Button>
-        <Button small variant="secondary" onClick={() => decideProgram(p.id, 'Request changes')}>Changes</Button>
+        <Button small disabled={!!decided[p.id]} onClick={() => decideProgram(p.id, 'Approve')}>Approve</Button>
+        <Button small variant="secondary" disabled={!!decided[p.id]} onClick={() => decideProgram(p.id, 'Request changes')}>Changes</Button>
       </span>,
   ])) : [];
   const userItems = showUsers ? users.map((u, i) => {
     const uid = u.userId || u.id;
+    const roleLabel = u.role ? u.role.charAt(0).toUpperCase() + u.role.slice(1) : 'Account';
     return ([
       '—',
-      <span key={`u-${uid || i}`}><strong>Coordinator account</strong><br />{u.name}</span>,
+      <span key={`u-${uid || i}`}><strong>{roleLabel} account</strong><br />{u.name}</span>,
       u.email || 'Self registration',
       '—',
       <Status key={`us-${uid || i}`} value={decided[uid] || u.status || 'Pending review'} />,
       <span key={`ua-${uid || i}`} style={{ display: 'flex', gap: 6 }}>
-        <Button small onClick={() => decideUser(uid, 'Approve')}>Approve</Button>
-        <Button small variant="secondary" onClick={() => decideUser(uid, 'Request changes')}>Changes</Button>
+        <Button small disabled={!!decided[uid]} onClick={() => decideUser(uid, 'Approve')}>Approve</Button>
+        <Button small variant="secondary" disabled={!!decided[uid]} onClick={() => decideUser(uid, 'Request changes')}>Changes</Button>
       </span>,
     ]);
   }) : [];
@@ -173,10 +174,10 @@ export function AdminApprovals() {
     'Evaluator',
     '—',
     <Status key="s-e" value={decided.release || 'Ready to release'} />,
-    <span key="a-e" style={{ display: 'flex', gap: 6 }}>
-      <Button small onClick={() => decideRelease(releaseIds, 'Approve')}>Approve</Button>
-      <Button small variant="secondary" onClick={() => decideRelease(releaseIds, 'Request changes')}>Changes</Button>
-    </span>,
+      <span key="a-e" style={{ display: 'flex', gap: 6 }}>
+        <Button small disabled={!!decided.release} onClick={() => decideRelease(releaseIds, 'Approve')}>Approve</Button>
+        <Button small variant="secondary" disabled={!!decided.release} onClick={() => decideRelease(releaseIds, 'Request changes')}>Changes</Button>
+      </span>,
   ]] : [];
 
   const liveRows = [...progItems, ...userItems, ...releaseItems];
@@ -268,6 +269,18 @@ export function AdminUsers() {
   const { count: linkCount } = useSupabaseList({ table: 'parent_links', page: 1, pageSize: 1 });
   const { count: assignmentCount } = useSupabaseList({ table: 'program_evaluators', page: 1, pageSize: 1 });
   const users = (data || []).map(toProfile);
+  const [roleMsg, setRoleMsg] = useState('');
+  const changeRole = async (uid, newRole) => {
+    if (!newRole) return;
+    setRoleMsg('');
+    try {
+      const { error } = await supabase.rpc('set_profile_roles', { p_profile_id: uid, p_roles: [newRole], p_active_role: newRole });
+      if (error) throw new Error(error.message);
+      setRoleMsg(`Role updated — audit entry created.`);
+    } catch (err) {
+      setRoleMsg(err?.message || 'Could not update role.');
+    }
+  };
   return (
     <div>
       <PageHead kicker="Administration" title="Users & institutes." desc="Manage approved access while protecting student and institutional data." />
@@ -284,11 +297,22 @@ export function AdminUsers() {
       {loading && <SkeletonRows rows={4} />}
       {error && <div className="notice"><strong>Couldn’t load users.</strong> {error.message}</div>}
       {!loading && !error && (
-        <DataTable headers={['User', 'Role', 'Institute', 'Joined', 'Status']}
-          rows={users.map((s) => [
-            <span key="u"><strong>{s.name}</strong><br /><span className="row-meta">{s.elevateMeId}</span></span>,
-            s.role || 'Student', s.institute || '—', s.joined || '—', <Status key="s" value={s.status || 'Approved'} />,
-          ])} />
+        <>
+          {roleMsg && <p role="status" className="notice" style={{ marginBottom: 12 }}>{roleMsg}</p>}
+          <DataTable headers={['User', 'Role', 'Institute', 'Joined', 'Status']}
+            rows={users.map((s) => [
+              <span key="u"><strong>{s.name}</strong><br /><span className="row-meta">{s.elevateMeId}</span></span>,
+              <select key={`r-${s.userId}`} aria-label={`Role for ${s.name}`} value={s.role || ''} onChange={(e) => changeRole(s.userId, e.target.value)}>
+                <option value="">—</option>
+                <option value="student">Student</option>
+                <option value="parent">Parent</option>
+                <option value="coordinator">Coordinator</option>
+                <option value="evaluator">Evaluator</option>
+                <option value="admin">Admin</option>
+              </select>,
+              s.institute || '—', s.joined || '—', <Status key="s" value={s.status || 'Approved'} />,
+            ])} />
+        </>
       )}
     </div>
   );
