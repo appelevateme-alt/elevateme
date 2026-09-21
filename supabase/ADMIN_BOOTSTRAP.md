@@ -19,6 +19,12 @@
 > 2026-09-20 data wipe: all seed/demo rows deleted from the live project.
 > Only `appelevateme@gmail.com` (admin) + the v1 rubric template remain.
 > Re-run `seed.sql` only if demo data is ever wanted back.
+>
+> 2026-09-21: Kent Singhage (kentrayners@gmail.com) signed up with
+> role=student in his own metadata, was approved as a student (EM-00132),
+> then corrected to admin via set_profile_roles + audit row. Signup no
+> longer defaults the role to student (explicit choice required). Access
+> token rotated; runner default still holds the old revoked token.
 > Note: `profiles.id` has no FK to `auth.users` (placeholder rows must exist
 > before signup — see `001_core.sql`); the query API silently skips failing
 > statements, so any future re-seed must be verified with row counts.
