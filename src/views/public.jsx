@@ -64,7 +64,7 @@ export function Home() {
               <div className="panel-top"><span className="panel-title">Your performance</span><span className="status">Improving</span></div>
               <div className="mini-chart">
                 <svg viewBox="0 0 420 130" role="img" aria-label="Confidence score increasing across five sessions">
-                  <polyline className="draw-line" points="8,108 106,92 205,98 304,58 412,27" fill="none" stroke="#1a49e7" strokeWidth="5" strokeLinecap="square" />
+                  <polyline className="draw-line" points="8,108 106,92 205,98 304,58 412,27" fill="none" stroke="#e37f6f" strokeWidth="5" strokeLinecap="square" />
                   <g className="fade-late" fill="#fff" stroke="#101114" strokeWidth="3">
                     <circle cx="8" cy="108" r="6" /><circle cx="106" cy="92" r="6" /><circle cx="205" cy="98" r="6" />
                     <circle cx="304" cy="58" r="6" /><circle cx="412" cy="27" r="7" fill="#c8ff65" />
