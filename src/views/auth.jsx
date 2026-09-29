@@ -132,25 +132,51 @@ export function SignIn() {
       <PageHead kicker="Welcome back" title="Sign in." desc="Sign in with your ElevateMe account email and password." />
       <section className="panel"><div className="panel-head"><h2>Your account</h2><span className="tag">Email + password</span></div>
         <div className="panel-body">
-          <form onSubmit={onSubmit} style={{ display: 'grid', gap: 18 }}>
-            <div className="field"><label> Email<input type="email" required placeholder="you@example.edu" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" /></label></div>
-            <div className="field"><label> Password<input type="password" required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></label></div>
-            {error && (
-              <p role="alert" className="field-error">{error}{' '}
-                {unconfirmedEmail && (
-                  <Link to={`/check-email?email=${encodeURIComponent(unconfirmedEmail)}`} className="link-quiet">Go to email verification →</Link>
-                )}
-              </p>
-            )}
-            <div><Button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</Button></div>
-            <p style={{ fontSize: '.88rem' }}>
-              <Link to="/forgot-password" className="link-quiet">Forgot password?</Link>
-              <span style={{ color: 'var(--muted)' }}> · New here? </span>
-              <Link to="/sign-up" className="link-quiet">Create an account</Link>
-            </p>
-            <p style={{ fontSize: '.78rem', color: 'var(--muted)' }}>Pending, rejected, suspended, or changes-requested accounts see an explicit status screen after sign-in.</p>
-          </form>
-        </div>
+  <form onSubmit={onSubmit} style={{ display: 'grid', gap: 18 }}>
+    <div className="field">
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ minWidth: 80 }}>Email</span>
+        <input
+          type="email"
+          required
+          placeholder="you@example.edu"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
+          style={{ flex: 1 }}
+        />
+      </label>
+    </div>
+    <div className="field">
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ minWidth: 80 }}>Password</span>
+        <input
+          type="password"
+          required
+          placeholder="••••••••"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password"
+          style={{ flex: 1 }}
+        />
+      </label>
+    </div>
+    {error && (
+      <p role="alert" className="field-error">{error}{' '}
+        {unconfirmedEmail && (
+          <Link to={`/check-email?email=${encodeURIComponent(unconfirmedEmail)}`} className="link-quiet">Go to email verification →</Link>
+        )}
+      </p>
+    )}
+    <div><Button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</Button></div>
+    <p style={{ fontSize: '.88rem' }}>
+      <Link to="/forgot-password" className="link-quiet">Forgot password?</Link>
+      <span style={{ color: 'var(--muted)' }}> · New here? </span>
+      <Link to="/sign-up" className="link-quiet">Create an account</Link>
+    </p>
+    <p style={{ fontSize: '.78rem', color: 'var(--muted)' }}>Pending, rejected, suspended, or changes-requested accounts see an explicit status screen after sign-in.</p>
+  </form>
+</div>
       </section>
     </AuthHead>
   );
