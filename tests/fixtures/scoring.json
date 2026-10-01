@@ -1,0 +1,88 @@
+{
+  "_comment": "Golden fixtures for scoring + insights. Consumed by Java unit tests and React tests. Totals are sums of 10x 0-100 int scores. Normalized = total/10.",
+  "criteriaOrder": [
+    "preparation",
+    "clarity",
+    "confidence",
+    "focus",
+    "critical_analysis",
+    "sound",
+    "audience_addressing",
+    "counter_arguments",
+    "wit",
+    "overall_performance"
+  ],
+  "cases": [
+    {
+      "id": "tenx100",
+      "description": "All 100 => total 1000 normalized 100",
+      "input": { "scores": [100, 100, 100, 100, 100, 100, 100, 100, 100, 100], "released": true, "status": "Locked" },
+      "expected": { "total": 1000, "normalized": 100, "affectsSummary": true }
+    },
+    {
+      "id": "tenx0",
+      "description": "All 0 => total 0 normalized 0 (explicit zeros, still affects summary when released)",
+      "input": { "scores": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "released": true, "status": "Locked" },
+      "expected": { "total": 0, "normalized": 0, "affectsSummary": true }
+    },
+    {
+      "id": "blank-not-zero",
+      "description": "Blank != zero: 9x50 + 1 missing => total of provided only, completeness=false, never coerce missing to 0",
+      "input": { "scores": [50, 50, 50, 50, 50, 50, 50, 50, 50, null], "released": true, "status": "Locked" },
+      "expected": { "total": 450, "normalized": 45, "complete": false, "coercedToZero": false }
+    },
+    {
+      "id": "history-60-83-76",
+      "description": "Totals 600/830/760 => history 60,83,76 best 83 gain 23",
+      "input": {
+        "evaluations": [
+          { "id": "e1", "starts_at": "2026-01-10T10:00:00Z", "total": 600, "released": true },
+          { "id": "e2", "starts_at": "2026-02-10T10:00:00Z", "total": 830, "released": true },
+          { "id": "e3", "starts_at": "2026-03-10T10:00:00Z", "total": 760, "released": true }
+        ]
+      },
+      "expected": { "history": [60, 83, 76], "baseline": 60, "best": 83, "gain": 23, "historyPreserved": true }
+    },
+    {
+      "id": "threshold-29-flags-30-not",
+      "description": "29 flags low alert, 30 does not",
+      "input": { "criterion": "sound", "scoresToTest": [29, 30] },
+      "expected": { "alertFor29": true, "alertFor30": false }
+    },
+    {
+      "id": "draft-unreleased-excluded",
+      "description": "Draft/unreleased never affects summary",
+      "input": {
+        "evaluations": [
+          { "id": "e1", "starts_at": "2026-01-10T10:00:00Z", "total": 600, "released": true },
+          { "id": "eDraft", "starts_at": "2026-04-10T10:00:00Z", "total": 1000, "released": false, "status": "Draft" }
+        ]
+      },
+      "expected": { "history": [60], "baseline": 60, "best": 60, "gain": 0, "draftIgnored": true }
+    },
+    {
+      "id": "tie-is-matched",
+      "description": "Tied scores do not create rank-change trend",
+      "input": {
+        "evaluations": [
+          { "id": "e1", "starts_at": "2026-01-10T10:00:00Z", "total": 700, "released": true },
+          { "id": "e2", "starts_at": "2026-02-10T10:00:00Z", "total": 700, "released": true }
+        ]
+      },
+      "expected": { "history": [70, 70], "trend": "matched" }
+    },
+    {
+      "id": "resolve-40-backdated-20",
+      "description": "40 resolves alert; backdated 20 does not override",
+      "input": {
+        "criterion": "clarity",
+        "sequence": [
+          { "score": 25, "starts_at": "2026-01-10T10:00:00Z", "released": true },
+          { "score": 40, "starts_at": "2026-02-10T10:00:00Z", "released": true },
+          { "score": 20, "starts_at": "2026-01-05T10:00:00Z", "released": true, "backdated": true }
+        ]
+      },
+      "expected": { "alertAfter25": true, "resolvedAfter40": true, "backdated20Overrides": false }
+    }
+  ]
+}

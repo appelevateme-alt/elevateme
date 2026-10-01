@@ -1,0 +1,4 @@
+.saving { color: var(--amber); }
+.saved { color: var(--green); }
+.offline { color: var(--muted); }
+.error { color: var(--red); }

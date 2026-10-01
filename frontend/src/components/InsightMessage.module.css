@@ -1,0 +1,6 @@
+.feed { display: grid; gap: 12px; }
+.scope { color: var(--muted); font-size: 13px; margin: 0; }
+.item { background: var(--hero-insight-bg); border: 1px solid var(--line); padding: 12px; color: var(--ink); }
+.item label { color: var(--hero-insight-num-color); font-size: 12px; text-transform: uppercase; }
+.basedOn { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+.expand { justify-self: start; background: var(--white); border: 1px solid var(--line-dark); color: var(--ink); padding: 8px 12px; }

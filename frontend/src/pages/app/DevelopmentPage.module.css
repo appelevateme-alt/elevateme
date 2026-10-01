@@ -1,0 +1,12 @@
+.page { max-width: 880px; margin: 0 auto; padding: 16px; color: var(--ink); }
+.error { color: var(--red); }
+.meta { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+.list { display: grid; gap: 8px; padding: 0; margin: 12px 0 0; list-style: none; }
+.card { border: 1px solid var(--line); background: var(--white); padding: 12px; }
+.card h2 { margin: 0 0 4px; font-size: 17px; }
+.notice { border: 1px solid var(--line); background: var(--paper); padding: 8px 12px; font-size: 13px; color: var(--muted); margin-top: 8px; }
+.form { display: grid; gap: 8px; margin-top: 8px; }
+.form input { background: var(--white); border: 1px solid var(--line-dark); color: var(--ink); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.actions button, .actions a { background: var(--white); border: 1px solid var(--line-dark); color: var(--ink); padding: 8px 12px; text-decoration: none; }
+.external::after { content: " (external)"; }

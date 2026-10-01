@@ -1,0 +1,23 @@
+.page { max-width: 960px; margin: 0 auto; padding: 16px; color: var(--ink); }
+.section { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.section h2 { font-size: 20px; margin: 0 0 4px; }
+.scope { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+.filters { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin: 12px 0; }
+.field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.field select, .field input { color: var(--ink); background: var(--white); border: 1px solid var(--line-dark); padding: 8px; }
+.toggle { display: inline-flex; border: 1px solid var(--line-dark); }
+.toggle button { border: 0; background: var(--white); color: var(--ink); padding: 8px 16px; }
+.toggle button[aria-pressed="true"] { background: var(--dark-blue); color: var(--white); }
+/* Phase 6 a11y: native radio segmented control (keyboard arrows, visible focus). */
+.toggle label { display: inline-flex; align-items: center; gap: 8px; background: var(--white); color: var(--ink); padding: 8px 16px; cursor: pointer; }
+.toggle label:has(input:checked) { background: var(--dark-blue); color: var(--white); }
+.toggle input { accent-color: var(--dark-blue); }
+fieldset.field { border: 0; padding: 0; margin: 0; }
+fieldset.field legend { padding: 0; }
+.graph { margin: 16px 0; }
+.graph h3 { font-size: 16px; margin: 0 0 8px; }
+.stats { color: var(--muted); font-size: 13px; margin: 8px 0; }
+.table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+.table th, .table td { border-bottom: 1px solid var(--line); padding: 8px; text-align: left; }
+.error { color: var(--red); }
+.link { color: var(--dark-blue); }

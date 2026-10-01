@@ -1,0 +1,4 @@
+.head { margin-bottom: 22px; color: var(--ink); }
+.kicker { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.title { font-size: 28px; margin: 4px 0; color: var(--ink); }
+.desc { color: var(--muted); }

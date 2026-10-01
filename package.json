@@ -1,4 +1,5 @@
 {
+  "_legacyNote": "DEPRECATED root entry: serves legacy src/main.jsx only. Revamp lives in frontend/ per docs/REVMAP.md migration plan. Do not add features here; see README.md pointer.",
   "name": "elevateme",
   "private": true,
   "version": "0.0.0",

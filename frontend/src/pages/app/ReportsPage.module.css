@@ -1,0 +1,20 @@
+.page { max-width: 880px; margin: 0 auto; padding: 16px; color: var(--ink); }
+.list { display: grid; gap: 8px; padding: 0; margin: 12px 0 0; list-style: none; }
+.card { border: 1px solid var(--line); background: var(--white); padding: 12px; }
+.card h2 { margin: 0 0 4px; font-size: 17px; }
+.card a { color: var(--dark-blue); }
+.meta { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+.error { color: var(--red); }
+.detail { border: 1px solid var(--line); background: var(--white); padding: 16px; margin-top: 12px; }
+.marks { width: 100%; border-collapse: collapse; margin-top: 12px; }
+.marks th, .marks td { border-bottom: 1px solid var(--line); padding: 8px; text-align: left; }
+.totals { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+.total { border: 1px solid var(--line); padding: 8px 12px; background: var(--paper); }
+.remarks { margin-top: 12px; }
+.actions { display: flex; gap: 8px; margin-top: 12px; }
+.actions button { background: var(--white); border: 1px solid var(--line-dark); color: var(--ink); padding: 8px 12px; }
+@media print {
+  .actions { display: none; }
+  .page { max-width: none; padding: 0; }
+  .detail, .card { border: 1px solid var(--line); break-inside: avoid; }
+}

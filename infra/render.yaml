@@ -1,0 +1,33 @@
+# Render blueprint — PROPOSED only. Do not purchase/provision without owner approval.
+# Docs: https://render.com/docs/docker + https://render.com/docs/language-support
+services:
+  - type: web
+    name: elevateme-java
+    runtime: docker
+    dockerfilePath: ./infra/Dockerfile.backend
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: JDBC_URL
+        sync: false
+      - key: JDBC_USER
+        sync: false
+      - key: JDBC_PASS
+        sync: false
+      - key: SUPABASE_ISSUER
+        sync: false
+      - key: SUPABASE_JWKS_URL
+        sync: false
+      - key: SUPABASE_AUDIENCE
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: APP_PUBLIC_URL
+        sync: false
+      - key: MAIL_HOST
+        sync: false
+      - key: GUEST_COOKIE_SECRET
+        sync: false

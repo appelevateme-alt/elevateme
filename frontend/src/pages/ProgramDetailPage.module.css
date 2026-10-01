@@ -1,0 +1,6 @@
+.page { max-width: 880px; margin: 0 auto; padding: 16px; color: var(--ink); }
+.page section { background: var(--white); border: 1px solid var(--line); padding: 12px; margin: 12px 0; }
+.meta { color: var(--muted); font-size: 13px; }
+.error { color: var(--red); }
+.notice { background: var(--blue-soft); border: 1px solid var(--blue); padding: 8px; }
+.mine { border-color: var(--line-dark); }

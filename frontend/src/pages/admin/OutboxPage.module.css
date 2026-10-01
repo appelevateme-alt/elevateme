@@ -1,0 +1,10 @@
+.page { max-width: 1080px; margin: 0 auto; padding: 16px; color: var(--ink); }
+.error { color: var(--red); }
+.field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); max-width: 240px; }
+.field select { background: var(--white); border: 1px solid var(--line-dark); color: var(--ink); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.actions button, .table button, .error button { background: var(--white); border: 1px solid var(--line-dark); color: var(--ink); }
+.wrap { overflow: auto; border: 1px solid var(--line); background: var(--white); }
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { border-bottom: 1px solid var(--line); padding: 8px; text-align: left; font-size: 13px; }
+.notice { border: 1px solid var(--line); background: var(--paper); padding: 8px 12px; font-size: 13px; color: var(--muted); margin-top: 8px; }

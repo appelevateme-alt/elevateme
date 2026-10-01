@@ -1,0 +1,10 @@
+.row { display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: start; background: var(--white); border-bottom: 1px solid var(--line); padding: 10px; color: var(--ink); }
+.num { color: var(--muted); font-size: 13px; padding-top: 12px; }
+.labelWrap { display: grid; gap: 2px; }
+.label { display: block; }
+.label strong { font-size: 15px; }
+.hint { margin: 0; font-size: 12px; color: var(--muted); }
+.error { margin: 2px 0 0; font-size: 12px; color: var(--red); }
+.inputWrap { display: flex; gap: 8px; align-items: center; }
+.inputWrap input { min-height: 44px; min-width: 96px; max-width: 120px; padding: 8px 10px; border: 1px solid var(--line-dark); background: var(--white); color: var(--ink); font-size: 16px; }
+.inputWrap input[aria-invalid="true"] { border-color: var(--red); }

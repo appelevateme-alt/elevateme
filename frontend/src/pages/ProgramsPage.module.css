@@ -1,0 +1,8 @@
+.page { max-width: 880px; margin: 0 auto; padding: 16px; color: var(--ink); }
+.search { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.search label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.search input { padding: 8px; border: 1px solid var(--line-dark); background: var(--white); color: var(--ink); }
+.error { color: var(--red); }
+.list { display: grid; gap: 0; margin-top: 12px; }
+.more { margin: 16px auto; display: block; padding: 10px 20px; }
+.hint { color: var(--muted); font-size: 13px; margin-top: 16px; }

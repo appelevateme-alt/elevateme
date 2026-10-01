@@ -1,0 +1,14 @@
+.wrap { display: flex; gap: 12px; align-items: flex-start; color: var(--ink); }
+.previewBox { width: 64px; height: 64px; flex: none; overflow: hidden; background: var(--paper); border: 1px solid var(--line); }
+.img { width: 64px; height: 64px; object-fit: cover; display: block; aspect-ratio: 1 / 1; }
+.fallback { width: 64px; height: 64px; display: grid; place-items: center; background: var(--blue-soft); color: var(--dark-blue); border: 1px solid var(--line); }
+.controls { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.row { display: flex; gap: 8px; align-items: center; }
+.label { color: var(--muted); font-size: 13px; }
+.fileInput { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.replaceBtn { background: var(--white); color: var(--dark-blue); border: 1px solid var(--line-dark); padding: 4px 10px; font-size: 13px; cursor: pointer; }
+.replaceBtn:disabled { color: var(--muted); cursor: not-allowed; }
+.status { color: var(--muted); font-size: 12px; }
+.error { color: var(--red); font-size: 13px; margin: 0; }
+.retryBtn { background: var(--white); color: var(--red); border: 1px solid var(--red); padding: 2px 8px; font-size: 12px; cursor: pointer; margin-left: 8px; }
+.saved { color: var(--green); font-size: 13px; margin: 0; }

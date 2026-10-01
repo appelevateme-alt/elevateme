@@ -1,0 +1,4 @@
+.strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.metric { background: var(--white); border: 1px solid var(--line); padding: 12px; color: var(--ink); }
+.metric label { color: var(--muted); font-size: 12px; }
+.metric small { color: var(--muted); }

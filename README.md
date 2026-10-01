@@ -1,16 +1,30 @@
-# React + Vite
+# ElevateMe — revamp monorepo pointer
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+ElevateMe revamp lives in dedicated packages — this root is legacy entry only
+(see Legacy note below). Start here:
 
-Currently, two official plugins are available:
+- `frontend/` — React 18 + TS revamp (router, clean-arch slices, scoring/insights). Quickstart: [`frontend/README.md`](frontend/README.md)
+- `backend/` — Spring Boot modular monolith (`/api/v1`). Quickstart: [`backend/README.md`](backend/README.md)
+- `database/` — canonical Flyway SQL migrations (`database/migrations/`)
+- `docs/` — spec sources: [`docs/REVMAP.md`](docs/REVMAP.md) (old → new routes), [`docs/SCORING.md`](docs/SCORING.md), [`docs/INSIGHTS.md`](docs/INSIGHTS.md), [`docs/PERMISSIONS.md`](docs/PERMISSIONS.md)
+- `infra/` — deploy notes + Vercel/Render blueprints. Quickstart: [`infra/README.md`](infra/README.md)
+- `tests/fixtures/scoring.json` — canonical golden fixtures for scoring + insights (single source of truth for Java + React tests)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Quickstart
 
-## React Compiler
+```bash
+# frontend revamp
+cd frontend && npm ci && npm run dev   # see frontend/README.md
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+# backend
+cd backend && ./mvnw spring-boot:run   # see backend/README.md (Windows: mvnw.cmd)
 
-## Expanding the Oxlint configuration
+# full deploy notes
+# see infra/README.md + docs/
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Legacy note (root entry)
+
+Root `package.json` / `vite.config.js` / `index.html` serve the legacy `src/` (Vite `src/main.jsx`)
+template only — kept building for reference. The revamp lives in `frontend/` per
+`docs/REVMAP.md` migration plan. Do not add new features at root; work in `frontend/`.

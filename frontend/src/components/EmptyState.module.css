@@ -1,0 +1,2 @@
+.empty { border: 1px dashed var(--line-dark); background: var(--white); padding: 24px; color: var(--ink); }
+.empty p { color: var(--muted); }

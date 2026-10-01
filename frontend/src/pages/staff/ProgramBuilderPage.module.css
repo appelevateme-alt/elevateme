@@ -1,0 +1,57 @@
+.page { max-width: 1024px; margin: 0 auto; padding: 16px 16px 96px; color: var(--ink); }
+.layout { display: grid; grid-template-columns: 240px 1fr; gap: 16px; }
+.steps { list-style: none; margin: 0; padding: 0; background: var(--white); border: 1px solid var(--line); align-self: start; position: sticky; top: 12px; }
+.steps li button { width: 100%; text-align: left; background: none; border: none; padding: 12px; color: var(--ink); min-height: 44px; }
+.steps .current button { background: var(--blue-soft); font-weight: 700; }
+.steps .past button { color: var(--muted); }
+.mobileProgress { display: none; background: var(--blue-soft); border: 1px solid var(--blue); padding: 8px; margin-bottom: 12px; }
+.body { background: var(--white); border: 1px solid var(--line); padding: 16px; }
+.grid { display: grid; gap: 10px; }
+.grid label { display: grid; gap: 4px; font-size: 14px; }
+.grid input, .grid select, .grid textarea { padding: 8px; border: 1px solid var(--line-dark); background: var(--white); color: var(--ink); min-height: 44px; }
+.nav { display: flex; justify-content: space-between; margin-top: 12px; gap: 8px; flex-wrap: wrap; }
+.nav button { min-height: 44px; min-width: 44px; padding: 10px 16px; }
+.error { color: var(--red); }
+.fieldError { color: var(--red); font-size: 13px; }
+.note { background: var(--blue-soft); border: 1px solid var(--blue); padding: 8px; }
+.stickyBar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; gap: 12px; align-items: center; background: var(--white); border-top: 1px solid var(--line-dark); padding: 12px 16px; }
+.stickyBar button { min-height: 44px; min-width: 44px; padding: 10px 16px; }
+.saveHint { color: var(--muted); font-size: 13px; }
+
+/* 200% zoom note: at 200% browser zoom a 1280px viewport behaves like ~640px CSS width,
+   so single-column stacking below 760px keeps the builder usable without horizontal scroll. */
+
+@media (max-width: 360px) {
+  .page { padding: 12px 12px 96px; }
+  .body { padding: 12px; }
+  .nav { flex-direction: column; }
+  .nav button { width: 100%; }
+}
+
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; }
+  .steps { display: none; }
+  .mobileProgress { display: block; }
+}
+
+@media (max-width: 768px) {
+  .layout { grid-template-columns: 1fr; }
+  .steps { position: static; }
+  .stickyBar { flex-wrap: wrap; }
+}
+
+@media (max-width: 1100px) {
+  .layout { grid-template-columns: 1fr; }
+  .steps { position: static; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .mobileProgress { display: block; }
+}
+
+@media (min-width: 1280px) {
+  .page { max-width: 1200px; }
+  .layout { grid-template-columns: 280px 1fr; }
+}
+
+@media (min-width: 1440px) {
+  .page { max-width: 1320px; }
+  .layout { gap: 24px; }
+}

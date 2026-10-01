@@ -1,0 +1,12 @@
+.page { max-width: 960px; margin: 0 auto; padding: 16px; color: var(--ink); }
+.error { color: var(--red); }
+.meta { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+.form { display: grid; gap: 12px; margin-top: 12px; border: 1px solid var(--line); background: var(--white); padding: 12px; }
+.field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.field input, .field select, .field textarea { background: var(--white); border: 1px solid var(--line-dark); color: var(--ink); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.actions button { background: var(--white); border: 1px solid var(--line-dark); color: var(--ink); }
+.section { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+.table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.table th, .table td { border-bottom: 1px solid var(--line); padding: 8px; text-align: left; font-size: 14px; }
+.notice { border: 1px solid var(--line); background: var(--paper); padding: 8px 12px; font-size: 13px; color: var(--muted); margin-top: 8px; }

@@ -1,0 +1,11 @@
+.page { max-width: 560px; margin: 0 auto; padding: 16px; color: var(--ink); }
+.error { color: var(--red); border: 1px solid var(--line-dark); background: var(--white); padding: 8px 12px; }
+.error a { color: var(--blue); }
+.form { display: grid; gap: 12px; margin-top: 12px; border: 1px solid var(--line); background: var(--white); padding: 12px; }
+.field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.field input { background: var(--white); border: 1px solid var(--line-dark); color: var(--ink); padding: 8px; }
+.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.actions a { color: var(--blue); }
+.primary { background: var(--blue); border: 1px solid var(--blue); color: var(--white); padding: 8px 12px; }
+.meta { color: var(--muted); font-size: 13px; }
+.meta a { color: var(--blue); }

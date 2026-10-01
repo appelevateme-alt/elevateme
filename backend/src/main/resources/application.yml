@@ -1,0 +1,60 @@
+server:
+  port: ${PORT:8080}
+  forward-headers-strategy: framework
+
+spring:
+  datasource:
+    url: ${JDBC_URL:jdbc:postgresql://localhost:5432/elevateme}
+    username: ${JDBC_USER:app_runtime}
+    password: ${JDBC_PASS:changeme}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+  jpa:
+    hibernate:
+      ddl-auto: validate # schema managed by Flyway only; never auto-create in revamp
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: public
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    validate-on-migrate: true
+    locations: classpath:db/migration
+    # NOTE: canonical migrations live in ../../database/migrations (repo-relative).
+    # Sync/copy new V*.sql files into src/main/resources/db/migration for local runs.
+    # Migration owner (DDL) differs from runtime JDBC_USER (least privilege); see backend/README.md.
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:dummy}
+    password: ${MAIL_PASSWORD:dummy}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+app:
+  public-url: ${APP_PUBLIC_URL:http://localhost:5173}
+  cors:
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173}
+  supabase:
+    issuer: ${SUPABASE_ISSUER:https://example.supabase.co/auth/v1}
+    jwks-url: ${SUPABASE_JWKS_URL:https://example.supabase.co/auth/v1/.well-known/jwks.json}
+    audience: ${SUPABASE_AUDIENCE:authenticated}
+  storage:
+    endpoint: ${STORAGE_ENDPOINT:https://example.supabase.co/storage/v1}
+    bucket-private: ${STORAGE_BUCKET_PRIVATE:profile-photos-private}
+    access-key: ${STORAGE_ACCESS_KEY:dummy}
+    secret-key: ${STORAGE_SECRET_KEY:dummy}
+  guest-cookie-secret: ${GUEST_COOKIE_SECRET:0123456789abcdef0123456789abcdef}
+
+logging:
+  level:
+    com.elevateme: INFO

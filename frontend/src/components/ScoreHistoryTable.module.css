@@ -1,0 +1,4 @@
+.wrap { background: var(--white); border: 1px solid var(--line); color: var(--ink); }
+.wrap table { width: 100%; border-collapse: collapse; }
+.wrap th, .wrap td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; }

@@ -1,0 +1,9 @@
+.wrap { background: var(--white); border: 1px solid var(--line); padding: 12px; color: var(--ink); display: grid; gap: 8px; }
+.tabs { display: flex; gap: 8px; }
+.tabs button { min-height: 44px; min-width: 44px; padding: 8px 14px; border: 1px solid var(--line-dark); background: var(--white); color: var(--ink); }
+.tabs .active { background: var(--blue-soft); border-color: var(--blue); }
+.note { margin: 0; font-size: 12px; color: var(--muted); }
+.list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.list button { min-height: 44px; min-width: 44px; padding: 8px 12px; border: 1px solid var(--line-dark); background: var(--white); color: var(--ink); max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.empty { color: var(--muted); font-size: 13px; }
+.wrap > button { min-height: 44px; justify-self: start; padding: 8px 14px; border: 1px solid var(--line-dark); background: var(--white); color: var(--ink); }

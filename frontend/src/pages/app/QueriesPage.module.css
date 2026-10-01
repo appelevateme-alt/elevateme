@@ -1,0 +1,21 @@
+.page { max-width: 880px; margin: 0 auto; padding: 16px; color: var(--ink); }
+.error { color: var(--red); }
+.meta { color: var(--muted); font-size: 13px; margin-top: 12px; }
+.filters { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; align-items: end; }
+.field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.field input, .field select, .field textarea { background: var(--white); border: 1px solid var(--line-dark); color: var(--ink); }
+.thread { border: 1px solid var(--line); background: var(--white); padding: 12px; margin-top: 12px; }
+.thread h2 { margin: 0 0 8px; font-size: 16px; }
+.thread h2 a { color: var(--dark-blue); }
+.list { display: grid; gap: 8px; padding: 0; margin: 12px 0 0; list-style: none; }
+.pager { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+.pager button { background: var(--white); border: 1px solid var(--line-dark); color: var(--ink); }
+.form { display: grid; gap: 12px; margin-top: 12px; }
+.hint { color: var(--muted); font-size: 13px; margin: 0; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.actions button, .actions a { background: var(--white); border: 1px solid var(--line-dark); color: var(--ink); padding: 8px 12px; text-decoration: none; }
+.primary { background: var(--blue); border-color: var(--blue); color: var(--white); }
+.progress { color: var(--muted); font-size: 13px; }
+@media (max-width: 767px) {
+  .filters { display: grid; }
+}

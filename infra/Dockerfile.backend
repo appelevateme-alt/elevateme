@@ -1,0 +1,15 @@
+# Java backend — Docker web service (Render proposed, no purchase authorized by plan).
+# Listens on $PORT, readiness at GET /api/health. JDBC via Supabase pooler/direct (verify networking).
+FROM maven:3.9.9-eclipse-temurin-21 AS build
+WORKDIR /app
+COPY backend/pom.xml backend/.mvn/ ./
+COPY backend/src ./src
+RUN mvn -B -DskipTests package
+
+FROM eclipse-temurin:21-jre-jammy
+WORKDIR /app
+COPY --from=build /app/target/*.jar app.jar
+ENV PORT=8080
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s CMD wget -qO- http://localhost:$PORT/api/health | grep -q UP || exit 1
+CMD ["sh", "-c", "java -XX:MaxRAMPercentage=75.0 -jar app.jar"]

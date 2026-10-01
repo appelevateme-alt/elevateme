@@ -1,0 +1,7 @@
+.shell { display: grid; grid-template-columns: var(--sidebar) 1fr; min-height: 100vh; background: var(--paper); color: var(--ink); }
+.sidebar { background: var(--ink); color: var(--white); padding: 28px 20px; }
+.brand { color: var(--white); text-decoration: none; font-weight: 800; }
+.area { display: flex; flex-direction: column; }
+.main { padding: 24px; }
+.skip { position: fixed; left: 16px; top: -60px; background: var(--ink); color: var(--white); padding: 10px 14px; }
+.skip:focus { top: 16px; }

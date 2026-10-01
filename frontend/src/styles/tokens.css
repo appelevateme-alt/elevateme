@@ -1,0 +1,53 @@
+/* SPEC SECTION 7 TOKENS INTENTIONALLY NOT APPLIED
+   Mapping: spec-primary -> var(--blue), spec-dark -> var(--dark-blue),
+   spec-accent-soft -> var(--blue-soft), spec-lime stays var(--lime),
+   spec-success -> var(--green), spec-warn -> var(--amber), spec-danger -> var(--red).
+   Palette preserved verbatim from ../src/index.css :root (lines 4-12).
+   No new hex literals allowed in modules (use var()).
+*/
+
+:root{
+  --ink:#111216; --muted:#646874; --paper:#f4f5f7; --white:#fff;
+  --line:#d8dbe1; --line-dark:#b9bdc6;
+  --blue:#1a49e7; --dark-blue:#17335a; --blue-soft:#edf1ff; --lime:#c8ff65;
+  --green:#16834b; --amber:#a86400; --red:#c93636;
+  --em_pink: #e27a6c; --light_green:#bce8d7; --hero-insight-bg: #f3e8ff; /* light purple — change this one line to adjust the shade */
+  --hero-insight-num-color: #7c3aed;
+  --sidebar:260px;
+}
+
+/* Phase 2 audit: touch targets — 44px minimum for button/input/select/textarea.
+   Uses existing vars only, no new hex. */
+button, input, select, textarea {
+  min-height: 44px;
+}
+button {
+  touch-action: manipulation;
+}
+
+/* Phase 6 a11y: visible keyboard focus using existing vars only. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* Phase 6 perf/a11y: responsive images (never overflow), existing vars only. */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Phase 6 a11y: honor reduced-motion (charts already set isAnimationActive=false). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,14 @@
+.notice { display: flex; gap: 12px; align-items: center; background: var(--hero-insight-bg); border: 1px solid var(--line); padding: 12px; color: var(--ink); }
+.pip { width: 48px; height: 48px; flex: none; }
+.body { fill: var(--lime); stroke: var(--ink); stroke-width: 1.5; }
+.eye { fill: var(--ink); }
+.mouth { stroke: var(--ink); }
+.arm { stroke: var(--ink); }
+.doc { fill: var(--white); stroke: var(--ink); stroke-width: 1.5; }
+.bubble { fill: var(--white); stroke: var(--ink); stroke-width: 1.2; }
+.rays { stroke: var(--ink); }
+.msg { color: var(--ink); margin: 0; }
+.actions { display: flex; gap: 8px; margin-left: auto; }
+.mini { background: var(--lime); color: var(--ink); border: 1px solid var(--ink); }
+.wave .arm { animation: none; }
+@media (prefers-reduced-motion: reduce) { .notice { animation: none; } .pip { animation: none; } .wave .arm { animation: none; } }

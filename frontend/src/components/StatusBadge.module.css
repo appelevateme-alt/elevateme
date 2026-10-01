@@ -1,0 +1,6 @@
+.badge { display: inline-block; padding: 2px 10px; border: 1px solid var(--line-dark); background: var(--white); color: var(--ink); font-size: 12px; }
+.approved { background: var(--light_green); color: var(--green); border-color: var(--green); }
+.complete { background: var(--blue-soft); color: var(--blue); border-color: var(--blue); }
+.pending { background: var(--paper); color: var(--amber); border-color: var(--amber); }
+.waiting { background: var(--hero-insight-bg); color: var(--hero-insight-num-color); }
+.closed { background: var(--paper); color: var(--red); border-color: var(--red); }

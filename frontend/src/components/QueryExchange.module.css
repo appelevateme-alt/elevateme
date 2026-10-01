@@ -1,0 +1,12 @@
+.exchange { display: grid; gap: 12px; color: var(--ink); }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cell { background: var(--white); border: 1px solid var(--line); padding: 12px; }
+.cell header { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.cell header span { color: var(--muted); font-size: 13px; }
+.followups { display: grid; gap: 8px; border: 1px solid var(--line); background: var(--paper); padding: 12px; }
+.followups h3 { margin: 0; font-size: 14px; }
+.followups button { background: var(--white); border: 1px solid var(--line-dark); color: var(--ink); justify-self: start; }
+.meta { color: var(--muted); font-size: 13px; margin: 0; }
+@media (max-width: 767px) {
+  .row { grid-template-columns: 1fr; }
+}

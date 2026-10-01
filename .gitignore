@@ -8,9 +8,15 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+frontend/node_modules
 dist
+frontend/dist
 dist-ssr
 *.local
+
+# Java / Maven build outputs — never commit
+backend/target/
+*.jar
 
 # Supabase / env secrets — never commit
 .env

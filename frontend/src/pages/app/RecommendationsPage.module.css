@@ -1,0 +1,11 @@
+.page { max-width: 880px; margin: 0 auto; padding: 16px; color: var(--ink); }
+.error { color: var(--red); }
+.meta { color: var(--muted); font-size: 13px; margin-top: 12px; }
+.filters { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+.field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.field select { background: var(--white); border: 1px solid var(--line-dark); color: var(--ink); }
+.list { display: grid; gap: 8px; padding: 0; margin: 12px 0 0; list-style: none; }
+.note { border: 1px solid var(--line); background: var(--paper); padding: 8px 12px; font-size: 13px; color: var(--muted); }
+@media (max-width: 767px) {
+  .filters { display: grid; }
+}

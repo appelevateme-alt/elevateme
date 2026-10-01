@@ -1,0 +1,9 @@
+.wrap { background: var(--white); border: 1px solid var(--line); color: var(--ink); overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+.wrap table { width: 100%; border-collapse: collapse; }
+.wrap th, .wrap td { padding: 8px; border-bottom: 1px solid var(--line); text-align: left; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; }
+.thumb { width: 32px; height: 32px; object-fit: cover; border-radius: 50%; border: 1px solid var(--line); }
+.noPhoto { color: var(--muted); }
+.att { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.att button { border: 1px solid var(--line-dark); background: var(--white); color: var(--ink); padding: 4px 8px; min-height: 44px; min-width: 44px; }
+.att .on { background: var(--blue-soft); border-color: var(--blue); }

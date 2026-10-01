@@ -1,0 +1,10 @@
+.wrap { background: var(--white); border: 1px solid var(--line); padding: 16px; color: var(--ink); }
+.chart { margin-bottom: 12px; }
+.tooltip { background: var(--white); border: 1px solid var(--line-dark); padding: 8px 10px; color: var(--ink); max-width: 260px; }
+.tipEvent { font-weight: 600; margin: 0 0 4px; }
+.tipMeta { color: var(--muted); margin: 0 0 4px; font-size: 13px; }
+.tipScore { margin: 0; }
+.axisNote { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { border-bottom: 1px solid var(--line); padding: 8px; text-align: left; }
+.table caption { text-align: left; font-weight: 600; padding-bottom: 8px; }
