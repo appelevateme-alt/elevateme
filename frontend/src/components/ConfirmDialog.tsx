@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
 import styles from './ConfirmDialog.module.css';
 
-export function ConfirmDialog({ open, title, body, confirmLabel, onConfirm, onCancel }: {
+export function ConfirmDialog({ open, title, body, confirmLabel, onConfirm, onCancel, confirmDisabled, children }: {
   open: boolean; title: string; body: string; confirmLabel: string; onConfirm: () => void; onCancel: () => void;
+  confirmDisabled?: boolean; children?: React.ReactNode;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
@@ -52,9 +53,10 @@ export function ConfirmDialog({ open, title, body, confirmLabel, onConfirm, onCa
       <div ref={dialogRef} role="alertdialog" aria-modal="true" aria-labelledby="cd-t" aria-describedby="cd-b" className={styles.dialog} onClick={(e) => e.stopPropagation()}>
         <h2 id="cd-t">{title}</h2>
         <p id="cd-b">{body}</p>
+        {children}
         <div className={styles.actions}>
           <button type="button" onClick={onCancel}>Cancel</button>
-          <button ref={confirmRef} type="button" onClick={onConfirm}>{confirmLabel}</button>
+          <button ref={confirmRef} type="button" onClick={onConfirm} disabled={confirmDisabled}>{confirmLabel}</button>
         </div>
       </div>
     </div>

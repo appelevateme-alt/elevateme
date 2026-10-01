@@ -10,9 +10,13 @@ Palette: preserved verbatim from `../src/index.css` (`:root` lines 4–12). Do N
 npm ci        # reproducible install from lockfile (commit package-lock.json)
 npm run dev   # Vite dev, /api proxied to Java
 npm run build # tsc --noEmit + vite build (must pass)
-npm run test  # vitest run
+npm run test  # vitest run (unit only: src/tests/**, e2e/ excluded via vitest.config.ts)
 npm run preview
 ```
+
+E2E (Playwright, separate): `npx playwright test` — see `docs/E2E.md`.
+Requires manual `npm i -D @playwright/test` + `npx playwright install`. Never picked
+up by `npm run test`.
 
 > Lockfile note: versions are pinned exact (no `^` floating for new deps). Commit `package-lock.json`. `npm ci` is required in CI.
 

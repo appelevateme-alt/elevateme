@@ -15,3 +15,14 @@
 .recoList { display: grid; gap: 8px; }
 .upcoming { background: var(--white); border: 1px solid var(--line); padding: 12px; }
 .upcoming a { color: var(--dark-blue); }
+.viewRow { display: flex; justify-content: flex-end; margin: 8px 0; }
+.parentBanner { background: var(--blue-soft); border: 1px solid var(--line-dark); color: var(--ink); padding: 12px; margin: 8px 0 0; }
+.parentBanner strong { display: block; margin-bottom: 4px; }
+.parentBanner p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.avatarReplace { margin-top: 12px; }
+@media (max-width: 600px) {
+  .page { padding: 12px; }
+  .profile { flex-direction: column; align-items: flex-start; }
+  .recoList { grid-template-columns: 1fr; }
+  .onboarding { grid-template-columns: 1fr; }
+}

@@ -7,11 +7,16 @@ import type { FullRosterRow, Program, Registration, RosterPage, RosterQuery } fr
 export interface ProgramListParams {
   q?: string;
   theme?: string;
+  type?: string;
   subtype?: string;
   date?: string;
   location?: string;
   availability?: string;
   page?: number;
+  /** Lifecycle filter (e.g. PENDING_REVIEW). Sent as ?status= for forward-compat;
+   *  backend ProgramsService.list has no lifecycle param yet so the pages below
+   *  still filter client-side across all pages (see StaffProgramsPage). */
+  status?: string;
 }
 
 export interface ProgramListResult {
@@ -23,12 +28,76 @@ export interface ProgramListResult {
 
 export async function listPublicPrograms(params: ProgramListParams): Promise<ProgramListResult> {
   const qs = buildProgramSearchParams(params);
-  const res = await get<{ items: Program[]; total: number; page: number; hasMore: boolean }>(`/programs${qs}`);
-  return res;
+  // Backend Phase 1E: {items, total, page, pageSize} (no hasMore). Anonymous:
+  // no Authorization header (lib/api omits when signed out), cookies still sent.
+  const res = await get<{
+    items: Array<Record<string, unknown>>;
+    total: number;
+    page: number;
+    pageSize?: number;
+    hasMore?: boolean;
+  }>(`/programs${qs}`);
+  const pageSize = res.pageSize ?? 10;
+  const items = (res.items ?? []).map(normalizeProgramRow);
+  const hasMore =
+    typeof res.hasMore === 'boolean' ? res.hasMore : res.page * pageSize < (res.total ?? 0);
+  return { items, total: res.total ?? items.length, page: res.page ?? 1, hasMore };
+}
+
+/**
+ * Normalize backend canonical rows (type SingleEvent|Continuous|Special,
+ * subtype MUN|Debate|Competition|Special, themes[]) to the frontend Program
+ * shape (kind/theme/organizer/registeredCount/sessions/committees with safe
+ * fallbacks so public discovery never crashes on sparse projections).
+ */
+function normalizeProgramRow(raw: Record<string, unknown>): Program {
+  const themes = Array.isArray(raw['themes'])
+    ? (raw['themes'] as unknown[]).map(String)
+    : [];
+  const theme =
+    (raw['theme'] as string | undefined) ?? themes[0] ?? (raw['subtype'] as string | undefined) ?? '';
+  const type = (raw['type'] as string | undefined) ?? '';
+  const subtype = (raw['subtype'] as string | undefined) ?? '';
+  // kind mirrors legacy MUN|DEBATE|CONTINUOUS for EventRow display.
+  const upperSubtype = subtype.toUpperCase();
+  const upperType = type.toUpperCase();
+  let kind: Program['kind'] = 'MUN';
+  if (upperSubtype === 'MUN' || upperSubtype === 'MODEL_UN') kind = 'MUN';
+  else if (upperSubtype === 'DEBATE' || upperSubtype === 'FRIENDLY_DEBATE') kind = 'DEBATE';
+  else if (upperType.includes('CONTINUOUS')) kind = 'CONTINUOUS';
+  else if (upperSubtype === 'COMPETITION' || upperSubtype === 'SPECIAL') kind = 'MUN';
+  return {
+    id: String(raw['id'] ?? ''),
+    title: String(raw['title'] ?? ''),
+    description: String(raw['description'] ?? ''),
+    kind,
+    theme: String(theme ?? ''),
+    themes,
+    type,
+    subtype,
+    visibility: (raw['visibility'] as Program['visibility']) ?? 'PUBLIC',
+    lifecycle: (raw['lifecycle'] as Program['lifecycle']) ?? 'PUBLISHED',
+    startsAt: String(raw['startsAt'] ?? raw['starts_at'] ?? ''),
+    endsAt: String(raw['endsAt'] ?? raw['ends_at'] ?? ''),
+    location: String(raw['location'] ?? raw['venue'] ?? ''),
+    capacity: Number(raw['capacity'] ?? 0),
+    registeredCount: Number(raw['registeredCount'] ?? raw['registered_count'] ?? 0),
+    organizer: String(raw['organizer'] ?? raw['ownerId'] ?? raw['owner_id'] ?? ''),
+    eligibility: (raw['eligibility'] as string | undefined) ?? undefined,
+    registrationDeadline: (raw['registrationDeadline'] as string | undefined) ?? undefined,
+    sessions: Array.isArray(raw['sessions'])
+      ? (raw['sessions'] as Program['sessions'])
+      : [],
+    committees: Array.isArray(raw['committees'])
+      ? (raw['committees'] as Program['committees'])
+      : [],
+  };
 }
 
 export async function getProgram(id: string): Promise<Program> {
-  return get<Program>(`/programs/${encodeURIComponent(id)}`);
+  // Public detail: anonymous allowed (no Authorization when signed out).
+  const raw = await get<Record<string, unknown>>(`/programs/${encodeURIComponent(id)}`);
+  return normalizeProgramRow(raw);
 }
 
 export interface CreateProgramPayload {
@@ -58,8 +127,66 @@ export async function submitProgram(id: string): Promise<Program> {
 }
 
 export async function saveProgramDraft(id: string, payload: Partial<CreateProgramPayload>): Promise<Program> {
-  const { patch: patchFn } = await import('../../lib/api');
-  return patchFn<Program>(`/programs/${encodeURIComponent(id)}`, payload);
+  return patch<Program>(`/programs/${encodeURIComponent(id)}`, payload);
+}
+
+export type ProgramDecision = 'APPROVED' | 'CHANGES_REQUESTED' | 'REJECTED';
+
+/**
+ * POST /programs/{id}/approve {decision, note} — admin only (server checks
+ * admin role + audits). Note required for CHANGES_REQUESTED / REJECTED.
+ */
+export async function decideProgram(
+  id: string,
+  decision: ProgramDecision,
+  note?: string,
+  idempotencyKey?: string,
+): Promise<Program> {
+  return post<Program>(
+    `/programs/${encodeURIComponent(id)}/approve`,
+    { decision, note: note ?? null },
+    idempotencyKey ? { idempotencyKey } : {},
+  );
+}
+
+/** POST /programs/{id}/publish — admin only (APPROVED -> PUBLISHED). */
+export async function publishProgram(id: string, idempotencyKey?: string): Promise<Program> {
+  return post<Program>(
+    `/programs/${encodeURIComponent(id)}/publish`,
+    {},
+    idempotencyKey ? { idempotencyKey } : {},
+  );
+}
+
+export function programDecisionKey(id: string, decision: string): string {
+  try {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+      return `decide:${id}:${decision}:${(crypto as { randomUUID(): string }).randomUUID()}`;
+    }
+  } catch { /* noop */ }
+  return `decide:${id}:${decision}:${Date.now()}:${Math.floor(Math.random() * 1e9)}`;
+}
+
+/**
+ * Staff program list: same GET /programs list endpoint (server scopes rows to
+ * the caller — owners see own drafts, evaluators see assigned, admins see all
+ * for review). Client keeps every row (no public-only filter here) and marks
+ * ownership from the organizer field when present.
+ */
+export async function listStaffPrograms(params: ProgramListParams): Promise<ProgramListResult> {
+  const qs = buildProgramSearchParams(params);
+  const res = await get<{
+    items: Array<Record<string, unknown>>;
+    total: number;
+    page: number;
+    pageSize?: number;
+    hasMore?: boolean;
+  }>(`/programs${qs}`);
+  const pageSize = res.pageSize ?? 10;
+  const items = (res.items ?? []).map(normalizeProgramRow);
+  const hasMore =
+    typeof res.hasMore === 'boolean' ? res.hasMore : res.page * pageSize < (res.total ?? 0);
+  return { items, total: res.total ?? items.length, page: res.page ?? 1, hasMore };
 }
 
 export interface RegisterPayload {
@@ -105,6 +232,12 @@ export interface ReleaseState {
   unavailable: boolean;
 }
 
+export interface OutstandingEntry {
+  studentId: string;
+  name?: string;
+  reason: 'NOT_STARTED' | 'DRAFT_INCOMPLETE' | 'UNSUBMITTED' | string;
+}
+
 export interface ReleasePreview {
   sessionId: string;
   submitted: number;
@@ -113,6 +246,10 @@ export interface ReleasePreview {
   toRelease: number;
   excluded: number;
   excludedReasons: Array<Record<string, unknown>>;
+  /** Phase 1D readiness: required but not releasable. Empty => releasable. */
+  outstanding?: OutstandingEntry[];
+  outstandingReasons?: OutstandingEntry[];
+  outstandingCount?: number;
 }
 
 export async function previewReleaseReports(sessionId: string): Promise<ReleasePreview | null> {

@@ -1,0 +1,8 @@
+.wrap { display: grid; gap: 8px; }
+.field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.field input { background: var(--white); border: 1px solid var(--line-dark); color: var(--ink); }
+.meta { color: var(--muted); font-size: 13px; }
+.chips { list-style: none; margin: 0; padding: 0; display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--line-dark); background: var(--paper); padding: 4px 8px; display: flex; gap: 8px; align-items: center; }
+.matches { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; border: 1px solid var(--line); background: var(--white); padding: 8px; }
+.matches button { background: var(--white); border: 1px solid var(--line-dark); color: var(--ink); text-align: left; }

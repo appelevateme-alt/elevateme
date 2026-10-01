@@ -15,6 +15,7 @@ import {
   previewReleaseReports,
   releaseIdempotencyKey,
   releaseReports,
+  type OutstandingEntry,
   type ReleasePreview,
 } from '../../features/programs/api';
 import type { FullRosterRow } from '../../features/programs/types';
@@ -25,8 +26,13 @@ const PAGE_SIZE = 20;
 /**
  * /staff/programs/:id/sessions/:sessionId/roster — server-side search
  * (?q=&committee=&status=) + pagination, attendance toggle via PATCH with
- * SaveState, Next-student flow + sticky Release Reports bar (Phase 3 preview,
+ * SaveState, Next-student flow + sticky Release Reports bar (Phase 1D preview,
  * confirm, idempotency-Key repeat-safe).
+ *
+ * Phase 1D readiness: the bar shows submitted/expected/outstanding/excluded +
+ * outstanding details; the confirm dialog lists outstanding and BLOCKS when >0
+ * (409 INCOMPLETE). Success shows the recipient count; repeats reuse the same
+ * idempotency key. API failures never fake success (error + retry, state preserved).
  */
 export function SessionRosterPage() {
   const { id, sessionId } = useParams();
@@ -50,6 +56,8 @@ export function SessionRosterPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [releasing, setReleasing] = useState(false);
   const [releaseNotice, setReleaseNotice] = useState<string | null>(null);
+  const [releaseError, setReleaseError] = useState<string | null>(null);
+  const [blockedOutstanding, setBlockedOutstanding] = useState<OutstandingEntry[]>([]);
   const idemKeyRef = useRef<string | null>(null);
 
   const load = useCallback(async (reset: boolean, nextPage: number) => {
@@ -78,8 +86,8 @@ export function SessionRosterPage() {
         setErrorKind('forbidden');
       } else if (state === 'notfound') {
         setErrorKind('not-found');
-        setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Not found.');
-      } else setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to load roster.');
+        setError(e instanceof ApiError ? e.message : 'Not found.');
+      } else setError(e instanceof ApiError ? e.message : 'Failed to load roster.');
     } finally {
       setLoading(false);
     }
@@ -127,6 +135,13 @@ export function SessionRosterPage() {
 
   const submittedCount = rows.filter((r) => r.reportStatus === 'submitted' || r.reportStatus === 'released').length;
 
+  // Phase 1D readiness derived from the preview (single source of truth).
+  const outstandingList: OutstandingEntry[] =
+    preview?.outstanding ?? preview?.outstandingReasons ?? [];
+  const outstandingCount =
+    preview?.outstandingCount ?? outstandingList.length;
+  const isBlocked = outstandingCount > 0;
+
   function openNextDraft() {
     // Next-student flow: first draft row in stable order; draft is autosaved on the
     // sheet before leaving (sheet blocks navigation while dirty — never discards).
@@ -137,17 +152,34 @@ export function SessionRosterPage() {
     navigate(`/staff/evaluations/${encodeURIComponent(next.id)}${suffix}`);
   }
 
+  function openReleaseDialog() {
+    setReleaseError(null);
+    setBlockedOutstanding([]);
+    setPreviewOpen(true);
+  }
+
   async function confirmRelease() {
     if (!sessionId) return;
+    // Client-side gate: never POST when preview shows outstanding (block with message).
+    if (isBlocked) {
+      setBlockedOutstanding(outstandingList);
+      setReleaseError(
+        `Cannot release: ${outstandingCount} report(s) outstanding. Complete all required sheets first.`,
+      );
+      return;
+    }
+    // Repeat-safe: same key across retries (generated once per dialog session).
     if (!idemKeyRef.current) idemKeyRef.current = releaseIdempotencyKey(sessionId);
     setReleasing(true);
     setReleaseNotice(null);
+    setReleaseError(null);
+    setBlockedOutstanding([]);
     try {
       const res = await releaseReports(sessionId, idemKeyRef.current);
       setReleaseNotice(
         res.repeated
-          ? `Already released (${res.releaseId}). Repeat-safe — no duplicate.`
-          : `Released ${res.released} report(s). Submitted ${res.submitted}/expected ${res.expected}, excluded ${res.excluded}.`,
+          ? `Already released (${res.releaseId}). Repeat-safe — no duplicate. Recipients ${res.toRelease ?? res.released ?? 0}.`
+          : `Released ${res.released} report(s) to ${res.released} recipient(s). Submitted ${res.submitted}/expected ${res.expected}, outstanding ${res.outstandingCount ?? 0}, excluded ${res.excluded}.`,
       );
       setPreviewOpen(false);
       const pv = await previewReleaseReports(sessionId);
@@ -155,15 +187,42 @@ export function SessionRosterPage() {
       if (pv) setRelease({ released: (pv.alreadyReleased ?? 0) > 0, submitted: pv.submitted, expected: pv.expected, unavailable: false });
       void load(true, 1);
     } catch (e) {
-      setReleaseNotice(e instanceof ApiError ? `${e.message} (code ${e.code}) — draft preserved, retry with the same key.` : 'Release failed — retry with the same key.');
+      // No fake success: surface the failure, keep the dialog open + preserve the
+      // idempotency key and roster state so staff can retry with the same key.
+      if (e instanceof ApiError && (e.code === 'INCOMPLETE' || e.status === 409)) {
+        const list = e.outstanding ?? [];
+        setBlockedOutstanding(list);
+        const detail = list.length > 0
+          ? ` Outstanding: ${list.map((o) => `${o.name ?? o.studentId} (${o.reason})`).join(', ')}.`
+          : '';
+        setReleaseError(
+          `${e.message}${detail} — draft preserved, fix outstanding then retry with the same key.`,
+        );
+        // Refresh preview so the bar matches the server's outstanding set.
+        try {
+          const pv = await previewReleaseReports(sessionId);
+          if (pv) setPreview(pv);
+        } catch {
+          /* keep prior preview on refresh failure */
+        }
+      } else {
+        setReleaseError(e instanceof ApiError ? `${e.message} — draft preserved, retry with the same key.` : 'Release failed — retry with the same key.');
+      }
     } finally {
       setReleasing(false);
     }
   }
 
+  function retryRelease() {
+    // Retry preserves state: same idempotency key, same dialog, no row loss.
+    void confirmRelease();
+  }
+
   if (denied) {
     return <main className={styles.page} data-testid="forbidden"><PageHeading title="Permission denied" /><EmptyState title="Permission denied" body="Staff access required for rosters." /></main>;
   }
+
+  const dialogOutstanding = blockedOutstanding.length > 0 ? blockedOutstanding : outstandingList;
 
   return (
     <main className={styles.page} data-testid="session-roster">
@@ -220,29 +279,70 @@ export function SessionRosterPage() {
       <div className={styles.stickyFooter} data-testid="release-bar">
         <span>
           {preview
-            ? `Preview: submitted ${preview.submitted}/expected ${preview.expected}, excluded ${preview.excluded}, recipients ${preview.toRelease}`
+            ? `Preview: submitted ${preview.submitted}/expected ${preview.expected}, outstanding ${outstandingCount}, excluded ${preview.excluded}, recipients ${preview.toRelease}`
             : `Reports submitted: ${release.submitted} / expected ${release.expected}`}
         </span>
+        {preview && outstandingList.length > 0 && (
+          <ul data-testid="release-outstanding" aria-label="Outstanding reports">
+            {outstandingList.map((o) => (
+              <li key={o.studentId} data-testid={`outstanding-${o.studentId}`}>
+                {o.name ?? o.studentId} — {o.reason}
+              </li>
+            ))}
+          </ul>
+        )}
+        {preview && preview.excludedReasons && preview.excludedReasons.length > 0 && (
+          <ul data-testid="release-excluded" aria-label="Excluded from release">
+            {(preview.excludedReasons as Array<Record<string, unknown>>).map((x, i) => (
+              <li key={`${String(x['studentId'] ?? i)}`}>
+                {String(x['name'] ?? x['studentId'] ?? `excluded-${i}`)} — {String(x['status'] ?? 'EXCLUDED')}
+                {x['reason'] ? `: ${String(x['reason'])}` : ''}
+              </li>
+            ))}
+          </ul>
+        )}
         <button
           type="button"
           disabled={!preview || releasing || (preview.toRelease === 0 && preview.alreadyReleased > 0)}
-          title={!preview ? 'Report release preview is not available yet.' : 'Preview then release reports'}
-          onClick={() => setPreviewOpen(true)}
+          title={!preview ? 'Report release preview is not available yet.' : isBlocked ? `Blocked: ${outstandingCount} outstanding` : 'Preview then release reports'}
+          onClick={openReleaseDialog}
         >
-          {releasing ? 'Releasing…' : 'Release Reports'}
+          {releasing ? 'Releasing…' : isBlocked ? `Blocked (${outstandingCount} outstanding)` : 'Release Reports'}
         </button>
       </div>
       {releaseNotice && <p role="status" className={styles.meta} data-testid="release-notice">{releaseNotice}</p>}
+      {releaseError && (
+        <p role="alert" className={styles.error} data-testid="release-error">
+          {releaseError}{' '}
+          <button type="button" onClick={retryRelease} disabled={releasing} data-testid="release-retry">
+            {releasing ? 'Retrying…' : 'Retry with same key'}
+          </button>
+        </p>
+      )}
       <ConfirmDialog
         open={previewOpen}
         title="Release reports?"
         body={preview
-          ? `Submitted ${preview.submitted}/expected ${preview.expected}, excluded ${preview.excluded}, recipients ${preview.toRelease}. Already released ${preview.alreadyReleased}. Absent/excluded are never released as zero. Repeat-safe via idempotency key.`
+          ? isBlocked
+            ? `Blocked: ${outstandingCount} outstanding report(s) — complete them before release. Submitted ${preview.submitted}/expected ${preview.expected}, outstanding ${outstandingCount}, excluded ${preview.excluded}, recipients ${preview.toRelease}. Already released ${preview.alreadyReleased}. Absent/excluded are never released as zero.`
+            : `Submitted ${preview.submitted}/expected ${preview.expected}, outstanding ${outstandingCount}, excluded ${preview.excluded}, recipients ${preview.toRelease}. Already released ${preview.alreadyReleased}. Absent/excluded are never released as zero. Repeat-safe via idempotency key.`
           : 'Release reports.'}
-        confirmLabel="Confirm release"
+        confirmLabel={releasing ? 'Releasing…' : 'Confirm release'}
+        confirmDisabled={releasing || isBlocked}
         onConfirm={() => void confirmRelease()}
-        onCancel={() => setPreviewOpen(false)}
-      />
+        onCancel={() => { if (!releasing) setPreviewOpen(false); }}
+      >
+        {dialogOutstanding.length > 0 && (
+          <ul data-testid="dialog-outstanding">
+            {dialogOutstanding.map((o) => (
+              <li key={o.studentId}>
+                {o.name ?? o.studentId} — {o.reason}
+              </li>
+            ))}
+          </ul>
+        )}
+        {releaseError && <p role="alert" data-testid="dialog-error">{releaseError}</p>}
+      </ConfirmDialog>
     </main>
   );
 }

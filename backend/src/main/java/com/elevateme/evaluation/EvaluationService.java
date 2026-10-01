@@ -187,8 +187,11 @@ public class EvaluationService {
   }
 
   /**
-   * Guest scoped read: invitation scope already verified (unrelated =&gt; 404). Only released
-   * (LOCKED) sheets are visible to guests; drafts/submitted yield 404 (no enumeration).
+   * Guest scoped read: invitation scope already verified (unrelated =&gt; 404).
+   * Phase 1C: assigned guests may read DRAFT + SUBMITTED (editable) as well as
+   * LOCKED (released, read-only). All three states are returned with server-side
+   * totals; drafts survive refresh via this GET. SUBMITTED/LOCKED are read-only
+   * (PATCH rejects with INVALID_STATE; only staff reopen corrects).
    */
   public Map<String, Object> getEvaluationForGuest(
       String allowedSessionId, String evaluationId) {
@@ -197,15 +200,277 @@ public class EvaluationService {
     if (allowedSessionId == null || !allowedSessionId.equals(sessionId)) {
       throw new ResourceNotFoundException("Not found");
     }
-    if (!"LOCKED".equals(String.valueOf(eval.get("state")))) {
-      throw new ResourceNotFoundException("Not found");
-    }
-    return withComputedTotal(eval);
+    return buildGuestSheet(evaluationId, eval);
   }
 
   /** Raw session id for an evaluation (guest scope check helper; 404 when missing). */
   public String findSessionIdForEvaluation(String evaluationId) {
     return String.valueOf(repo.findEvaluationRaw(evaluationId).get("sessionId"));
+  }
+
+  /** Raw student id for an evaluation (guest per-student check helper; 404 when missing). */
+  public String findStudentIdForEvaluation(String evaluationId) {
+    Object v = repo.findEvaluationRaw(evaluationId).get("studentId");
+    return v == null ? null : String.valueOf(v);
+  }
+
+  /** Evaluation id for an assigned (student, session) pair (guest student route; 404 when missing). */
+  public String findEvaluationIdForStudentSession(String studentId, String sessionId) {
+    Map<String, Object> row = repo.findEvaluationByStudentSession(studentId, sessionId);
+    if (row == null || row.get("id") == null) {
+      throw new ResourceNotFoundException("Not found");
+    }
+    return String.valueOf(row.get("id"));
+  }
+
+  /**
+   * Guest sheet payload: id + student/session + state + optimistic version +
+   * ordered 10-slot scores (null = blank, never 0-coerced) + remarks placeholder
+   * + server-authoritative total/10 + scoredCount + revisionId.
+   * Scores come from the latest revision; missing revision =&gt; all blank.
+   */
+  Map<String, Object> buildGuestSheet(String evaluationId, Map<String, Object> eval) {
+    Map<String, Object> out = new HashMap<>();
+    out.put("id", String.valueOf(eval.get("id")));
+    out.put("studentId", eval.get("studentId") == null ? null : String.valueOf(eval.get("studentId")));
+    out.put("sessionId", eval.get("sessionId") == null ? null : String.valueOf(eval.get("sessionId")));
+    if (eval.get("programId") != null) {
+      out.put("programId", String.valueOf(eval.get("programId")));
+    }
+    out.put("state", String.valueOf(eval.get("state")));
+    out.put("version", toInt(eval.get("rowVersion"), 1));
+    out.put("rowVersion", toInt(eval.get("rowVersion"), 1));
+    // Latest revision scores -> ordered 10-slot array + keyed map (both for compat).
+    List<Object> ordered = new ArrayList<>();
+    for (int i = 0; i < EvaluationDtos.CRITERION_KEYS.size(); i++) {
+      ordered.add(null);
+    }
+    Map<String, Object> byKey = new LinkedHashMap<>();
+    for (String k : EvaluationDtos.CRITERION_KEYS) {
+      byKey.put(k, null);
+    }
+    String revisionId = null;
+    try {
+      Map<String, Object> latest = repo.findLatestRevision(evaluationId);
+      if (latest != null) {
+        revisionId = String.valueOf(latest.get("id"));
+        List<Map<String, Object>> rows = repo.findScoresForRevision(revisionId);
+        Map<String, Integer> byCriterion = new HashMap<>();
+        for (Map<String, Object> r : rows) {
+          Object key = r.get("criterionKey");
+          if (key != null) {
+            byCriterion.put(String.valueOf(key), toInt(r.get("score"), 0));
+          }
+        }
+        List<String> keys = EvaluationDtos.CRITERION_KEYS;
+        for (int i = 0; i < keys.size(); i++) {
+          Integer v = byCriterion.get(keys.get(i));
+          ordered.set(i, v);
+          byKey.put(keys.get(i), v);
+        }
+        int total = byCriterion.values().stream().mapToInt(Integer::intValue).sum();
+        out.put("total", total);
+        out.put("provisionalTotal", total);
+        out.put("average", total / 10.0);
+        out.put("scoredCount", byCriterion.size());
+      } else {
+        out.put("total", 0);
+        out.put("provisionalTotal", 0);
+        out.put("average", 0.0);
+        out.put("scoredCount", 0);
+      }
+    } catch (Exception e) {
+      out.putIfAbsent("total", 0);
+      out.putIfAbsent("provisionalTotal", 0);
+      out.putIfAbsent("average", 0.0);
+      out.putIfAbsent("scoredCount", 0);
+    }
+    out.put("scores", ordered);
+    out.put("scoresByCriterion", byKey);
+    // No separate remarks column in V3 schema; correction_reason is the only
+    // typed free-text (LOCKED corrections). Draft remarks are accepted on PATCH
+    // (validated, max 2000) for forward-compat but not persisted separately.
+    Object correction = eval.get("correctionReason");
+    out.put("remarks", correction == null ? "" : String.valueOf(correction));
+    out.put("notes", correction == null ? "" : String.valueOf(correction));
+    if (revisionId != null) {
+      out.put("revisionId", revisionId);
+    }
+    return out;
+  }
+
+  /**
+   * Guest draft PATCH: DRAFT-only, partial scores allowed (null = blank).
+   * Assignment check is done by the caller via scope + student checks (404 on
+   * mismatch). Version mismatch =&gt; 409 VERSION_CONFLICT. Each provided
+   * non-null score must be int 0-100 (else 422). Server recomputes total/10.
+   * SUBMITTED/LOCKED =&gt; 409 INVALID_STATE (read-only unless staff reopens).
+   */
+  @Transactional
+  public Map<String, Object> patchDraftAsGuest(
+      String evaluationId,
+      List<Object> rawScores,
+      String remarks,
+      Integer expectedVersion,
+      String guestActor,
+      String requestId) {
+    if (expectedVersion == null) {
+      throw new IllegalArgumentException("version is required");
+    }
+    if (remarks != null && remarks.length() > 2000) {
+      throw new IllegalArgumentException("remarks max 2000");
+    }
+    if (rawScores != null && rawScores.size() > ScoringService.REQUIRED_ANSWERS) {
+      throw new IllegalArgumentException("at most 10 scores");
+    }
+    Map<String, Object> locked = repo.lockEvaluation(evaluationId);
+    String state = String.valueOf(locked.get("state"));
+    if (!"DRAFT".equals(state)) {
+      throw new ConflictException(
+          "INVALID_STATE", "Only DRAFT sheets can be patched (current: " + state + ")");
+    }
+    int currentVersion = toInt(locked.get("rowVersion"), 1);
+    if (currentVersion != expectedVersion) {
+      audit(guestActor, "VERSION_CONFLICT", "evaluation", evaluationId, requestId);
+      throw new ConflictException("VERSION_CONFLICT", "Stale version; refresh and retry");
+    }
+    List<Integer> present = new ArrayList<>();
+    if (rawScores != null) {
+      for (Object o : rawScores) {
+        if (o == null) {
+          continue;
+        }
+        if (!(o instanceof Integer v)) {
+          throw new IllegalArgumentException("scores must be integers 0-100 (blank != zero)");
+        }
+        if (v < ScoringService.MIN_SCORE || v > ScoringService.MAX_SCORE) {
+          throw new IllegalArgumentException("scores must be integers 0-100 (got " + v + ")");
+        }
+        present.add(v);
+      }
+    }
+    Map<String, Object> revision = repo.findLatestRevision(evaluationId);
+    String revisionId;
+    if (revision == null || !"DRAFT".equals(String.valueOf(revision.get("state")))) {
+      int revNo = repo.nextRevisionNo(evaluationId);
+      revisionId =
+          repo.insertRevision(
+              evaluationId,
+              revNo,
+              String.valueOf(locked.get("rubricVersionId")),
+              "DRAFT",
+              null,
+              null);
+    } else {
+      revisionId = String.valueOf(revision.get("id"));
+    }
+    if (rawScores != null) {
+      repo.deleteScoresForRevision(revisionId);
+      Map<String, Integer> nonNull = new LinkedHashMap<>();
+      List<String> keys = EvaluationDtos.CRITERION_KEYS;
+      for (int i = 0; i < rawScores.size() && i < keys.size(); i++) {
+        Object o = rawScores.get(i);
+        if (o instanceof Integer v) {
+          nonNull.put(keys.get(i), v);
+        }
+      }
+      if (!nonNull.isEmpty()) {
+        repo.upsertScores(revisionId, nonNull);
+      }
+    }
+    int updated = repo.updateEvaluationOptimistic(evaluationId, currentVersion, remarks);
+    if (updated == 0) {
+      throw new ConflictException("VERSION_CONFLICT", "Stale version; refresh and retry");
+    }
+    audit(guestActor, "EVALUATION_DRAFT_SAVED", "evaluation", evaluationId, requestId);
+    int provisionalTotal = present.stream().mapToInt(Integer::intValue).sum();
+    Map<String, Object> out = new HashMap<>();
+    out.put("id", evaluationId);
+    out.put("state", "DRAFT");
+    out.put("version", currentVersion + 1);
+    out.put("provisionalTotal", provisionalTotal);
+    out.put("total", provisionalTotal);
+    out.put("average", provisionalTotal / 10.0);
+    out.put("scoredCount", present.size());
+    return out;
+  }
+
+  /**
+   * Guest submit: DRAFT-&gt;SUBMITTED, all 10 int 0-100 required (else 422).
+   * Version mismatch =&gt; 409. Server recomputes total/10. SUBMITTED locks the
+   * sheet (read-only unless staff reopens).
+   */
+  @Transactional
+  public Map<String, Object> submitAsGuest(
+      String evaluationId,
+      List<Object> rawScores,
+      Integer expectedVersion,
+      String guestActor,
+      String requestId) {
+    if (expectedVersion == null) {
+      throw new IllegalArgumentException("version is required");
+    }
+    Map<String, Object> locked = repo.lockEvaluation(evaluationId);
+    String state = String.valueOf(locked.get("state"));
+    if (!"DRAFT".equals(state)) {
+      throw new ConflictException(
+          "INVALID_STATE", "Only DRAFT sheets can be submitted (current: " + state + ")");
+    }
+    int currentVersion = toInt(locked.get("rowVersion"), 1);
+    if (currentVersion != expectedVersion) {
+      audit(guestActor, "VERSION_CONFLICT", "evaluation", evaluationId, requestId);
+      throw new ConflictException("VERSION_CONFLICT", "Stale version; refresh and retry");
+    }
+    List<Object> effective = rawScores;
+    if (effective == null) {
+      effective = storedDraftAsRaw(evaluationId);
+    }
+    scoring.validateRaw(effective);
+    List<Integer> ints = toInts(effective);
+    int total = scoring.total(ints);
+    double average = scoring.average(ints);
+    Map<String, Object> revision = repo.findLatestRevision(evaluationId);
+    String revisionId;
+    if (revision != null && "DRAFT".equals(String.valueOf(revision.get("state")))) {
+      String draftRevisionId = String.valueOf(revision.get("id"));
+      repo.deleteScoresForRevision(draftRevisionId);
+      repo.upsertScores(draftRevisionId, mapByCriterionNonNull(effective));
+      int revNo = repo.nextRevisionNo(evaluationId);
+      revisionId =
+          repo.insertRevision(
+              evaluationId,
+              revNo,
+              String.valueOf(locked.get("rubricVersionId")),
+              "SUBMITTED",
+              null,
+              null);
+      repo.upsertScores(revisionId, mapByCriterionNonNull(effective));
+    } else {
+      int revNo = repo.nextRevisionNo(evaluationId);
+      revisionId =
+          repo.insertRevision(
+              evaluationId,
+              revNo,
+              String.valueOf(locked.get("rubricVersionId")),
+              "SUBMITTED",
+              null,
+              null);
+      repo.upsertScores(revisionId, mapByCriterionNonNull(effective));
+    }
+    int updated = repo.transitionEvaluationState(evaluationId, currentVersion, "DRAFT", "SUBMITTED");
+    if (updated == 0) {
+      throw new ConflictException("VERSION_CONFLICT", "Submit race; refresh and retry");
+    }
+    audit(guestActor, "EVALUATION_SUBMITTED", "evaluation", evaluationId, requestId);
+    emit("evaluation", evaluationId, "EVALUATION_SUBMITTED", requestId);
+    Map<String, Object> out = new HashMap<>();
+    out.put("id", evaluationId);
+    out.put("state", "SUBMITTED");
+    out.put("version", currentVersion + 1);
+    out.put("revisionId", revisionId);
+    out.put("total", total);
+    out.put("average", average);
+    return out;
   }
 
   // ------------------------------------------------------------------

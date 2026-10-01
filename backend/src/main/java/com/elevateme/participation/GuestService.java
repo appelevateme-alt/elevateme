@@ -215,6 +215,97 @@ public class GuestService {
     return scope;
   }
 
+  /**
+   * Phase 1C per-student assignment check: when the invitation carries an explicit
+   * student allow-list ({@code guest_invitation_students}), only listed students are
+   * visible/editable (others =&gt; 404, no enumeration). When the list is empty the
+   * session scope is the gate (all students in the invited session allowed).
+   * Every guest evaluation read/write must call this after {@link #checkGuestScope}.
+   */
+  public void checkGuestStudent(Map<String, Object> guestScope, String studentId) {
+    checkGuestStudent(guestScope, studentId, null);
+  }
+
+  public void checkGuestStudent(Map<String, Object> guestScope, String studentId, String requestId) {
+    if (guestScope == null || studentId == null) {
+      throw new ResourceNotFoundException("Not found");
+    }
+    Object rawInvitation = guestScope.get("invitationId");
+    if (rawInvitation == null) {
+      return;
+    }
+    java.util.List<String> allowed;
+    try {
+      allowed = repo.findAssignedStudentIds(String.valueOf(rawInvitation));
+    } catch (ResourceNotFoundException e) {
+      throw e;
+    } catch (Exception e) {
+      // Fail-closed: DB error must never allow access. Audit with requestId, then 404.
+      if (audit != null) {
+        try {
+          audit.record(
+              "guest:" + String.valueOf(rawInvitation),
+              "ACCESS_DENIED",
+              "guest_student_read",
+              studentId,
+              requestId);
+        } catch (Exception ignored) {
+          // Audit is best-effort; denial still applies.
+        }
+      }
+      throw new ResourceNotFoundException("Not found");
+    }
+    if (allowed == null || allowed.isEmpty()) {
+      return;
+    }
+    if (!allowed.contains(studentId)) {
+      throw new ResourceNotFoundException("Not found");
+    }
+  }
+
+  /**
+   * CSRF gate for guest cookie mutations (PATCH/POST under {@code /guest/**}).
+   * Cookies are {@code SameSite=Strict} + {@code HttpOnly}; this additionally verifies
+   * a same-origin {@code Origin} (or {@code Referer} fallback). Mismatch =&gt; 403.
+   * Absent Origin+Referer (non-browser clients/tests) is allowed — the cookie is
+   * still validated (expiry/revocation) on every request.
+   */
+  public static void requireSameOrigin(jakarta.servlet.http.HttpServletRequest req) {
+    String origin = req.getHeader("Origin");
+    String referer = req.getHeader("Referer");
+    String scheme = req.getScheme() == null ? "http" : req.getScheme();
+    String host = req.getServerName() == null ? "" : req.getServerName();
+    int port = req.getServerPort();
+    String expected = scheme + "://" + host;
+    boolean defaultPort =
+        ("http".equalsIgnoreCase(scheme) && port == 80)
+            || ("https".equalsIgnoreCase(scheme) && port == 443)
+            || port <= 0;
+    if (!defaultPort) {
+      expected = expected + ":" + port;
+    }
+    String normExpected = expected.trim().toLowerCase();
+    if (origin != null && !origin.isBlank()) {
+      if (!origin.trim().toLowerCase().equals(normExpected)
+          && !origin.trim().toLowerCase().startsWith(normExpected + "/")) {
+        // Origin may include no trailing slash; strict compare on origin part.
+        String o = origin.trim().toLowerCase();
+        int slash = o.indexOf("/", o.indexOf("://") + 3);
+        String oOrigin = slash < 0 ? o : o.substring(0, slash);
+        if (!oOrigin.equals(normExpected)) {
+          throw new AccessDeniedException("CSRF origin mismatch");
+        }
+      }
+      return;
+    }
+    if (referer != null && !referer.isBlank()) {
+      if (!referer.trim().toLowerCase().startsWith(normExpected + "/")
+          && !referer.trim().toLowerCase().equals(normExpected)) {
+        throw new AccessDeniedException("CSRF referer mismatch");
+      }
+    }
+  }
+
   private void assertLive(Map<String, Object> invitation) {
     if (invitation.get("revokedAt") != null) {
       throw new IllegalStateException("Unauthenticated");

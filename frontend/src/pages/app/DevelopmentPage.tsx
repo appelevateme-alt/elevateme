@@ -29,7 +29,7 @@ export function DevelopmentPage() {
       try {
         setItems(await listDevelopment());
       } catch (e) {
-        setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to load development.');
+        setError(e instanceof ApiError ? e.message : 'Failed to load development.');
       } finally {
         setLoading(false);
       }
@@ -46,7 +46,7 @@ export function DevelopmentPage() {
       setItems((prev) => prev.map((r) => (r.id === id ? { ...r, status: 'Confirmed' } : r)));
       setNotice('Confirmed.');
     } catch (e) {
-      setNotice(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Could not confirm.');
+      setNotice(e instanceof ApiError ? e.message : 'Could not confirm.');
     } finally {
       setBusyId(null);
     }
@@ -82,7 +82,7 @@ export function DevelopmentPage() {
       setItems((prev) => prev.map((r) => (r.id === developmentId ? { ...r, status: 'Awaiting verification', paidReference: ref } : r)));
       setNotice('Reference submitted. Awaiting verification — this does not confirm your seat.');
     } catch (e) {
-      setNotice(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Could not submit reference.');
+      setNotice(e instanceof ApiError ? e.message : 'Could not submit reference.');
     } finally {
       setBusyId(null);
     }
@@ -136,7 +136,7 @@ export function DevelopmentPage() {
                         value={refs[d.id] ?? ''}
                         onChange={(e) => setRefs((p) => ({ ...p, [d.id]: e.target.value }))}
                         placeholder="Bank / gateway reference"
-                        aria-label={`Payment reference for ${d.title ?? d.id}`}
+                        aria-label={`Payment reference for ${d.title ?? d.skill ?? 'development'}`}
                       />
                     </label>
                     <p className={styles.meta}>Submitting a reference does NOT confirm your seat. DI verifies payment first.</p>

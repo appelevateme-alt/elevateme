@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { PageHeading } from '../../components/PageHeading';
 import { PublicHeader } from '../../components/PublicHeader';
 import { AvatarEditor } from '../../components/AvatarEditor';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../lib/auth';
 import styles from './SignUpPage.module.css';
 
 export type SignUpRole = 'student' | 'teacher';
@@ -46,7 +47,7 @@ export function validateSignUp(d: SignUpDraft): string[] {
  * Inputs preserved on error; focusable error summary.
  */
 export function SignUpPage() {
-  const navigate = useNavigate();
+  const { session } = useAuth();
   const [role, setRole] = useState<SignUpRole | ''>('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -61,6 +62,11 @@ export function SignUpPage() {
   const [busy, setBusy] = useState(false);
   const [createdEmail, setCreatedEmail] = useState<string | null>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
+  // Pre-auth photo: hold the selected file locally via AvatarEditor deferral.
+  // AvatarEditor never calls the photo API without a session (no 401); it
+  // holds pendingFile and uploads once a session exists, showing
+  // "Photo will upload after sign-in.".
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   function focusSummary() {
     requestAnimationFrame(() => summaryRef.current?.focus());
@@ -195,8 +201,16 @@ export function SignUpPage() {
           </label>
           <div className={styles.photo}>
             <span className={styles.photoLabel}>Photo (optional)</span>
-            <AvatarEditor name={fullName || email || 'New member'} photoUrl={photoUrl || undefined} onUploaded={setPhotoUrl} />
+            <AvatarEditor
+              name={fullName || email || 'New member'}
+              photoUrl={photoUrl || undefined}
+              onUploaded={setPhotoUrl}
+              deferUpload={!session}
+              onPendingFile={setPendingFile}
+            />
             <span className={styles.hint}>JPG, PNG or WebP up to 5MB. Uploads when signed in; otherwise saved after verification.</span>
+            {/* pendingFile is held locally while signed out; AvatarEditor shows "Photo will upload after sign-in." and uploads once a session exists. */}
+            <span hidden data-testid="signup-pending-held">{pendingFile ? 'held' : ''}</span>
           </div>
           <label className={styles.consent}>
             <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} aria-label="Consent" />

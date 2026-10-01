@@ -1,0 +1,12 @@
+.page { max-width: 880px; margin: 0 auto; padding: 16px; color: var(--ink); }
+.intro { color: var(--muted); font-size: 15px; margin: 0 0 8px; }
+.section { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.section h2 { font-size: 18px; margin: 0 0 8px; }
+.themes { display: grid; gap: 8px; padding: 0; margin: 8px 0 0; list-style: none; }
+.steps { display: grid; gap: 8px; padding: 0; margin: 8px 0 0; list-style: none; }
+.card { border: 1px solid var(--line); background: var(--white); padding: 12px; }
+.card h3 { margin: 0 0 4px; font-size: 15px; }
+.card p { margin: 0; color: var(--muted); font-size: 13px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.primary { background: var(--blue); border: 1px solid var(--blue); color: var(--white); padding: 8px 12px; text-decoration: none; }
+.secondary { background: var(--white); border: 1px solid var(--line-dark); color: var(--dark-blue); padding: 8px 12px; text-decoration: none; }

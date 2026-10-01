@@ -5,6 +5,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { InsightMessage } from '../../components/InsightMessage';
 import { CRITERIA_10, CRITERIA_LABELS } from '../../lib/scoring';
 import { toColomboDisplay } from '../../lib/time';
+import { PROGRAM_SUBTYPES } from '../../features/programs/types';
 import {
   DEFAULT_PERFORMANCE_FILTERS,
   PERFORMANCE_PERIODS,
@@ -41,7 +42,7 @@ export function PerformancePage() {
     [params],
   );
 
-  const [rows, setRows] = useState<PerformanceRow[]>([]);
+  const [allRows, setAllRows] = useState<PerformanceRow[]>([]);
   const [insights, setInsights] = useState<InsightItem[]>([]);
   const [scopeLabel, setScopeLabel] = useState('all time');
   const [evidenceWindow, setEvidenceWindow] = useState('');
@@ -60,19 +61,23 @@ export function PerformancePage() {
       setLoading(true);
       setError(null);
       try {
-        const [perf, ins] = await Promise.all([getPerformance(filters), getInsights(filters)]);
+        // Base fetch ignores display-only filters (program/subtype/session) so
+        // dropdown options stay stable while a selection is kept. Period,
+        // custom dates, and criterion still scope the backend query.
+        const baseFilters: PerformanceFilters = {
+          ...filters,
+          programId: '',
+          subtype: '',
+          sessionId: '',
+        };
+        const [perf, ins] = await Promise.all([getPerformance(baseFilters), getInsights(filters)]);
         if (cancelled) return;
-        // Session selector (all/chosen): when a session is chosen, narrow client-side too
-        // (backend already filters; this keeps the toggle consistent).
-        const narrowed = filters.sessionId
-          ? perf.rows.filter((r) => String(r.sessionId ?? '') === filters.sessionId)
-          : perf.rows;
-        setRows(sortPerformanceRows(narrowed));
+        setAllRows(sortPerformanceRows(perf.rows));
         setInsights(ins.all?.length ? ins.all : ins.insights);
         setScopeLabel(ins.scopeLabel || scopeLabelForPeriod(filters.period, filters.customStart, filters.customEnd));
-        setEvidenceWindow(ins.evidenceWindow || `${narrowed.length} evaluations`);
+        setEvidenceWindow(ins.evidenceWindow || `${perf.rows.length} evaluations`);
       } catch (e) {
-        if (!cancelled) setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to load performance.');
+        if (!cancelled) setError(e instanceof ApiError ? e.message : 'Failed to load performance.');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -83,18 +88,63 @@ export function PerformancePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.toString()]);
 
+  // Display rows: client-side narrowing by program/subtype/session keeps the
+  // dropdown options (derived from allRows below) from going circular.
+  const rows = useMemo(() => {
+    return allRows.filter((r) => {
+      if (filters.programId?.trim()) {
+        const want = filters.programId.trim();
+        const pid = String(r.programId ?? '');
+        const pname = String(r.programName ?? '');
+        if (pid !== want && pname !== want) return false;
+      }
+      if (filters.subtype?.trim()) {
+        const want = filters.subtype.trim().toLowerCase();
+        const got = String((r as PerformanceRow).subtype ?? '').trim().toLowerCase();
+        if (!got || got !== want) return false;
+      }
+      if (filters.sessionId?.trim()) {
+        if (String(r.sessionId ?? '') !== filters.sessionId.trim()) return false;
+      }
+      return true;
+    });
+  }, [allRows, filters.programId, filters.subtype, filters.sessionId]);
+
   const criterionData = useMemo(() => toCriterionChartData(rows, filters.criterion), [rows, filters.criterion]);
   const overallData = useMemo(() => toOverallChartData(rows), [rows]);
   const best = useMemo(() => personalBestOfRows(rows), [rows]);
 
   const sessionOptions = useMemo(() => {
     const seen = new Map<string, string>();
-    for (const r of rows) {
+    for (const r of allRows) {
       const id = String(r.sessionId ?? r.evaluationId);
       if (!seen.has(id)) seen.set(id, String(r.sessionName ?? r.programName ?? id));
     }
     return [...seen.entries()];
-  }, [rows]);
+  }, [allRows]);
+
+  const programOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const r of allRows) {
+      const id = String(r.programId ?? r.programName ?? '').trim();
+      if (!id) continue;
+      if (!seen.has(id)) seen.set(id, String(r.programName ?? id));
+    }
+    return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [allRows]);
+
+  const subtypeOptions = useMemo(() => {
+    const fromRows = new Set<string>();
+    for (const r of allRows) {
+      const s = String((r as PerformanceRow).subtype ?? '').trim();
+      if (s) fromRows.add(s);
+    }
+    const ordered = [...PROGRAM_SUBTYPES];
+    for (const s of fromRows) {
+      if (!ordered.some((k) => k.toLowerCase() === s.toLowerCase())) ordered.push(s as never);
+    }
+    return ordered;
+  }, [allRows]);
 
   const latest = rows.length > 0 ? rows[rows.length - 1] : null;
   const prev = rows.length > 1 ? rows[rows.length - 2] : null;
@@ -138,10 +188,20 @@ export function PerformancePage() {
             </>
           )}
           <label className={styles.field}>Program
-            <input value={filters.programId ?? ''} onChange={(e) => update({ programId: e.target.value })} placeholder="All programs" aria-label="Program filter" />
+            <select value={filters.programId ?? ''} onChange={(e) => update({ programId: e.target.value })} aria-label="Program filter">
+              <option value="">All programs</option>
+              {programOptions.map(([id, name]) => (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </select>
           </label>
           <label className={styles.field}>Subtype
-            <input value={filters.subtype ?? ''} onChange={(e) => update({ subtype: e.target.value })} placeholder="All subtypes" aria-label="Subtype filter" />
+            <select value={filters.subtype ?? ''} onChange={(e) => update({ subtype: e.target.value })} aria-label="Subtype filter">
+              <option value="">All subtypes</option>
+              {subtypeOptions.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
           </label>
           <label className={styles.field}>Session
             <select value={filters.sessionId ?? ''} onChange={(e) => update({ sessionId: e.target.value })} aria-label="Session selector">

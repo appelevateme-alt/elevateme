@@ -65,8 +65,28 @@ public class ProgramsService {
   // ------------------------------------------------------------------
 
   static final Set<String> ALLOWED_THEMES =
-      Set.of("PublicSpeaking", "Communication", "Negotiation", "Leadership");
+      Set.of("Public Speaking", "Communication", "Negotiation", "Leadership");
   static final Set<String> ALLOWED_VISIBILITY = Set.of("INTERNAL", "PUBLIC", "INVITE_ONLY");
+
+  /**
+   * Phase 1E canonical theme normalization.
+   * Accepts exact canonical ("Public Speaking") plus legacy alias
+   * ("PublicSpeaking", case-insensitive, extra spaces) and returns the
+   * canonical spaced form. Unknown ⇒ IllegalArgumentException (→ 422).
+   */
+  public static String normalizeTheme(String raw) {
+    if (raw == null || raw.isBlank()) {
+      throw new IllegalArgumentException("Unknown theme: " + raw);
+    }
+    String compact = raw.trim().replaceAll("\\s+", "").toLowerCase();
+    return switch (compact) {
+      case "publicspeaking" -> "Public Speaking";
+      case "communication" -> "Communication";
+      case "negotiation" -> "Negotiation";
+      case "leadership" -> "Leadership";
+      default -> throw new IllegalArgumentException("Unknown theme: " + raw);
+    };
+  }
 
   /** Normalize request type to canonical DB value. */
   public static String normalizeType(String raw) {
@@ -82,21 +102,51 @@ public class ProgramsService {
     };
   }
 
-  /** Normalize subtype (accepts MUN/Debate shorthands + canonical DB values). */
+  /**
+   * Phase 1E canonical subtype normalization.
+   * Canonical: MUN | Debate | Competition | Special (see
+   * ProgramDtos.CANONICAL_SUBTYPES). Legacy MODEL_UN ⇒ MUN,
+   * FRIENDLY_DEBATE ⇒ Debate. WORKSHOP/LEAGUE and anything else ⇒ 422.
+   * Returns the canonical display form (MUN, Debate, Competition, Special).
+   */
   public static String normalizeSubtype(String raw) {
     if (raw == null || raw.isBlank()) {
       return null;
     }
     String n = raw.trim().toUpperCase().replace("-", "_").replace(" ", "_");
     return switch (n) {
-      case "MUN", "MODELUN", "MODEL_UN" -> "MODEL_UN";
-      case "DEBATE", "FRIENDLYDEBATE", "FRIENDLY_DEBATE" -> "FRIENDLY_DEBATE";
-      case "COMPETITION" -> "COMPETITION";
-      case "SPECIAL" -> "SPECIAL";
-      case "WORKSHOP" -> "WORKSHOP";
-      case "LEAGUE" -> "LEAGUE";
+      case "MUN", "MODELUN", "MODEL_UN" -> "MUN";
+      case "DEBATE", "FRIENDLYDEBATE", "FRIENDLY_DEBATE" -> "Debate";
+      case "COMPETITION" -> "Competition";
+      case "SPECIAL" -> "Special";
       default -> throw new IllegalArgumentException("Unknown subtype: " + raw);
     };
+  }
+
+  /** Canonical display for a DB program_type (SINGLE_EVENT ⇒ SingleEvent). */
+  public static String toCanonicalType(String dbType) {
+    if (dbType == null) {
+      return null;
+    }
+    String n = dbType.trim().toUpperCase().replace("-", "_").replace(" ", "_");
+    return switch (n) {
+      case "SINGLEEVENT", "SINGLE_EVENT" -> "SingleEvent";
+      case "CONTINUOUS", "CONTINUOUSPROGRAMME", "CONTINUOUS_PROGRAMME" -> "Continuous";
+      case "SPECIAL", "SPECIALPROGRAMME", "SPECIAL_PROGRAMME" -> "Special";
+      default -> dbType;
+    };
+  }
+
+  /** Canonical display for a DB subtype (MODEL_UN ⇒ MUN, FRIENDLY_DEBATE ⇒ Debate). */
+  public static String toCanonicalSubtype(String dbSubtype) {
+    if (dbSubtype == null || dbSubtype.isBlank()) {
+      return null;
+    }
+    try {
+      return normalizeSubtype(dbSubtype);
+    } catch (IllegalArgumentException e) {
+      return dbSubtype;
+    }
   }
 
   public static String normalizeVisibility(String raw) {
@@ -115,9 +165,8 @@ public class ProgramsService {
       return;
     }
     for (String t : themes) {
-      if (!ALLOWED_THEMES.contains(t)) {
-        throw new IllegalArgumentException("Unknown theme: " + t);
-      }
+      // Rejects unknown with 422 (IllegalArgumentException → VALIDATION_FAILED).
+      normalizeTheme(t);
     }
   }
 
@@ -233,11 +282,13 @@ public class ProgramsService {
     String type = normalizeType(req.type());
     String subtype = normalizeSubtype(req.subtype());
     validateThemes(req.themes());
+    // Store canonical spaced themes (PublicSpeaking alias ⇒ "Public Speaking").
+    java.util.List<String> canonicalThemes = req.themes() == null ? java.util.List.of()
+        : req.themes().stream().map(ProgramsService::normalizeTheme).toList();
     String visibility = normalizeVisibility(req.visibility());
     validateDates(req.startsAt(), req.endsAt(), req.registrationOpensAt(), req.registrationDeadline());
 
-    String[] themesArr =
-        req.themes() == null ? new String[0] : req.themes().toArray(String[]::new);
+    String[] themesArr = canonicalThemes.toArray(String[]::new);
     String slug = slug(req.title());
     String id = repo.insertProgram(
         caller.id(), slug, req.title().trim(),
@@ -324,7 +375,8 @@ public class ProgramsService {
       throw new ConflictException("VERSION_CONFLICT", "Stale version; refresh and retry");
     }
     if (req.themes() != null) {
-      repo.updateProgramThemes(programId, req.themes().toArray(String[]::new));
+      String[] canonical = req.themes().stream().map(ProgramsService::normalizeTheme).toArray(String[]::new);
+      repo.updateProgramThemes(programId, canonical);
     }
     // Lifecycle here is DRAFT/CHANGES_REQUESTED so no attendee fan-out.
     // Published edits go through patchPublishedSafe() (new version + notify);
@@ -733,12 +785,46 @@ public class ProgramsService {
 
   /**
    * GET /programs browse: admin sees all, owner sees own + public PUBLISHED,
-   * anyone else sees public PUBLISHED only. Paginated (10/page).
+   * anyone else (incl. anonymous null subject) sees public PUBLISHED only.
+   * Anonymous sees ONLY lifecycle=PUBLISHED AND visibility=PUBLIC standard
+   * programs (excludes DRAFT/PENDING_REVIEW/CHANGES_REQUESTED/APPROVED-
+   * unpublished/COMPLETED/ARCHIVED/PRIVATE/INTERNAL/INVITE_ONLY/ASSIGNED +
+   * targeted development backing rows). Paginated (10/page, stable
+   * created_at DESC, id ASC). Supports search (title/description) + filters
+   * theme/type/subtype (unknown ⇒ 422). Returns canonical theme/type/subtype.
    */
   public Map<String, Object> list(String authenticatedSubject, int page, String requestId) {
+    return list(authenticatedSubject, null, null, null, null, page, requestId);
+  }
+
+  public Map<String, Object> list(
+      String authenticatedSubject,
+      String q,
+      String theme,
+      String type,
+      String subtype,
+      int page,
+      String requestId) {
+    String normalizedTheme = null;
+    String normalizedDbType = null;
+    String normalizedSubtype = null;
+    if (theme != null && !theme.isBlank()) {
+      normalizedTheme = normalizeTheme(theme);
+    }
+    if (type != null && !type.isBlank()) {
+      // Validates (422 on unknown); filtering matches both DB + display forms.
+      normalizedDbType = normalizeType(type);
+    }
+    if (subtype != null && !subtype.isBlank()) {
+      normalizedSubtype = normalizeSubtype(subtype);
+    }
+    String cleanQ = (q == null || q.isBlank()) ? null : q.trim();
+
     ScopeGuard.CallerProfile caller = null;
     try {
-      caller = guard.loadCaller(authenticatedSubject);
+      if (authenticatedSubject != null && !authenticatedSubject.isBlank()) {
+        caller = guard.loadCaller(authenticatedSubject);
+      }
     } catch (Exception ignored) {
       // fall through to the public slice
     }
@@ -747,50 +833,158 @@ public class ProgramsService {
     List<Map<String, Object>> items;
     int total;
     if (caller != null && caller.isAdmin()) {
-      items = repo.findAllPrograms(PAGE_SIZE, offset);
-      total = repo.countAllPrograms();
+      items = repo.findAllProgramsFiltered(PAGE_SIZE, offset, cleanQ,
+          normalizedTheme, normalizedDbType, normalizedSubtype);
+      total = repo.countAllProgramsFiltered(cleanQ,
+          normalizedTheme, normalizedDbType, normalizedSubtype);
     } else if (caller != null) {
-      items = repo.findVisiblePrograms(caller.id(), PAGE_SIZE, offset);
-      total = repo.countVisiblePrograms(caller.id());
+      items = repo.findVisibleProgramsFiltered(caller.id(), PAGE_SIZE, offset, cleanQ,
+          normalizedTheme, normalizedDbType, normalizedSubtype);
+      total = repo.countVisibleProgramsFiltered(caller.id(), cleanQ,
+          normalizedTheme, normalizedDbType, normalizedSubtype);
     } else {
-      items = repo.findPublishedPrograms(PAGE_SIZE, offset);
-      total = repo.countPublishedPrograms();
+      items = repo.findPublishedProgramsFiltered(PAGE_SIZE, offset, cleanQ,
+          normalizedTheme, normalizedDbType, normalizedSubtype);
+      total = repo.countPublishedProgramsFiltered(cleanQ,
+          normalizedTheme, normalizedDbType, normalizedSubtype);
+    }
+    List<Map<String, Object>> canonical = new java.util.ArrayList<>(items.size());
+    for (Map<String, Object> row : items) {
+      canonical.add(canonicalizeRow(row));
     }
     Map<String, Object> out = new LinkedHashMap<>();
-    out.put("items", items);
+    out.put("items", canonical);
     out.put("page", safePage);
     out.put("pageSize", PAGE_SIZE);
     out.put("total", total);
     return out;
   }
 
+  /** Map DB type/subtype/themes to Phase 1E canonical display values. */
+  static Map<String, Object> canonicalizeRow(Map<String, Object> row) {
+    if (row == null) {
+      return row;
+    }
+    Map<String, Object> m = new LinkedHashMap<>(row);
+    if (m.containsKey("type")) {
+      Object t = m.get("type");
+      if (t != null) {
+        m.put("type", toCanonicalType(String.valueOf(t)));
+      }
+    }
+    // program_type alias (some projections use program_type key)
+    if (m.containsKey("program_type")) {
+      Object t = m.get("program_type");
+      if (t != null) {
+        m.put("type", toCanonicalType(String.valueOf(t)));
+      }
+    }
+    if (m.containsKey("subtype")) {
+      Object s = m.get("subtype");
+      if (s != null && !String.valueOf(s).isBlank()) {
+        m.put("subtype", toCanonicalSubtype(String.valueOf(s)));
+      }
+    }
+    if (m.containsKey("themes")) {
+      Object th = m.get("themes");
+      if (th instanceof java.sql.Array arr) {
+        try {
+          Object[] vals = (Object[]) arr.getArray();
+          java.util.List<String> canon = new java.util.ArrayList<>();
+          for (Object v : vals) {
+            if (v == null) {
+              continue;
+            }
+            try {
+              canon.add(normalizeTheme(String.valueOf(v)));
+            } catch (IllegalArgumentException ignored) {
+              canon.add(String.valueOf(v));
+            }
+          }
+          m.put("themes", canon);
+          if (!canon.isEmpty()) {
+            m.put("theme", canon.get(0));
+          }
+        } catch (Exception ignored) {
+          // keep raw
+        }
+      } else if (th instanceof java.util.List<?> list) {
+        java.util.List<String> canon = new java.util.ArrayList<>();
+        for (Object v : list) {
+          if (v == null) {
+            continue;
+          }
+          try {
+            canon.add(normalizeTheme(String.valueOf(v)));
+          } catch (IllegalArgumentException ignored) {
+            canon.add(String.valueOf(v));
+          }
+        }
+        m.put("themes", canon);
+        if (!canon.isEmpty()) {
+          m.put("theme", canon.get(0));
+        }
+      } else if (th instanceof String[] arrStr) {
+        java.util.List<String> canon = new java.util.ArrayList<>();
+        for (Object v : arrStr) {
+          if (v == null) {
+            continue;
+          }
+          try {
+            canon.add(normalizeTheme(String.valueOf(v)));
+          } catch (IllegalArgumentException ignored) {
+            canon.add(String.valueOf(v));
+          }
+        }
+        m.put("themes", canon);
+        if (!canon.isEmpty()) {
+          m.put("theme", canon.get(0));
+        }
+      }
+    }
+    return m;
+  }
+
   /**
-   * GET /programs/{id}: PUBLISHED + PUBLIC visible to any authenticated caller;
-   * own programs visible to the owner; everything visible to admin; otherwise
-   * 404 (no enumeration of non-public programs).
+   * GET /programs/{id}: PUBLISHED + PUBLIC standard visible to anyone
+   * (incl. anonymous); own programs visible to the owner; everything visible
+   * to admin; otherwise 404 (no enumeration of non-public programs).
+   * Targeted development backing rows never resolve publicly (404).
    */
   public Map<String, Object> get(String authenticatedSubject, String programId, String requestId) {
     Map<String, Object> program = repo.findProgramFullById(programId);
     ScopeGuard.CallerProfile caller = null;
     try {
-      caller = guard.loadCaller(authenticatedSubject);
+      if (authenticatedSubject != null && !authenticatedSubject.isBlank()) {
+        caller = guard.loadCaller(authenticatedSubject);
+      }
     } catch (Exception ignored) {
       // fall through to the public-visibility check
     }
     if (caller != null && caller.isAdmin()) {
-      return program;
+      return canonicalizeRow(program);
     }
     String ownerId =
         program.get("ownerId") == null ? null : String.valueOf(program.get("ownerId"));
     if (caller != null && ownerId != null && ownerId.equals(caller.id())) {
-      return program;
+      return canonicalizeRow(program);
     }
     String lifecycle =
         program.get("lifecycle") == null ? "" : String.valueOf(program.get("lifecycle"));
     String visibility =
         program.get("visibility") == null ? "" : String.valueOf(program.get("visibility"));
     if ("PUBLISHED".equals(lifecycle) && "PUBLIC".equals(visibility)) {
-      return program;
+      // Targeted development (ASSIGNED backing event) never leaks publicly.
+      try {
+        if (repo.isDevelopmentBacked(programId)) {
+          throw new ResourceNotFoundException("Not found");
+        }
+      } catch (ResourceNotFoundException e) {
+        throw e;
+      } catch (Exception ignored) {
+        // missing table on skeleton DBs ⇒ not development-backed
+      }
+      return canonicalizeRow(program);
     }
     throw new ResourceNotFoundException("Not found");
   }

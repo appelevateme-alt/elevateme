@@ -51,15 +51,16 @@ cd backend
 
 Canonical SQL migrations live in `../../database/migrations`
 (repo-relative from `backend/` → `elevateme/database/migrations`).
-`backend/src/main/resources/db/migration/` contains only a placeholder + README that
-points there, so the backend compiles/boots without duplicating SQL.
+`backend/src/main/resources/db/migration/` contains mirrored copies of all
+canonical versions (V1–V10 incl. V5 → V5.1 → V6…) + README, so the backend
+compiles/boots without duplicating SQL authorship.
 
 Flow:
 
 ```bash
-# 1. Author migration in database/migrations, e.g. V3__add_outbox.sql
-# 2. Copy/sync into backend Flyway path for local runs (until automation lands):
-cp ../database/migrations/V3__*.sql src/main/resources/db/migration/
+# 1. Author migration in database/migrations, e.g. V11__next.sql
+# 2. Sync into backend Flyway path for local runs (until automation lands):
+cp ../database/migrations/V*.sql src/main/resources/db/migration/
 # 3. Run (Flyway auto-migrates on boot; or: ./mvnw flyway:migrate)
 ./mvnw spring-boot:run
 ```

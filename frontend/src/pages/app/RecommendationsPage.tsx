@@ -31,7 +31,7 @@ export function RecommendationsPage() {
         if (me) setUserId(me.id);
         setItems(recs);
       } catch (e) {
-        setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to load recommendations.');
+        setError(e instanceof ApiError ? e.message : 'Failed to load recommendations.');
       } finally {
         setLoading(false);
       }
@@ -58,7 +58,7 @@ export function RecommendationsPage() {
       const updated = await completeRecommendation(id);
       setItems((prev) => prev.map((r) => (r.id === id ? { ...r, ...updated, status: 'Completed' } : r)));
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Could not mark complete.');
+      setError(e instanceof ApiError ? e.message : 'Could not mark complete.');
     } finally {
       setBusyId(null);
     }
@@ -70,7 +70,7 @@ export function RecommendationsPage() {
       const updated = await undoRecommendation(id);
       setItems((prev) => prev.map((r) => (r.id === id ? { ...r, ...updated, status: 'Active' } : r)));
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Could not undo.');
+      setError(e instanceof ApiError ? e.message : 'Could not undo.');
     } finally {
       setBusyId(null);
     }

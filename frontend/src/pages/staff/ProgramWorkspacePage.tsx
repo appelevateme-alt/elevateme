@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { PageHeading } from '../../components/PageHeading';
 import { EmptyState } from '../../components/EmptyState';
 import { StatusBadge } from '../../components/StatusBadge';
 import { ApiError, toErrorStateFrom } from '../../lib/api';
+import { toColomboDisplay } from '../../lib/time';
 import { getProgram, submitProgram } from '../../features/programs/api';
 import { nextActionForLifecycle, remainingCapacity } from '../../features/programs/helpers';
 import type { Program } from '../../features/programs/types';
@@ -18,8 +19,12 @@ const TABS = ['Overview', 'Sessions', 'Students', 'Evaluators', 'Performance', '
 export function ProgramWorkspacePage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = (searchParams.get('tab') as (typeof TABS)[number]) || 'Overview';
   const [program, setProgram] = useState<Program | null>(null);
-  const [tab, setTab] = useState<(typeof TABS)[number]>('Overview');
+  const [tab, setTab] = useState<(typeof TABS)[number]>(
+    (TABS as readonly string[]).includes(initialTab) ? initialTab : 'Overview',
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorKind, setErrorKind] = useState<'forbidden' | 'not-found' | null>(null);
@@ -39,8 +44,8 @@ export function ProgramWorkspacePage() {
           setErrorKind('forbidden');
         } else if (state === 'notfound') {
           setErrorKind('not-found');
-          setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Not found.');
-        } else setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to load program.');
+          setError(e instanceof ApiError ? e.message : 'Not found.');
+        } else setError(e instanceof ApiError ? e.message : 'Failed to load program.');
       } finally {
         setLoading(false);
       }
@@ -72,9 +77,14 @@ export function ProgramWorkspacePage() {
 
   return (
     <main className={styles.page} data-testid="program-workspace">
+      <nav aria-label="Breadcrumb" className={styles.meta}>
+        <Link to="/staff/programs">Back to programs</Link>
+        {' / '}
+        <span aria-current="page">{program.title}</span>
+      </nav>
       <header className={styles.header}>
         <div>
-          <PageHeading kicker={`${program.kind} · ${program.theme}`} title={program.title} desc={`${program.startsAt} → ${program.endsAt} · ${program.location}`} />
+          <PageHeading kicker={`${program.kind} · ${program.theme}`} title={program.title} desc={`${toColomboDisplay(program.startsAt)} → ${toColomboDisplay(program.endsAt)} · ${program.location}`} />
           <p><StatusBadge value={program.lifecycle} /> <span className={styles.meta}>{remainingCapacity(program)} of {program.capacity} seats left</span></p>
         </div>
         <div className={styles.action}>
@@ -93,12 +103,26 @@ export function ProgramWorkspacePage() {
         </div>
       </header>
       {notice && <p role="status" className={styles.notice}>{notice}</p>}
-      {program.lifecycle === 'SUBMITTED' && (
-        <p className={styles.restricted} role="note">Submitted — edits are restricted while under review.</p>
+      {program.lifecycle === 'PENDING_REVIEW' && (
+        <p className={styles.restricted} role="note">Sent for review — edits are restricted while under review.</p>
       )}
       <nav className={styles.tabs} aria-label="Program workspace">
         {TABS.map((t) => (
-          <button key={t} type="button" aria-selected={tab === t} role="tab" className={tab === t ? styles.active : ''} onClick={() => setTab(t)}>
+          <button
+            key={t}
+            type="button"
+            aria-selected={tab === t}
+            role="tab"
+            className={tab === t ? styles.active : ''}
+            onClick={() => {
+              setTab(t);
+              setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                next.set('tab', t);
+                return next;
+              }, { replace: true });
+            }}
+          >
             {t}
           </button>
         ))}
@@ -114,7 +138,7 @@ export function ProgramWorkspacePage() {
           <ul>
             {program.sessions.map((s) => (
               <li key={s.id}>
-                {s.title} — {s.startsAt} → {s.endsAt}{' '}
+                {s.title} — {toColomboDisplay(s.startsAt)} → {toColomboDisplay(s.endsAt)}{' '}
                 <button type="button" onClick={() => navigate(`/staff/programs/${program.id}/sessions/${s.id}/roster`)}>Open roster</button>
               </li>
             ))}
@@ -128,6 +152,20 @@ export function ProgramWorkspacePage() {
           <div>
             <p>Visibility: {program.visibility} · Lifecycle: {program.lifecycle}</p>
             {program.lifecycle !== 'DRAFT' && <p className={styles.meta}>Settings are read-only after submission.</p>}
+            {program.lifecycle === 'DRAFT' && (
+              <p>
+                <Link to={`/staff/programs/${encodeURIComponent(program.id)}/edit?returnTab=${encodeURIComponent(tab)}`}>
+                  Edit draft
+                </Link>
+                {' · '}
+                <Link to="/staff/comment-bank">Open comment bank</Link>
+              </p>
+            )}
+            {program.lifecycle !== 'DRAFT' && (
+              <p>
+                <Link to="/staff/comment-bank">Open comment bank</Link>
+              </p>
+            )}
           </div>
         )}
       </section>

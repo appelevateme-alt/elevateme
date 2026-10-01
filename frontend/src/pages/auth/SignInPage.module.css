@@ -9,3 +9,4 @@
 .primary { background: var(--blue); border: 1px solid var(--blue); color: var(--white); padding: 8px 12px; }
 .meta { color: var(--muted); font-size: 13px; }
 .meta a { color: var(--blue); }
+.notice { color: var(--dark-blue); border: 1px solid var(--line); background: var(--blue-soft); padding: 8px 12px; }

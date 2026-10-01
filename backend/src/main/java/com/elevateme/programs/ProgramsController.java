@@ -30,18 +30,29 @@ public class ProgramsController {
     this.auth = auth;
   }
 
+  /**
+   * Phase 1E public discovery: anonymous list (no JWT). Only PUBLISHED+PUBLIC
+   * standard programs. Supports search (title/description) + filters
+   * theme/type/subtype + pagination (10/page, stable). Unknown theme/type/
+   * subtype ⇒ 422 (no silent ignore).
+   */
   @GetMapping
   public ResponseEntity<?> list(
+      @RequestParam(value = "q", required = false) String q,
+      @RequestParam(value = "theme", required = false) String theme,
+      @RequestParam(value = "type", required = false) String type,
+      @RequestParam(value = "subtype", required = false) String subtype,
       @RequestParam(value = "page", required = false, defaultValue = "1") int page,
       HttpServletRequest req) {
-    String subject = auth.currentSubject();
+    String subject = auth.optionalSubject();
     String requestId = RequestIdFilter.resolve(req);
-    return ResponseEntity.ok(service.list(subject, page, requestId));
+    return ResponseEntity.ok(service.list(subject, q, theme, type, subtype, page, requestId));
   }
 
+  /** Phase 1E public get: anonymous allowed for PUBLISHED+PUBLIC; else 404 (no enumeration). */
   @GetMapping("/{id}")
   public ResponseEntity<?> get(@PathVariable String id, HttpServletRequest req) {
-    String subject = auth.currentSubject();
+    String subject = auth.optionalSubject();
     String requestId = RequestIdFilter.resolve(req);
     return ResponseEntity.ok(service.get(subject, id, requestId));
   }

@@ -30,6 +30,22 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+  @ExceptionHandler(com.elevateme.performance.IncompleteReleaseException.class)
+  public ResponseEntity<java.util.Map<String, Object>> handleIncomplete(
+      com.elevateme.performance.IncompleteReleaseException ex, HttpServletRequest req) {
+    // Phase 1D readiness gate: 409 INCOMPLETE (not generic) with outstanding details.
+    java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+    body.put("code", ex.getCode());
+    body.put("message", ex.getMessage());
+    body.put("outstanding", ex.getOutstanding());
+    body.put("outstandingCount", ex.getOutstandingCount());
+    body.put("submitted", ex.getSubmitted());
+    body.put("expected", ex.getExpected());
+    body.put("excluded", ex.getExcluded());
+    body.put("requestId", RequestIdFilter.resolve(req));
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+  }
+
   @ExceptionHandler(ConflictException.class)
   public ResponseEntity<ApiError> handleConflict(ConflictException ex, HttpServletRequest req) {
     return ResponseEntity.status(HttpStatus.CONFLICT)

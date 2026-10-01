@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react';
 import { PageHeading } from '../../components/PageHeading';
 import { EmptyState } from '../../components/EmptyState';
 import { ApiError, toErrorStateFrom } from '../../lib/api';
+import { useAuth } from '../../lib/auth';
 import { CRITERIA_10, CRITERIA_LABELS } from '../../lib/scoring';
 import { createCommentBankEntry, listCommentBank } from '../../features/comment-bank/api';
 import type { CommentBankEntry, CommentBankScope } from '../../features/comment-bank/types';
 import styles from './CommentBankPage.module.css';
 
 export function CommentBankPage() {
+  const { session } = useAuth();
+  const isAdmin = session?.roles.includes('admin') ?? false;
   const [items, setItems] = useState<CommentBankEntry[]>([]);
   const [filter, setFilter] = useState('');
   const [loading, setLoading] = useState(true);
@@ -27,7 +30,7 @@ export function CommentBankPage() {
     } catch (e) {
       const kind = toErrorStateFrom(e);
       if (kind === 'denied' || kind === 'pending') setDenied(true);
-      else setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to load comment bank.');
+      else setError(e instanceof ApiError ? e.message : 'Failed to load comment bank.');
     } finally {
       setLoading(false);
     }
@@ -56,7 +59,7 @@ export function CommentBankPage() {
       setText('');
       setNotice('Snippet saved (human-authored, no AI).');
     } catch (err) {
-      setNotice(err instanceof ApiError ? `${err.message} (code ${err.code})` : 'Create failed.');
+      setNotice(err instanceof ApiError ? err.message : 'Create failed.');
     } finally {
       setCreating(false);
     }
@@ -113,9 +116,10 @@ export function CommentBankPage() {
           <label>Scope
             <select value={scope} onChange={(e) => setScope(e.target.value as CommentBankScope)}>
               <option value="TEACHER_PRIVATE">Private (only you)</option>
-              <option value="ADMIN_SHARED">Shared (admin only)</option>
+              {isAdmin && <option value="ADMIN_SHARED">Shared (admin only)</option>}
             </select>
           </label>
+          {!isAdmin && <p className={styles.meta}>Shared snippets curated by admins</p>}
           <label>Criterion (optional)
             <select value={criterionKey} onChange={(e) => setCriterionKey(e.target.value)}>
               <option value="">General</option>

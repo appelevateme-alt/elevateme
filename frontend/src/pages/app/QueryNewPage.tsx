@@ -42,7 +42,7 @@ export function QueryNewPage() {
     } catch (err) {
       // Preserve inputs on error; mint a fresh key only after a transport failure to allow retry.
       keyRef.current = queryIdempotencyKey();
-      setErrors([err instanceof ApiError ? `${err.message} (code ${err.code})` : 'Could not submit. Your text is preserved — try again.']);
+      setErrors([err instanceof ApiError ? err.message : 'Could not submit. Your text is preserved — try again.']);
     } finally {
       setSubmitting(false);
     }

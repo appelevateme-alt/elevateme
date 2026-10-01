@@ -122,6 +122,7 @@ export interface PerformanceRow {
   sessionName?: string | null;
   programName?: string | null;
   programId?: string | null;
+  subtype?: string | null;
   startsAt?: string | null;
   starts_at?: string | null;
   scores?: Record<string, number>;

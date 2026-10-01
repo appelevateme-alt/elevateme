@@ -1,0 +1,89 @@
+#!/bin/sh
+# ----------------------------------------------------------------------------
+# Minimal Maven Wrapper for ElevateMe backend (Maven 3.9.9).
+# Reads .mvn/wrapper/maven-wrapper.properties, downloads + caches the
+# distribution on first use, then execs `mvn`. No wrapper jar is committed.
+# Requires: Java 21 (pom.xml: java.version=21), curl or wget, unzip.
+# Usage: ./mvnw <maven-args...>   (from backend/)
+#        ./mvnw test | ./mvnw spring-boot:run | ./mvnw -version
+# Windows: use mvnw.cmd instead.
+# ----------------------------------------------------------------------------
+set -e
+
+# Resolve script dir -> backend/ root (this file lives at backend/mvnw).
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+WRAPPER_PROPS="$SCRIPT_DIR/.mvn/wrapper/maven-wrapper.properties"
+
+DISTRIBUTION_URL="https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.zip"
+DISTRIBUTION_SHA256=""
+if [ -f "$WRAPPER_PROPS" ]; then
+  # shellcheck disable=SC1090
+  URL_FROM_PROPS="$(grep -E '^distributionUrl=' "$WRAPPER_PROPS" | cut -d= -f2- | tr -d '\r' || true)"
+  SHA_FROM_PROPS="$(grep -E '^distributionSha256Sum=' "$WRAPPER_PROPS" | cut -d= -f2- | tr -d '\r' || true)"
+  [ -n "$URL_FROM_PROPS" ] && DISTRIBUTION_URL="$URL_FROM_PROPS"
+  [ -n "$SHA_FROM_PROPS" ] && DISTRIBUTION_SHA256="$SHA_FROM_PROPS"
+fi
+
+# e.g. apache-maven-3.9.9-bin.zip -> apache-maven-3.9.9
+ARCHIVE_NAME="$(basename "$DISTRIBUTION_URL")"
+DIST_DIR_NAME="${ARCHIVE_NAME%-bin.zip}"
+MAVEN_USER_HOME="${MAVEN_USER_HOME:-$HOME/.m2}"
+CACHE_DIR="$MAVEN_USER_HOME/wrapper/dists/$DIST_DIR_NAME"
+MARKER="$CACHE_DIR/.unpacked-ok"
+MAVEN_HOME_DIR="$CACHE_DIR/$DIST_DIR_NAME"
+
+# --- 1. Java prerequisite check (pom needs Java 21) -------------------------
+if ! command -v java >/dev/null 2>&1; then
+  echo "ERROR: 'java' not found on PATH. Install Java 21 (Temurin 21 / Oracle 21) and retry." >&2
+  echo "Verify with: java -version   (expect openjdk 21)" >&2
+  exit 1
+fi
+JAVA_MAJOR="$(java -version 2>&1 | head -n 1 | sed -E 's/.* version "([0-9]+).*/\1/')"
+if [ "$JAVA_MAJOR" != "21" ]; then
+  echo "WARNING: pom.xml requires Java 21 but 'java -version' reports major '$JAVA_MAJOR'." >&2
+  echo "Build will likely fail (maven.compiler.source/target=21). Install JDK 21 and set JAVA_HOME." >&2
+  # Non-fatal: allow running -version / help on wrong JDK, fail fast on real goals below.
+  case " $* " in
+    *" -version "* | *" -v "* | *" -h "* | *" --help "* | *" --version "*)
+      ;;
+    *)
+      if [ "${MVNW_ALLOW_WRONG_JDK:-}" != "1" ]; then
+        echo "Set MVNW_ALLOW_WRONG_JDK=1 to bypass this check (not recommended)." >&2
+        exit 2
+      fi
+      ;;
+  esac
+fi
+
+# --- 2. Download + unpack distribution on first use ---------------------------
+if [ ! -f "$MARKER" ]; then
+  mkdir -p "$CACHE_DIR"
+  TMP_ZIP="$CACHE_DIR/$ARCHIVE_NAME.download"
+  echo "Downloading Maven 3.9.9 from $DISTRIBUTION_URL ..."
+  if command -v curl >/dev/null 2>&1; then
+    curl -fSL -o "$TMP_ZIP" "$DISTRIBUTION_URL"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -O "$TMP_ZIP" "$DISTRIBUTION_URL"
+  else
+    echo "ERROR: need curl or wget to fetch the Maven distribution." >&2
+    exit 1
+  fi
+  if [ -n "$DISTRIBUTION_SHA256" ]; then
+    echo "$DISTRIBUTION_SHA256  $TMP_ZIP" | sha256sum -c - || { echo "ERROR: Maven distribution checksum mismatch." >&2; exit 1; }
+  fi
+  if ! command -v unzip >/dev/null 2>&1; then
+    echo "ERROR: 'unzip' not found; install unzip to unpack Maven." >&2
+    exit 1
+  fi
+  unzip -q -o "$TMP_ZIP" -d "$CACHE_DIR"
+  rm -f "$TMP_ZIP"
+  touch "$MARKER"
+fi
+
+MVN_BIN="$MAVEN_HOME_DIR/bin/mvn"
+if [ ! -x "$MVN_BIN" ]; then
+  echo "ERROR: expected mvn binary at $MVN_BIN (cache may be corrupt). Delete $CACHE_DIR and retry." >&2
+  exit 1
+fi
+
+exec "$MVN_BIN" "$@"

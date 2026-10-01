@@ -89,9 +89,9 @@ describe('programs Phase 2 — roster search param builder', () => {
 });
 
 describe('programs Phase 2 — status -> next-action mapping', () => {
-  it('DRAFT submits, SUBMITTED restricts, PUBLISHED manages, ARCHIVED reads', () => {
+  it('DRAFT submits, PENDING_REVIEW restricts, PUBLISHED manages, ARCHIVED reads', () => {
     expect(nextActionForLifecycle('DRAFT')).toEqual({ action: 'submit', label: 'Submit for review' });
-    expect(nextActionForLifecycle('SUBMITTED').action).toBe('edit-limited');
+    expect(nextActionForLifecycle('PENDING_REVIEW').action).toBe('edit-limited');
     expect(nextActionForLifecycle('PUBLISHED').action).toBe('manage');
     expect(nextActionForLifecycle('ARCHIVED').action).toBe('view');
   });

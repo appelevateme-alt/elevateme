@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react';
 import { PageHeading } from '../../components/PageHeading';
 import { EmptyState } from '../../components/EmptyState';
 import { StatusBadge } from '../../components/StatusBadge';
+import { StudentSelector } from '../../components/StudentSelector';
 import { ApiError } from '../../lib/api';
-import { listAdminQueries, adminReplyQuery, adminSetQueryStatus } from '../../features/queries/api';
+import { listAdminQueries, adminReplyQuery, adminSetQueryStatus, createDiQuery } from '../../features/queries/api';
+import { validateQueryInput } from '../../features/queries/helpers';
+import { QUERY_LIMITS } from '../../features/queries/types';
 import type { QueryThread } from '../../features/queries/types';
 import styles from './AdminPhase5.module.css';
 
@@ -16,13 +19,17 @@ export function AdminQueriesPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [newStudentIds, setNewStudentIds] = useState<string[]>([]);
+  const [newTitle, setNewTitle] = useState('');
+  const [newBody, setNewBody] = useState('');
+  const [creating, setCreating] = useState(false);
 
   async function load(s: string) {
     setLoading(true);
     try {
       setItems(await listAdminQueries(s));
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to load queue.');
+      setError(e instanceof ApiError ? e.message : 'Failed to load queue.');
     } finally {
       setLoading(false);
     }
@@ -46,7 +53,7 @@ export function AdminQueriesPage() {
       setReplies((p) => ({ ...p, [id]: '' }));
       setNotice('Reply sent.');
     } catch (e) {
-      setNotice(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Reply failed.');
+      setNotice(e instanceof ApiError ? e.message : 'Reply failed.');
     } finally {
       setBusyId(null);
     }
@@ -59,15 +66,74 @@ export function AdminQueriesPage() {
       setItems((prev) => prev.map((t) => (t.id === id ? { ...t, status: action === 'close' ? 'Closed' : 'Open' } : t)));
       setNotice(action === 'close' ? 'Query closed.' : 'Query reopened.');
     } catch (e) {
-      setNotice(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Status update failed.');
+      setNotice(e instanceof ApiError ? e.message : 'Status update failed.');
     } finally {
       setBusyId(null);
+    }
+  }
+
+  async function handleCreateDi() {
+    setNotice(null);
+    if (newStudentIds.length !== 1) {
+      setNotice('Pick one student to message.');
+      return;
+    }
+    const v = validateQueryInput({ title: newTitle, body: newBody });
+    if (!v.ok) {
+      setNotice(v.errors.join(' '));
+      return;
+    }
+    setCreating(true);
+    try {
+      // POST /admin/queries (initiator DI, starts AWAITING_STUDENT_RESPONSE).
+      await createDiQuery({
+        studentId: newStudentIds[0],
+        title: newTitle.trim(),
+        body: newBody.trim(),
+      });
+      setNewStudentIds([]);
+      setNewTitle('');
+      setNewBody('');
+      setNotice('Message sent. It starts waiting for the student.');
+      await load(status);
+    } catch (e) {
+      setNotice(e instanceof ApiError ? e.message : 'Could not send the message.');
+    } finally {
+      setCreating(false);
     }
   }
 
   return (
     <main className={styles.page} data-testid="page-admin-queries">
       <PageHeading title="Queries" desc="Reply, close, or reopen query threads." />
+      <section className={styles.form} aria-label="New message to student">
+        <h2>New message to student</h2>
+        <p className={styles.meta}>
+          Starts a thread as DI. The student sees it under Queries and replies there.
+        </p>
+        <StudentSelector selected={newStudentIds} onChange={setNewStudentIds} />
+        <label className={styles.field}>Title (max {QUERY_LIMITS.titleMax})
+          <input
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            aria-label="New message title"
+            placeholder="What is this about?"
+          />
+        </label>
+        <label className={styles.field}>Message (max {QUERY_LIMITS.bodyMax})
+          <textarea
+            value={newBody}
+            onChange={(e) => setNewBody(e.target.value)}
+            rows={3}
+            aria-label="New message body"
+          />
+        </label>
+        <div className={styles.actions}>
+          <button type="button" disabled={creating} onClick={handleCreateDi}>
+            {creating ? 'Sending…' : 'Send to student'}
+          </button>
+        </div>
+      </section>
       <label className={styles.field}>Status
         <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status filter">
           <option value="all">All</option>

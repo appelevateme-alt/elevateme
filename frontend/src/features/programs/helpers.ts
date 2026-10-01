@@ -12,31 +12,49 @@ export function buildRosterParams(q: RosterQuery): string {
   return s ? `?${s}` : '';
 }
 
-/** Public discover params — always pins visibility=PUBLISHED_PUBLIC (never targeted development). */
+/** Public discover params — Phase 1E backend: ?q=&theme=&type=&subtype=&page= (10/page, stable). */
 export function buildProgramSearchParams(input: {
   q?: string;
   theme?: string;
+  type?: string;
   subtype?: string;
   date?: string;
   location?: string;
   availability?: string;
   page?: number;
+  /** Forward-compat lifecycle filter (?status=). Backend ProgramsService.list
+   *  has no lifecycle param yet — server ignores it, client still filters.
+   *  TODO: add ?status= to ProgramsController list once backend supports it. */
+  status?: string;
 }): string {
   const p = new URLSearchParams();
-  p.set('visibility', 'PUBLISHED_PUBLIC');
   if (input.q?.trim()) p.set('q', input.q.trim());
   if (input.theme?.trim()) p.set('theme', input.theme.trim());
+  if (input.type?.trim()) p.set('type', input.type.trim());
   if (input.subtype?.trim()) p.set('subtype', input.subtype.trim());
-  if (input.date?.trim()) p.set('date', input.date.trim());
-  if (input.location?.trim()) p.set('location', input.location.trim());
-  if (input.availability?.trim()) p.set('availability', input.availability.trim());
+  if (input.status?.trim()) p.set('status', input.status.trim());
+  // Legacy client filters (date/location/availability) are server-ignored;
+  // kept out of the query so anonymous discovery stays cache-friendly.
   if (input.page && input.page > 1) p.set('page', String(input.page));
-  return `?${p.toString()}`;
+  const s = p.toString();
+  return s ? `?${s}` : '';
 }
 
-/** Only published standard programs are publicly listed; targeted/development never leak. */
-export function isPublicStandard(p: { visibility?: string }): boolean {
-  return p.visibility === 'PUBLISHED_PUBLIC';
+/**
+ * Only published standard programs are publicly listed; targeted/development never leak.
+ * Handles both legacy frontend shape (visibility PUBLISHED_PUBLIC) and backend
+ * canonical (lifecycle PUBLISHED + visibility PUBLIC). Anything else ⇒ false
+ * (private ID guesses render NotFound, never leak).
+ */
+export function isPublicStandard(p: { visibility?: string; lifecycle?: string }): boolean {
+  if (p.visibility === 'PUBLISHED_PUBLIC') return true;
+  if (p.visibility === 'PUBLISHED_TARGETED') return false;
+  // Backend canonical: PUBLISHED + PUBLIC only. Sparse/unknown shapes default
+  // to false (default deny) — server is authoritative.
+  if (p.lifecycle && p.visibility) {
+    return p.lifecycle === 'PUBLISHED' && p.visibility === 'PUBLIC';
+  }
+  return false;
 }
 
 export type NextAction =
@@ -48,9 +66,13 @@ export function nextActionForLifecycle(lifecycle: ProgramLifecycle): NextAction 
   switch (lifecycle) {
     case 'DRAFT':
       return { action: 'submit', label: 'Submit for review' };
-    case 'SUBMITTED':
-      return { action: 'edit-limited', label: 'Submitted — edits restricted' };
+    case 'PENDING_REVIEW':
+    case 'CHANGES_REQUESTED':
+      return { action: 'edit-limited', label: 'Sent for review — changes are limited' };
+    case 'APPROVED':
+      return { action: 'publish', label: 'Publish program' };
     case 'PUBLISHED':
+    case 'COMPLETED':
       return { action: 'manage', label: 'Manage roster' };
     case 'ARCHIVED':
       return { action: 'view', label: 'Archived — read only' };

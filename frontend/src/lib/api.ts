@@ -3,20 +3,41 @@
 
 import { getAccessToken } from './supabase';
 
+export interface OutstandingEntry { studentId: string; name?: string; reason: string }
 export interface FieldError { field: string; message: string }
-export interface ApiErrorShape { code: string; message: string; fieldErrors?: FieldError[]; requestId?: string }
+export interface ApiErrorShape {
+  code: string;
+  message: string;
+  fieldErrors?: FieldError[];
+  requestId?: string;
+  outstanding?: OutstandingEntry[];
+  outstandingCount?: number;
+  submitted?: number;
+  expected?: number;
+  excluded?: number;
+}
 
 export class ApiError extends Error {
   status: number;
   code: string;
   fieldErrors: FieldError[];
   requestId?: string;
+  outstanding?: OutstandingEntry[];
+  outstandingCount?: number;
+  submitted?: number;
+  expected?: number;
+  excluded?: number;
   constructor(status: number, shape: ApiErrorShape) {
     super(shape.message);
     this.status = status;
     this.code = shape.code;
     this.fieldErrors = shape.fieldErrors ?? [];
     this.requestId = shape.requestId;
+    this.outstanding = shape.outstanding;
+    this.outstandingCount = shape.outstandingCount;
+    this.submitted = shape.submitted;
+    this.expected = shape.expected;
+    this.excluded = shape.excluded;
   }
 }
 
@@ -63,6 +84,9 @@ export function toErrorStateFrom(error: unknown): ApiErrorState {
 }
 
 export async function api<T>(path: string, opts: RequestOpts = {}): Promise<T> {
+  // Phase 1E public discovery: anonymous allowed. When signed out (incognito),
+  // getAccessToken() returns null → omit Authorization entirely (never send
+  // "Bearer null"), still credentials:include for guest cookies.
   const token = await getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -87,11 +111,17 @@ export async function api<T>(path: string, opts: RequestOpts = {}): Promise<T> {
       401: 'UNAUTHENTICATED', 403: 'FORBIDDEN', 404: 'NOT_FOUND',
       409: 'CONFLICT', 422: 'VALIDATION', 429: 'RATE_LIMITED'
     };
+    const shape = body as ApiErrorShape;
     throw new ApiError(res.status, {
-      code: (body as ApiErrorShape).code ?? map[res.status] ?? 'UNKNOWN',
-      message: (body as ApiErrorShape).message ?? `Request failed (${res.status})`,
-      fieldErrors: (body as ApiErrorShape).fieldErrors,
-      requestId: (body as ApiErrorShape).requestId ?? res.headers.get('x-request-id') ?? undefined
+      code: shape.code ?? map[res.status] ?? 'UNKNOWN',
+      message: shape.message ?? `Request failed (${res.status})`,
+      fieldErrors: shape.fieldErrors,
+      requestId: shape.requestId ?? res.headers.get('x-request-id') ?? undefined,
+      outstanding: shape.outstanding,
+      outstandingCount: shape.outstandingCount,
+      submitted: shape.submitted,
+      expected: shape.expected,
+      excluded: shape.excluded,
     });
   }
   return body as T;

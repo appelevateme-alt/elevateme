@@ -1,8 +1,35 @@
-/** Phase 2 program domain types (frontend view of /api/v1). */
+/** Phase 2 program domain types (frontend view of /api/v1). Phase 1E canonical discovery vocab. */
+
+export const PROGRAM_THEMES = ['Public Speaking', 'Communication', 'Negotiation', 'Leadership'] as const;
+export type ProgramTheme = (typeof PROGRAM_THEMES)[number];
+
+export const PROGRAM_TYPES = ['SingleEvent', 'Continuous', 'Special'] as const;
+export type ProgramType = (typeof PROGRAM_TYPES)[number];
+
+export const PROGRAM_SUBTYPES = ['MUN', 'Debate', 'Competition', 'Special'] as const;
+export type ProgramSubtype = (typeof PROGRAM_SUBTYPES)[number];
+
+/** Stable public pagination: 10 items per page (backend ProgramsService.PAGE_SIZE). */
+export const PROGRAM_PAGE_SIZE = 10;
 
 export type ProgramKind = 'MUN' | 'DEBATE' | 'CONTINUOUS';
-export type ProgramVisibility = 'PUBLISHED_PUBLIC' | 'PUBLISHED_TARGETED' | 'DRAFT' | 'SUBMITTED';
-export type ProgramLifecycle = 'DRAFT' | 'SUBMITTED' | 'PUBLISHED' | 'ARCHIVED';
+export type ProgramVisibility =
+  | 'PUBLISHED_PUBLIC'
+  | 'PUBLISHED_TARGETED'
+  | 'DRAFT'
+  | 'PUBLIC'
+  | 'PRIVATE'
+  | 'INTERNAL'
+  | 'INVITE_ONLY'
+  | 'ASSIGNED';
+export type ProgramLifecycle =
+  | 'DRAFT'
+  | 'PENDING_REVIEW'
+  | 'CHANGES_REQUESTED'
+  | 'APPROVED'
+  | 'PUBLISHED'
+  | 'COMPLETED'
+  | 'ARCHIVED';
 
 export interface ProgramSession {
   id: string;
@@ -28,6 +55,10 @@ export interface Program {
   description: string;
   kind: ProgramKind;
   theme: string;
+  /** Backend canonical: themes array (first entry mirrors `theme` for compat). */
+  themes?: string[];
+  /** Backend canonical display type (SingleEvent|Continuous|Special). Mirrored from `type`. */
+  type?: string;
   subtype?: string;
   visibility: ProgramVisibility;
   lifecycle: ProgramLifecycle;

@@ -41,7 +41,7 @@ export function QueryDetailPage() {
           setComments(Array.isArray(embedded) ? embedded : []);
         }
       } catch (e) {
-        setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to load query.');
+        setError(e instanceof ApiError ? e.message : 'Failed to load query.');
       } finally {
         setLoading(false);
       }
@@ -56,7 +56,7 @@ export function QueryDetailPage() {
       await setQueryStatus(thread.id, action);
       setThread({ ...thread, status: action === 'close' ? 'Closed' : 'Open' });
     } catch (e) {
-      setNotice(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Could not update status.');
+      setNotice(e instanceof ApiError ? e.message : 'Could not update status.');
     } finally {
       setBusy(false);
     }
@@ -73,7 +73,7 @@ export function QueryDetailPage() {
       setComment('');
       setNotice('Comment added.');
     } catch (err) {
-      setNotice(err instanceof ApiError ? `${err.message} (code ${err.code})` : 'Could not add comment. Your text is preserved.');
+      setNotice(err instanceof ApiError ? err.message : 'Could not add comment. Your text is preserved.');
     } finally {
       setBusy(false);
     }

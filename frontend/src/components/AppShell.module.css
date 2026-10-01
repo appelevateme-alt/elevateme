@@ -5,3 +5,18 @@
 .main { padding: 24px; }
 .skip { position: fixed; left: 16px; top: -60px; background: var(--ink); color: var(--white); padding: 10px 14px; }
 .skip:focus { top: 16px; }
+.who { color: var(--white); font-size: 13px; margin: 12px 0 4px; }
+.roleSwitch { display: grid; gap: 4px; font-size: 12px; color: var(--white); margin-bottom: 12px; }
+.roleSwitch select { background: var(--white); color: var(--ink); border: 1px solid var(--line-dark); }
+.section { margin-top: 16px; }
+.sectionTitle { font-size: 12px; font-weight: 700; color: var(--white); margin: 0 0 8px; }
+.nav { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.nav a { color: var(--white); text-decoration: none; }
+.nav a.current { text-decoration: underline; }
+.deferred { margin-left: 8px; font-size: 11px; border: 1px solid var(--white); padding: 1px 6px; }
+.signout { margin-top: 16px; background: var(--white); color: var(--ink); border: 1px solid var(--line-dark); }
+@media (max-width: 900px) {
+  .shell { grid-template-columns: 1fr; }
+  .sidebar { position: static; width: auto; }
+  .main { padding: 16px; }
+}

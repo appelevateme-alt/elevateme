@@ -26,7 +26,7 @@ export function RegistrationsPage() {
       try {
         setRegs(await listMyRegistrations());
       } catch (e) {
-        setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to load registrations.');
+        setError(e instanceof ApiError ? e.message : 'Failed to load registrations.');
       } finally {
         setLoading(false);
       }

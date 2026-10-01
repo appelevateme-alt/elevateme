@@ -27,7 +27,7 @@ export function ReportDetailPage() {
         setReport(await getReport(decodeURIComponent(id)));
       } catch (e) {
         if (e instanceof ApiError && e.status === 404) setNotFound(true);
-        else setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to load report.');
+        else setError(e instanceof ApiError ? e.message : 'Failed to load report.');
       } finally {
         setLoading(false);
       }

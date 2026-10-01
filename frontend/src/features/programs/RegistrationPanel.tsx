@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../../lib/api';
+import { toColomboDisplay } from '../../lib/time';
 import { registerForProgram } from './api';
 import { buildRegistrationSummary, conflictCopyFor409, nextStepsForStatus, registrationRequiresChoice, remainingCapacity } from './helpers';
 import type { Program, Registration } from './types';
@@ -56,7 +57,7 @@ export function RegistrationPanel({ program }: { program: Program }) {
         const inline = e.fieldErrors.length > 0 ? e.fieldErrors.map((f) => `${f.field}: ${f.message}`).join(' ') : e.message;
         setError(inline);
       } else if (e instanceof ApiError) {
-        setError(`${e.message} (code ${e.code})`);
+        setError(e.message);
       } else {
         setError('Registration failed. Please try again.');
       }
@@ -112,7 +113,7 @@ export function RegistrationPanel({ program }: { program: Program }) {
           <select value={sessionId} onChange={(e) => setSessionId(e.target.value)} required>
             <option value="">Select a session</option>
             {sessions.map((s) => (
-              <option key={s.id} value={s.id}>{s.title} — {s.startsAt}</option>
+              <option key={s.id} value={s.id}>{s.title} — {toColomboDisplay(s.startsAt)}</option>
             ))}
           </select>
         </label>

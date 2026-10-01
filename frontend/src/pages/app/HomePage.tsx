@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { PageHeading } from '../../components/PageHeading';
 import { EmptyState } from '../../components/EmptyState';
+import { AvatarEditor } from '../../components/AvatarEditor';
+import { ViewSwitcher } from '../../components/ViewSwitcher';
 import { CompanionNotice, type CompanionSlot } from '../../components/CompanionNotice';
 import { StatSummary } from '../../components/StatSummary';
 import { RecommendationItem } from '../../components/RecommendationItem';
 import { ApiError } from '../../lib/api';
+import { VIEW_PREF_KEY, normalizeViewPref, type ViewPref } from '../../lib/viewMode';
+import { STUDENT_HOME_QUERY_KEYS } from '../../features/student-home/types';
 import { getMe, getHomeSummary, listHomeNotifications, listPinnedRecommendations, isUnread, markRead, notificationKind, type HomeNotification, type HomeSummary, type MeProfile, type PinnedRecommendation } from '../../features/home/api';
 import { listMyRegistrations } from '../../features/programs/api';
 import type { Registration } from '../../features/programs/types';
@@ -28,6 +33,26 @@ function initials(name?: string | null): string {
 
 /** /app Home: greeting + CompanionNotice, identity, stats, pinned, upcoming, notices. */
 export function HomePage() {
+  const qc = useQueryClient();
+  const [view, setView] = useState<ViewPref>(() => {
+    try { return normalizeViewPref(localStorage.getItem(VIEW_PREF_KEY)); } catch { return 'student'; }
+  });
+  useEffect(() => {
+    const read = () => {
+      try { setView(normalizeViewPref(localStorage.getItem(VIEW_PREF_KEY))); } catch { /* noop */ }
+    };
+    const onCustom = (e: Event) => {
+      const detail = (e as CustomEvent<ViewPref>).detail;
+      if (detail === 'parent' || detail === 'student') setView(detail);
+      else read();
+    };
+    window.addEventListener('storage', read);
+    window.addEventListener('em:view-change' as never, onCustom as never);
+    return () => {
+      window.removeEventListener('storage', read);
+      window.removeEventListener('em:view-change' as never, onCustom as never);
+    };
+  }, []);
   const [me, setMe] = useState<MeProfile | null>(null);
   const [summary, setSummary] = useState<HomeSummary | null>(null);
   const [pinned, setPinned] = useState<PinnedRecommendation[]>([]);
@@ -54,7 +79,7 @@ export function HomePage() {
         setNotes(noteRes);
         setReports(repRes);
       } catch (e) {
-        setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to load home.');
+        setError(e instanceof ApiError ? e.message : 'Failed to load home.');
       } finally {
         setLoading(false);
       }
@@ -134,8 +159,32 @@ export function HomePage() {
   const isZeroData =
     !loading && !error && (summary?.sampleSize ?? reports.length) === 0 && (summary?.programsAttended ?? 0) === 0;
 
+  // Session-present photo replace: AvatarEditor uploads immediately (no deferral);
+  // on success invalidate me+summary queries and refresh local state (SignUpPage pattern with session).
+  const handlePhotoUploaded = useCallback(async (photoUrl: string) => {
+    setSummary((prev) => (prev ? { ...prev, photo: photoUrl } : prev));
+    try {
+      await qc.invalidateQueries({ queryKey: STUDENT_HOME_QUERY_KEYS.me });
+      await qc.invalidateQueries({ queryKey: STUDENT_HOME_QUERY_KEYS.summary });
+      const [meRes, sumRes] = await Promise.all([getMe(), getHomeSummary()]);
+      setMe(meRes);
+      setSummary(sumRes);
+    } catch {
+      /* keep optimistic photo on refresh failure */
+    }
+  }, [qc]);
+
   return (
     <main className={styles.page} data-testid="page-app-home">
+      <div className={styles.viewRow}>
+        <ViewSwitcher view={view} onViewChange={setView} />
+      </div>
+      {view === 'parent' && (
+        <div className={styles.parentBanner} role="status" data-testid="parent-banner">
+          <strong>Viewing as Parent — {displayName}&apos;s progress</strong>
+          <p>Same progress overview with calm highlights. Switching views only changes presentation — access stays the same.</p>
+        </div>
+      )}
       <PageHeading title={`${greetingFor()}, ${displayName}`} desc="Your progress overview." />
       <CompanionNotice slot={companion.slot} message={companion.message} userId={me?.id ?? null} link={companion.link} onLinkOpen={handleCompanionOpen} />
       {loading && <p role="status">Loading…</p>}
@@ -143,13 +192,16 @@ export function HomePage() {
       {!loading && !error && (
         <>
           <section className={styles.profile} aria-label="Profile">
-            <div className={styles.photo} aria-hidden="true">
-              {summary?.photo ? <img src={summary.photo} alt="" loading="lazy" decoding="async" /> : <span>{initials(displayName)}</span>}
+            <div className={styles.photo}>
+              {summary?.photo ? <img src={summary.photo} alt={`${displayName} profile photo`} loading="lazy" decoding="async" /> : <span aria-hidden="true">{initials(displayName)}</span>}
             </div>
             <div>
               <h2 className={styles.name}>{displayName}</h2>
               <p className={styles.meta}>ElevateMe ID: {elevateMeId}</p>
               <p className={styles.meta}>Institute: {institute}</p>
+              <div className={styles.avatarReplace}>
+                <AvatarEditor name={displayName} photoUrl={summary?.photo ?? undefined} onUploaded={(url) => void handlePhotoUploaded(url)} />
+              </div>
             </div>
           </section>
 

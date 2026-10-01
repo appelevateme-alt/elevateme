@@ -1,10 +1,11 @@
 import React, { Suspense, lazy } from 'react';
 import { Link, Navigate, Outlet, createBrowserRouter, useLocation } from 'react-router-dom';
-import { useAuth, type Role } from '../lib/auth';
+import { accountStatusTarget, useAuth, type Role } from '../lib/auth';
 import { AppShell } from '../components/AppShell';
 import { EmptyState } from '../components/EmptyState';
 import { PageHeading } from '../components/PageHeading';
 import { ProgramsPage } from '../pages/ProgramsPage';
+import { LandingPage } from '../pages/LandingPage';
 import { ProgramDetailPage } from '../pages/ProgramDetailPage';
 import { MyProgramsPage } from '../pages/app/MyProgramsPage';
 import { RegistrationsPage } from '../pages/app/RegistrationsPage';
@@ -21,6 +22,8 @@ import { DevelopmentDetailPage } from '../pages/app/DevelopmentDetailPage';
 import { PublicHeader } from '../components/PublicHeader';
 import { SignInPage } from '../pages/auth/SignInPage';
 import { SignUpPage } from '../pages/auth/SignUpPage';
+import { ForgotPasswordPage } from '../pages/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from '../pages/auth/ResetPasswordPage';
 
 // Phase 6 perf: route-level code splitting for staff/admin (heavy sheets,
 // rosters, admin queues load on demand; student core stays eager).
@@ -42,6 +45,9 @@ const CommentBankPage = lazy(() =>
 const GuestInvitePage = lazy(() =>
   import('../pages/evaluate/GuestInvitePage').then((m) => ({ default: m.GuestInvitePage })),
 );
+const GuestEvaluatePage = lazy(() =>
+  import('../pages/evaluate/GuestEvaluatePage').then((m) => ({ default: m.GuestEvaluatePage })),
+);
 const AdminRecommendationsPage = lazy(() =>
   import('../pages/admin/AdminRecommendationsPage').then((m) => ({ default: m.AdminRecommendationsPage })),
 );
@@ -57,6 +63,38 @@ const AdminQueriesPage = lazy(() =>
 const OutboxPage = lazy(() =>
   import('../pages/admin/OutboxPage').then((m) => ({ default: m.OutboxPage })),
 );
+const AdminNotificationsPage = lazy(() =>
+  import('../pages/admin/AdminNotificationsPage').then((m) => ({ default: m.AdminNotificationsPage })),
+);
+const StaffProgramsPage = lazy(() =>
+  import('../pages/staff/StaffProgramsPage').then((m) => ({ default: m.StaffProgramsPage })),
+);
+const ProgramEditPage = lazy(() =>
+  import('../pages/staff/ProgramEditPage').then((m) => ({ default: m.ProgramEditPage })),
+);
+const AdminProgramsPage = lazy(() =>
+  import('../pages/admin/AdminProgramsPage').then((m) => ({ default: m.AdminProgramsPage })),
+);
+const AdminUsersPage = lazy(() =>
+  import('../pages/admin/AdminUsersPage').then((m) => ({ default: m.AdminUsersPage })),
+);
+const AdminCommentBankPage = lazy(() =>
+  import('../pages/admin/AdminCommentBankPage').then((m) => ({ default: m.AdminCommentBankPage })),
+);
+const StudentDetailStaffPage = lazy(() =>
+  import('../pages/shared/StudentDetailPage').then((m) => ({
+    default: function StaffStudent() {
+      return <m.StudentDetailPage base="staff" />;
+    },
+  })),
+);
+const StudentDetailAdminPage = lazy(() =>
+  import('../pages/shared/StudentDetailPage').then((m) => ({
+    default: function AdminStudent() {
+      return <m.StudentDetailPage base="admin" />;
+    },
+  })),
+);
 
 function LazyRoute({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<div data-testid="route-loading"><p role="status">Loading…</p></div>}>{children}</Suspense>;
@@ -68,39 +106,97 @@ function LazyRoute({ children }: { children: React.ReactNode }) {
 /**
  * RequireAuth: Supabase session + GET /me (via useAuth).
  * No session (or 401 from /me) => /sign-in?next=<returnUrl> for re-auth.
+ * While loading, never redirect — render a loading state so the sign-in
+ * resolve (SIGNED_IN -> GET /me) cannot bounce back to /sign-in.
+ * Network /me failures (error != null) => retry UI, never logout.
+ * Rejected/Suspended/PendingReview => account gates, never app content.
  */
 export function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { session, loading } = useAuth();
+  const { session, loading, error, retry } = useAuth();
   const location = useLocation();
   if (loading) return <div data-testid="auth-loading">Loading…</div>;
+  if (error && !session) {
+    return (
+      <div data-testid="auth-error">
+        <PageHeading title="Connection issue" />
+        <EmptyState
+          title="Couldn't load your account"
+          body="Check your connection and try again."
+          action={<button type="button" onClick={retry}>Retry</button>}
+        />
+      </div>
+    );
+  }
   if (!session) {
     const next = encodeURIComponent(location.pathname + location.search);
     return <Navigate to={`/sign-in?next=${next}`} replace />;
+  }
+  const gated = accountStatusTarget(session.status);
+  if (gated && location.pathname !== gated) {
+    return <Navigate to={gated} replace />;
   }
   return <>{children}</>;
 }
 
 /**
  * Pending gate: status==PendingReview => /account/pending.
+ * Rejected => /account/rejected, Suspended => /account/suspended.
  * No roster/data fetch happens behind this gate (StaffLayout mounts it first).
+ * While loading, never redirect. Network errors show retry, not logout.
  */
 export function RequireActive({ children }: { children: React.ReactNode }) {
-  const { session, loading } = useAuth();
+  const { session, loading, error, retry } = useAuth();
   if (loading) return <div data-testid="active-loading">Loading…</div>;
-  if (session && session.status === 'PendingReview') {
-    return <Navigate to="/account/pending" replace />;
+  if (error && !session) {
+    return (
+      <div data-testid="auth-error">
+        <PageHeading title="Connection issue" />
+        <EmptyState
+          title="Couldn't load your account"
+          body="Check your connection and try again."
+          action={<button type="button" onClick={retry}>Retry</button>}
+        />
+      </div>
+    );
+  }
+  if (!session) return <>{children}</>;
+  const gated = accountStatusTarget(session.status);
+  if (gated) {
+    return <Navigate to={gated} replace />;
   }
   return <>{children}</>;
 }
 
 /**
  * RequireRole: roles from GET /me only (useAuth.session), never localStorage.
+ * While loading, never redirect. Status gates (Rejected/Suspended/Pending)
+ * redirect before the role check. Network errors show retry, not logout.
  * 403 => PermissionDenied state (data-testid="forbidden").
  */
 export function RequireRole({ allow, children }: { allow: Role[]; children: React.ReactNode }) {
-  const { session, loading } = useAuth();
+  const { session, loading, error, retry } = useAuth();
+  const location = useLocation();
   if (loading) return <div data-testid="role-loading">Loading…</div>;
-  if (!session) return <Navigate to="/sign-in" replace />;
+  if (error && !session) {
+    return (
+      <div data-testid="auth-error">
+        <PageHeading title="Connection issue" />
+        <EmptyState
+          title="Couldn't load your account"
+          body="Check your connection and try again."
+          action={<button type="button" onClick={retry}>Retry</button>}
+        />
+      </div>
+    );
+  }
+  if (!session) {
+    const next = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/sign-in?next=${next}`} replace />;
+  }
+  const gated = accountStatusTarget(session.status);
+  if (gated && location.pathname !== gated) {
+    return <Navigate to={gated} replace />;
+  }
   const role = session.activeRole;
   if (!allow.includes(role)) {
     return (
@@ -171,7 +267,7 @@ function PublicPlaceholder(props: { title: string; testid: string; body: string;
 function AppLayout() {
   return (
     <RequireAuth>
-      <RequireRole allow={['student', 'parent']}>
+      <RequireRole allow={['student', 'parent', 'admin']}>
         <AppShell>
           <Outlet />
         </AppShell>
@@ -184,7 +280,7 @@ function StaffLayout() {
   return (
     <RequireAuth>
       <RequireActive>
-        <RequireRole allow={['staff', 'coordinator', 'evaluator']}>
+        <RequireRole allow={['staff', 'coordinator', 'evaluator', 'admin']}>
           <AppShell>
             <Outlet />
           </AppShell>
@@ -211,15 +307,7 @@ function AdminLayout() {
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: (
-      <PublicPlaceholder
-        title="Home"
-        testid="page-home"
-        body="Discover published programs and register once signed in."
-        to="/programs"
-        linkLabel="Browse programs"
-      />
-    ),
+    element: <LandingPage />,
   },
   { path: '/programs', element: <ProgramsPage /> },
   { path: '/programs/:id', element: <ProgramDetailPage /> },
@@ -237,30 +325,8 @@ export const router = createBrowserRouter([
       />
     ),
   },
-  {
-    path: '/forgot-password',
-    element: (
-      <PublicPlaceholder
-        title="Forgot password"
-        testid="page-forgot-password"
-        body="Request a reset link from the sign-in page."
-        to="/sign-in"
-        linkLabel="Back to sign in"
-      />
-    ),
-  },
-  {
-    path: '/reset-password',
-    element: (
-      <PublicPlaceholder
-        title="Reset password"
-        testid="page-reset-password"
-        body="Use the time-limited link from your inbox, then sign in again."
-        to="/sign-in"
-        linkLabel="Back to sign in"
-      />
-    ),
-  },
+  { path: '/forgot-password', element: <ForgotPasswordPage /> },
+  { path: '/reset-password', element: <ResetPasswordPage /> },
   {
     path: '/account/pending',
     element: (
@@ -270,6 +336,30 @@ export const router = createBrowserRouter([
         body="Your account is awaiting email verification and role approval."
         to="/verify-email"
         linkLabel="Verify email"
+      />
+    ),
+  },
+  {
+    path: '/account/rejected',
+    element: (
+      <PublicPlaceholder
+        title="Account rejected"
+        testid="page-account-rejected"
+        body="Your account application was not approved. Contact support if you believe this is a mistake."
+        to="/"
+        linkLabel="Back to home"
+      />
+    ),
+  },
+  {
+    path: '/account/suspended',
+    element: (
+      <PublicPlaceholder
+        title="Account suspended"
+        testid="page-account-suspended"
+        body="Your account is suspended. Contact support to resolve this."
+        to="/"
+        linkLabel="Back to home"
       />
     ),
   },
@@ -313,43 +403,28 @@ export const router = createBrowserRouter([
           <PlaceholderPage
             title="Staff home"
             testid="page-staff-home"
-            body="Build a program or open a workspace."
-            to="/staff/programs/new"
-            linkLabel="Open program builder"
+            body="Your programs and assigned sessions live in the program list."
+            to="/staff/programs"
+            linkLabel="Open programs"
           />
         ),
       },
-      {
-        path: 'programs',
-        element: (
-          <PlaceholderPage
-            title="Staff programs"
-            testid="page-staff-programs"
-            body="Create a program from the builder."
-            to="/staff/programs/new"
-            linkLabel="New program"
-          />
-        ),
-      },
+      { path: 'programs', element: <LazyRoute><StaffProgramsPage /></LazyRoute> },
       { path: 'programs/new', element: <LazyRoute><ProgramBuilderPage /></LazyRoute> },
       { path: 'programs/:id', element: <LazyRoute><ProgramWorkspacePage /></LazyRoute> },
+      { path: 'programs/:id/edit', element: <LazyRoute><ProgramEditPage /></LazyRoute> },
       { path: 'programs/:id/sessions/:sessionId/roster', element: <LazyRoute><SessionRosterPage /></LazyRoute> },
       { path: 'evaluations/:id', element: <LazyRoute><EvaluationSheetPage /></LazyRoute> },
-      {
-        path: 'students/:id',
-        element: (
-          <div data-testid="page-staff-student">
-            <NotFoundState entity="Student" />
-            <p>
-              <Link to="/staff/programs/new">New program</Link>
-            </p>
-          </div>
-        ),
-      },
+      { path: 'students/:id', element: <LazyRoute><StudentDetailStaffPage /></LazyRoute> },
       { path: 'comment-bank', element: <LazyRoute><CommentBankPage /></LazyRoute> }
     ]
   },
   { path: '/evaluate/invite', element: <LazyRoute><GuestInvitePage /></LazyRoute> },
+  // Phase 1C guest evaluator journey: /evaluate/session (scope-resolved roster,
+  // names + status only) + /evaluate/students/:studentId (editable sheet).
+  // /evaluate/invite stays as the exchange entry and forwards to /evaluate/session.
+  { path: '/evaluate/session', element: <LazyRoute><GuestInvitePage /></LazyRoute> },
+  { path: '/evaluate/students/:studentId', element: <LazyRoute><GuestEvaluatePage /></LazyRoute> },
   {
     path: '/admin',
     element: <AdminLayout />,
@@ -360,9 +435,9 @@ export const router = createBrowserRouter([
           <PlaceholderPage
             title="Admin home"
             testid="page-admin-home"
-            body="Triage the outbox queue or review payments."
-            to="/admin/outbox"
-            linkLabel="Open outbox"
+            body="Review programs waiting for approval or accounts waiting for review."
+            to="/admin/programs"
+            linkLabel="Open program review"
           />
         ),
       },
@@ -372,45 +447,24 @@ export const router = createBrowserRouter([
           <PlaceholderPage
             title="Approvals"
             testid="page-admin-approvals"
-            body="Approval queue is handled via account review; triage delivery in the outbox."
-            to="/admin/outbox"
-            linkLabel="Open outbox"
+            body="Program decisions live in program review; account decisions live in account review."
+            to="/admin/programs"
+            linkLabel="Open program review"
           />
         ),
       },
-      {
-        path: 'users',
-        element: (
-          <PlaceholderPage
-            title="Users"
-            testid="page-admin-users"
-            body="User management is role-gated; delivery issues are in the outbox."
-            to="/admin/outbox"
-            linkLabel="Open outbox"
-          />
-        ),
-      },
-      {
-        path: 'programs',
-        element: (
-          <PlaceholderPage
-            title="Admin programs"
-            testid="page-admin-programs"
-            body="Program oversight lives in staff workspaces; delivery issues are in the outbox."
-            to="/admin/outbox"
-            linkLabel="Open outbox"
-          />
-        ),
-      },
+      { path: 'users', element: <LazyRoute><AdminUsersPage /></LazyRoute> },
+      { path: 'users/:id', element: <LazyRoute><StudentDetailAdminPage /></LazyRoute> },
+      { path: 'programs', element: <LazyRoute><AdminProgramsPage /></LazyRoute> },
       {
         path: 'evaluations',
         element: (
           <PlaceholderPage
             title="Admin evaluations"
             testid="page-admin-evaluations"
-            body="Evaluation sheets live under staff; delivery issues are in the outbox."
-            to="/admin/outbox"
-            linkLabel="Open outbox"
+            body="Evaluation sheets live under staff workspaces — open a program to reach its rosters and sheets."
+            to="/staff/programs"
+            linkLabel="Open staff programs"
           />
         ),
       },
@@ -419,39 +473,17 @@ export const router = createBrowserRouter([
       { path: 'payments', element: <LazyRoute><AdminPaymentsPage /></LazyRoute> },
       { path: 'queries', element: <LazyRoute><AdminQueriesPage /></LazyRoute> },
       { path: 'outbox', element: <LazyRoute><OutboxPage /></LazyRoute> },
-      {
-        path: 'comment-bank',
-        element: (
-          <PlaceholderPage
-            title="Admin comment bank"
-            testid="page-admin-comment-bank"
-            body="Shared comment bank is managed under staff."
-            to="/staff/comment-bank"
-            linkLabel="Open comment bank"
-          />
-        ),
-      },
-      {
-        path: 'notifications',
-        element: (
-          <PlaceholderPage
-            title="Notifications"
-            testid="page-admin-notifications"
-            body="Delivery failures are triaged in the outbox."
-            to="/admin/outbox"
-            linkLabel="Open outbox"
-          />
-        ),
-      },
+      { path: 'notifications', element: <LazyRoute><AdminNotificationsPage /></LazyRoute> },
+      { path: 'comment-bank', element: <LazyRoute><AdminCommentBankPage /></LazyRoute> },
       {
         path: 'audit',
         element: (
           <PlaceholderPage
             title="Audit"
             testid="page-admin-audit"
-            body="Audit rows are ids-only; delivery failures are triaged in the outbox."
-            to="/admin/outbox"
-            linkLabel="Open outbox"
+            body="Audit history is deferred to a later release — see docs. Program and account decisions are recorded server-side in the meantime."
+            to="/admin"
+            linkLabel="Back to admin overview"
           />
         ),
       }

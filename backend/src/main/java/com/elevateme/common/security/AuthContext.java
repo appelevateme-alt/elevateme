@@ -19,6 +19,27 @@ public class AuthContext {
     return SecurityContextHolder.getContext().getAuthentication();
   }
 
+  /** Verified Supabase {@code sub}, or {@code null} when unauthenticated (public discovery). */
+  public String optionalSubject() {
+    try {
+      Authentication auth = authentication();
+      if (auth == null) {
+        return null;
+      }
+      Object principal = auth.getPrincipal();
+      if (principal instanceof AuthPrincipal p) {
+        return p.subject();
+      }
+      String name = auth.getName();
+      if (name == null || name.isBlank() || "anonymousUser".equals(name)) {
+        return null;
+      }
+      return name;
+    } catch (Exception e) {
+      return null;
+    }
+  }
+
   /** Verified Supabase {@code sub}. Throws {@link IllegalStateException} when unauthenticated. */
   public String currentSubject() {
     Authentication auth = authentication();

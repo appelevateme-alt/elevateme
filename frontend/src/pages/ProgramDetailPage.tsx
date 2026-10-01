@@ -6,6 +6,7 @@ import { EmptyState } from '../components/EmptyState';
 import { StatusBadge } from '../components/StatusBadge';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ApiError, toErrorStateFrom } from '../lib/api';
+import { toColomboDisplay } from '../lib/time';
 import { useAuth } from '../lib/auth';
 import { getProgram, withdrawRegistration, listMyRegistrations } from '../features/programs/api';
 import { canWithdraw, isPublicStandard, remainingCapacity } from '../features/programs/helpers';
@@ -53,7 +54,7 @@ export function ProgramDetailPage() {
         } else if (state === 'denied' || state === 'pending') {
           setDenied(true);
           setErrorKind('forbidden');
-        } else setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to load program.');
+        } else setError(e instanceof ApiError ? e.message : 'Failed to load program.');
       } finally {
         setLoading(false);
       }
@@ -98,14 +99,15 @@ export function ProgramDetailPage() {
     <>
       <PublicHeader />
       <main className={styles.page} data-testid="program-detail">
-        <PageHeading kicker={`${program.kind} · ${program.theme}`} title={program.title} desc={program.organizer} />
-        <p><StatusBadge value={program.lifecycle} /> <span className={styles.meta}>{program.startsAt} → {program.endsAt} · {program.location}</span></p>
+        {/* Phase 1E public detail: anonymous allowed (no Authorization when signed out). */}
+        <PageHeading kicker={`${program.type || program.kind}${program.subtype ? ` · ${program.subtype}` : ''} · ${program.theme}`} title={program.title} desc={program.organizer} />
+        <p><StatusBadge value={program.lifecycle} /> <span className={styles.meta}>{toColomboDisplay(program.startsAt)} → {toColomboDisplay(program.endsAt)} · {program.location}</span></p>
         <section aria-label="Description"><h2>About</h2><p>{program.description}</p></section>
         <section aria-label="Sessions and committees">
           <h2>Sessions & committees</h2>
           <ul>
             {program.sessions.map((s) => (
-              <li key={s.id}>{s.title} — {s.startsAt} → {s.endsAt}{s.committee ? ` · ${s.committee}` : ''}{s.location ? ` · ${s.location}` : ''}</li>
+              <li key={s.id}>{s.title} — {toColomboDisplay(s.startsAt)} → {toColomboDisplay(s.endsAt)}{s.committee ? ` · ${s.committee}` : ''}{s.location ? ` · ${s.location}` : ''}</li>
             ))}
           </ul>
           {program.committees.length > 0 && (

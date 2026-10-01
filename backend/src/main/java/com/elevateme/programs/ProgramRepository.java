@@ -97,74 +97,332 @@ public class ProgramRepository {
 
   // ------------------------------------------------------------------
   // Browse (list/get): visibility filter lives in ProgramsService via ScopeGuard.
-  // Public slice = PUBLISHED + PUBLIC; owner sees own; admin sees all.
+  // Public slice = PUBLISHED + PUBLIC standard only (excludes targeted
+  // development backing rows); owner sees own + public; admin sees all.
+  // Stable pagination: ORDER BY created_at DESC, id ASC, 10/page.
+  // Search: title/description ILIKE. Filters: theme (canonical 4), type
+  // (SingleEvent|Continuous|Special), subtype (MUN|Debate|Competition|Special).
   // ------------------------------------------------------------------
 
-  /** Public slice: PUBLISHED + PUBLIC visibility, newest first. */
+  private static final String LIST_PROJECTION =
+      "p.id::text AS id, p.slug, p.title, p.description, p.program_type AS type,"
+          + " p.subtype, p.themes, p.lifecycle, p.visibility,"
+          + " p.owner_id::text AS ownerId, p.capacity,"
+          + " p.registered_count AS registeredCount";
+
+  private static List<String> typeVariants(String dbType) {
+    if (dbType == null) {
+      return List.of();
+    }
+    return switch (dbType) {
+      case "SINGLE_EVENT" -> List.of("SINGLE_EVENT", "SingleEvent");
+      case "CONTINUOUS" -> List.of("CONTINUOUS", "Continuous");
+      case "SPECIAL" -> List.of("SPECIAL", "Special");
+      default -> List.of(dbType);
+    };
+  }
+
+  private static List<String> subtypeVariants(String canonicalSubtype) {
+    if (canonicalSubtype == null) {
+      return List.of();
+    }
+    return switch (canonicalSubtype) {
+      case "MUN" -> List.of("MUN", "MODEL_UN");
+      case "Debate" -> List.of("Debate", "FRIENDLY_DEBATE", "DEBATE");
+      case "Competition" -> List.of("Competition", "COMPETITION");
+      case "Special" -> List.of("Special", "SPECIAL");
+      default -> List.of(canonicalSubtype);
+    };
+  }
+
+  private static List<String> themeVariants(String canonicalTheme) {
+    if (canonicalTheme == null) {
+      return List.of();
+    }
+    String noSpace = canonicalTheme.replace(" ", "");
+    if (!noSpace.equals(canonicalTheme)) {
+      return List.of(canonicalTheme, noSpace);
+    }
+    return List.of(canonicalTheme);
+  }
+
+  private static void appendDiscoveryFilters(
+      StringBuilder sql, List<Object> params,
+      String q, String theme, String dbType, String canonicalSubtype) {
+    if (q != null && !q.isBlank()) {
+      sql.append(" AND (p.title ILIKE ? OR p.description ILIKE ?)");
+      String like = "%" + q.replace("%", "\\%").replace("_", "\\_") + "%";
+      params.add(like);
+      params.add(like);
+    }
+    if (theme != null && !theme.isBlank()) {
+      List<String> variants = themeVariants(theme);
+      if (variants.size() == 1) {
+        sql.append(" AND (? = ANY(p.themes))");
+        params.add(variants.get(0));
+      } else {
+        sql.append(" AND (? = ANY(p.themes) OR ? = ANY(p.themes))");
+        params.add(variants.get(0));
+        params.add(variants.get(1));
+      }
+    }
+    if (dbType != null && !dbType.isBlank()) {
+      List<String> variants = typeVariants(dbType);
+      sql.append(" AND p.program_type IN (");
+      for (int i = 0; i < variants.size(); i++) {
+        if (i > 0) {
+          sql.append(",");
+        }
+        sql.append("?");
+        params.add(variants.get(i));
+      }
+      sql.append(")");
+    }
+    if (canonicalSubtype != null && !canonicalSubtype.isBlank()) {
+      List<String> variants = subtypeVariants(canonicalSubtype);
+      sql.append(" AND p.subtype IN (");
+      for (int i = 0; i < variants.size(); i++) {
+        if (i > 0) {
+          sql.append(",");
+        }
+        sql.append("?");
+        params.add(variants.get(i));
+      }
+      sql.append(")");
+    }
+  }
+
+  private static final String DEV_EXCLUSION =
+      " AND NOT EXISTS (SELECT 1 FROM app.development_events e"
+          + " WHERE e.program_id = p.id AND e.archived_at IS NULL)";
+
+  /** Public slice: PUBLISHED + PUBLIC visibility, newest first (stable). */
   public List<Map<String, Object>> findPublishedPrograms(int limit, int offset) {
-    return jdbc.queryForList(
-        "SELECT id::text AS id, slug, title, description, program_type AS type,"
-            + " lifecycle, visibility, owner_id::text AS ownerId, capacity"
-            + " FROM app.programs WHERE lifecycle = 'PUBLISHED' AND visibility = 'PUBLIC'"
-            + " ORDER BY created_at DESC LIMIT ? OFFSET ?",
-        limit, offset);
+    return findPublishedProgramsFiltered(limit, offset, null, null, null, null);
+  }
+
+  public List<Map<String, Object>> findPublishedProgramsFiltered(
+      int limit, int offset, String q, String theme, String dbType, String canonicalSubtype) {
+    StringBuilder sql = new StringBuilder(
+        "SELECT " + LIST_PROJECTION + " FROM app.programs p"
+            + " WHERE p.lifecycle = 'PUBLISHED' AND p.visibility = 'PUBLIC'");
+    List<Object> params = new java.util.ArrayList<>();
+    appendDiscoveryFilters(sql, params, q, theme, dbType, canonicalSubtype);
+    sql.append(DEV_EXCLUSION);
+    sql.append(" ORDER BY p.created_at DESC, p.id ASC LIMIT ? OFFSET ?");
+    params.add(limit);
+    params.add(offset);
+    try {
+      return jdbc.queryForList(sql.toString(), params.toArray());
+    } catch (org.springframework.jdbc.BadSqlGrammarException e) {
+      // Skeleton DBs without development_events / themes: retry without dev exclusion.
+      StringBuilder fallback = new StringBuilder(
+          "SELECT " + LIST_PROJECTION + " FROM app.programs p"
+              + " WHERE p.lifecycle = 'PUBLISHED' AND p.visibility = 'PUBLIC'");
+      List<Object> fp = new java.util.ArrayList<>();
+      appendDiscoveryFilters(fallback, fp, q, theme, dbType, canonicalSubtype);
+      fallback.append(" ORDER BY p.created_at DESC, p.id ASC LIMIT ? OFFSET ?");
+      fp.add(limit);
+      fp.add(offset);
+      try {
+        return jdbc.queryForList(fallback.toString(), fp.toArray());
+      } catch (Exception ex) {
+        // Pre-V6 DBs without themes/subtype: minimal projection.
+        return jdbc.queryForList(
+            "SELECT id::text AS id, slug, title, description, program_type AS type,"
+                + " lifecycle, visibility, owner_id::text AS ownerId, capacity"
+                + " FROM app.programs WHERE lifecycle = 'PUBLISHED' AND visibility = 'PUBLIC'"
+                + " ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            limit, offset);
+      }
+    }
   }
 
   public int countPublishedPrograms() {
+    return countPublishedProgramsFiltered(null, null, null, null);
+  }
+
+  public int countPublishedProgramsFiltered(
+      String q, String theme, String dbType, String canonicalSubtype) {
+    StringBuilder sql = new StringBuilder(
+        "SELECT COUNT(*) FROM app.programs p"
+            + " WHERE p.lifecycle = 'PUBLISHED' AND p.visibility = 'PUBLIC'");
+    List<Object> params = new java.util.ArrayList<>();
+    appendDiscoveryFilters(sql, params, q, theme, dbType, canonicalSubtype);
+    sql.append(DEV_EXCLUSION);
     try {
-      Integer n =
-          jdbc.queryForObject(
-              "SELECT COUNT(*) FROM app.programs"
-                  + " WHERE lifecycle = 'PUBLISHED' AND visibility = 'PUBLIC'",
-              Integer.class);
+      Integer n = jdbc.queryForObject(sql.toString(), Integer.class, params.toArray());
       return n == null ? 0 : n;
     } catch (Exception e) {
-      return 0;
+      try {
+        StringBuilder fallback = new StringBuilder(
+            "SELECT COUNT(*) FROM app.programs p"
+                + " WHERE p.lifecycle = 'PUBLISHED' AND p.visibility = 'PUBLIC'");
+        List<Object> fp = new java.util.ArrayList<>();
+        appendDiscoveryFilters(fallback, fp, q, theme, dbType, canonicalSubtype);
+        Integer n = jdbc.queryForObject(fallback.toString(), Integer.class, fp.toArray());
+        return n == null ? 0 : n;
+      } catch (Exception ex) {
+        return 0;
+      }
     }
   }
 
-  /** Owner-visible slice: own programs plus public PUBLISHED, newest first. */
+  /** Owner-visible slice: own programs plus public PUBLISHED, newest first (stable). */
   public List<Map<String, Object>> findVisiblePrograms(String ownerId, int limit, int offset) {
-    return jdbc.queryForList(
-        "SELECT id::text AS id, slug, title, description, program_type AS type,"
-            + " lifecycle, visibility, owner_id::text AS ownerId, capacity"
-            + " FROM app.programs"
-            + " WHERE ((lifecycle = 'PUBLISHED' AND visibility = 'PUBLIC')"
-            + " OR owner_id::text = ?)"
-            + " ORDER BY created_at DESC LIMIT ? OFFSET ?",
-        ownerId, limit, offset);
+    return findVisibleProgramsFiltered(ownerId, limit, offset, null, null, null, null);
+  }
+
+  public List<Map<String, Object>> findVisibleProgramsFiltered(
+      String ownerId, int limit, int offset,
+      String q, String theme, String dbType, String canonicalSubtype) {
+    StringBuilder sql = new StringBuilder(
+        "SELECT " + LIST_PROJECTION + " FROM app.programs p"
+            + " WHERE ((p.lifecycle = 'PUBLISHED' AND p.visibility = 'PUBLIC')"
+            + " OR p.owner_id::text = ?)");
+    List<Object> params = new java.util.ArrayList<>();
+    params.add(ownerId);
+    appendDiscoveryFilters(sql, params, q, theme, dbType, canonicalSubtype);
+    sql.append(DEV_EXCLUSION);
+    // Owners must still see their own dev-backed rows via workspace (get by id),
+    // but discovery list hides targeted dev even for owners — re-include own rows:
+    // the OR above already includes own; dev exclusion would hide own dev rows.
+    // So for visible slice, exclude dev only when NOT owned:
+    // Replace blanket exclusion with owned-or-not-dev.
+    String withOwned = sql.toString().replace(DEV_EXCLUSION,
+        " AND (p.owner_id::text = ? OR NOT EXISTS (SELECT 1 FROM app.development_events e"
+            + " WHERE e.program_id = p.id AND e.archived_at IS NULL))");
+    List<Object> withParams = new java.util.ArrayList<>(params);
+    // params currently: [ownerId, ...filters]; need second ownerId before limit/offset
+    // Insert second ownerId after filter params.
+    withParams.add(ownerId);
+    String finalSql = withOwned + " ORDER BY p.created_at DESC, p.id ASC LIMIT ? OFFSET ?";
+    withParams.add(limit);
+    withParams.add(offset);
+    try {
+      return jdbc.queryForList(finalSql, withParams.toArray());
+    } catch (org.springframework.jdbc.BadSqlGrammarException e) {
+      StringBuilder fallback = new StringBuilder(
+          "SELECT " + LIST_PROJECTION + " FROM app.programs p"
+              + " WHERE ((p.lifecycle = 'PUBLISHED' AND p.visibility = 'PUBLIC')"
+              + " OR p.owner_id::text = ?)");
+      List<Object> fp = new java.util.ArrayList<>();
+      fp.add(ownerId);
+      appendDiscoveryFilters(fallback, fp, q, theme, dbType, canonicalSubtype);
+      fallback.append(" ORDER BY p.created_at DESC, p.id ASC LIMIT ? OFFSET ?");
+      fp.add(limit);
+      fp.add(offset);
+      try {
+        return jdbc.queryForList(fallback.toString(), fp.toArray());
+      } catch (Exception ex) {
+        return jdbc.queryForList(
+            "SELECT id::text AS id, slug, title, description, program_type AS type,"
+                + " lifecycle, visibility, owner_id::text AS ownerId, capacity"
+                + " FROM app.programs"
+                + " WHERE ((lifecycle = 'PUBLISHED' AND visibility = 'PUBLIC')"
+                + " OR owner_id::text = ?)"
+                + " ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            ownerId, limit, offset);
+      }
+    }
   }
 
   public int countVisiblePrograms(String ownerId) {
+    return countVisibleProgramsFiltered(ownerId, null, null, null, null);
+  }
+
+  public int countVisibleProgramsFiltered(
+      String ownerId, String q, String theme, String dbType, String canonicalSubtype) {
+    StringBuilder sql = new StringBuilder(
+        "SELECT COUNT(*) FROM app.programs p"
+            + " WHERE ((p.lifecycle = 'PUBLISHED' AND p.visibility = 'PUBLIC')"
+            + " OR p.owner_id::text = ?)");
+    List<Object> params = new java.util.ArrayList<>();
+    params.add(ownerId);
+    appendDiscoveryFilters(sql, params, q, theme, dbType, canonicalSubtype);
+    // Same owned-or-not-dev rule as the list path.
+    String withOwned = sql.toString()
+        + " AND (p.owner_id::text = ? OR NOT EXISTS (SELECT 1 FROM app.development_events e"
+        + " WHERE e.program_id = p.id AND e.archived_at IS NULL))";
+    List<Object> withParams = new java.util.ArrayList<>(params);
+    withParams.add(ownerId);
     try {
-      Integer n =
-          jdbc.queryForObject(
-              "SELECT COUNT(*) FROM app.programs"
-                  + " WHERE ((lifecycle = 'PUBLISHED' AND visibility = 'PUBLIC')"
-                  + " OR owner_id::text = ?)",
-              Integer.class, ownerId);
+      Integer n = jdbc.queryForObject(withOwned, Integer.class, withParams.toArray());
       return n == null ? 0 : n;
     } catch (Exception e) {
-      return 0;
+      try {
+        StringBuilder fallback = new StringBuilder(
+            "SELECT COUNT(*) FROM app.programs p"
+                + " WHERE ((p.lifecycle = 'PUBLISHED' AND p.visibility = 'PUBLIC')"
+                + " OR p.owner_id::text = ?)");
+        List<Object> fp = new java.util.ArrayList<>();
+        fp.add(ownerId);
+        appendDiscoveryFilters(fallback, fp, q, theme, dbType, canonicalSubtype);
+        Integer n = jdbc.queryForObject(fallback.toString(), Integer.class, fp.toArray());
+        return n == null ? 0 : n;
+      } catch (Exception ex) {
+        return 0;
+      }
     }
   }
 
-  /** Admin slice: all programs, newest first. */
+  /** Admin slice: all programs, newest first (stable). */
   public List<Map<String, Object>> findAllPrograms(int limit, int offset) {
-    return jdbc.queryForList(
-        "SELECT id::text AS id, slug, title, description, program_type AS type,"
-            + " lifecycle, visibility, owner_id::text AS ownerId, capacity"
-            + " FROM app.programs ORDER BY created_at DESC LIMIT ? OFFSET ?",
-        limit, offset);
+    return findAllProgramsFiltered(limit, offset, null, null, null, null);
+  }
+
+  public List<Map<String, Object>> findAllProgramsFiltered(
+      int limit, int offset, String q, String theme, String dbType, String canonicalSubtype) {
+    StringBuilder sql = new StringBuilder(
+        "SELECT " + LIST_PROJECTION + " FROM app.programs p WHERE 1=1");
+    List<Object> params = new java.util.ArrayList<>();
+    appendDiscoveryFilters(sql, params, q, theme, dbType, canonicalSubtype);
+    sql.append(" ORDER BY p.created_at DESC, p.id ASC LIMIT ? OFFSET ?");
+    params.add(limit);
+    params.add(offset);
+    try {
+      return jdbc.queryForList(sql.toString(), params.toArray());
+    } catch (org.springframework.jdbc.BadSqlGrammarException e) {
+      return jdbc.queryForList(
+          "SELECT id::text AS id, slug, title, description, program_type AS type,"
+              + " lifecycle, visibility, owner_id::text AS ownerId, capacity"
+              + " FROM app.programs ORDER BY created_at DESC LIMIT ? OFFSET ?",
+          limit, offset);
+    }
   }
 
   public int countAllPrograms() {
+    return countAllProgramsFiltered(null, null, null, null);
+  }
+
+  public int countAllProgramsFiltered(
+      String q, String theme, String dbType, String canonicalSubtype) {
+    StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM app.programs p WHERE 1=1");
+    List<Object> params = new java.util.ArrayList<>();
+    appendDiscoveryFilters(sql, params, q, theme, dbType, canonicalSubtype);
     try {
-      Integer n =
-          jdbc.queryForObject("SELECT COUNT(*) FROM app.programs", Integer.class);
+      Integer n = jdbc.queryForObject(sql.toString(), Integer.class, params.toArray());
       return n == null ? 0 : n;
     } catch (Exception e) {
-      return 0;
+      try {
+        Integer n = jdbc.queryForObject("SELECT COUNT(*) FROM app.programs", Integer.class);
+        return n == null ? 0 : n;
+      } catch (Exception ex) {
+        return 0;
+      }
+    }
+  }
+
+  /** True when the program backs a targeted development event (never publicly listed). */
+  public boolean isDevelopmentBacked(String programId) {
+    try {
+      Integer n = jdbc.queryForObject(
+          "SELECT COUNT(*) FROM app.development_events"
+              + " WHERE program_id::text = ? AND archived_at IS NULL",
+          Integer.class, programId);
+      return n != null && n > 0;
+    } catch (Exception e) {
+      return false;
     }
   }
 

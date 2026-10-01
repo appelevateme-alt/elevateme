@@ -100,9 +100,7 @@ export async function adminAssignDevelopment(
 }
 
 /**
- * DELETE /admin/development/{id}/assignees/{studentId} — removal blocks new
- * registration but never silently cancels a confirmed registration.
- * Backend truth (DevelopmentController.removeAssignee).
+ * Removal blocks new registration but never silently cancels a confirmed registration.
  */
 export async function removeAssignee(developmentId: string, studentId: string): Promise<Record<string, unknown>> {
   return del<Record<string, unknown>>(
@@ -147,22 +145,9 @@ export async function expirePaymentHolds(): Promise<Record<string, unknown>> {
   return post<Record<string, unknown>>('/admin/payments/expire', {});
 }
 
-/**
- * Staff hold extension (PENDING only).
- *
- * TODO: no backend controller route exposes DevelopmentService.extendHold yet
- * (ExtendHoldRequest exists as a DTO but has no @PostMapping). Wire this to
- * POST /admin/payments/{id}/extend (or equivalent) once the backend adds it —
- * do NOT invent a payment-state write on the client.
- */
-export async function extendPaymentHold(
-  _paymentId: string,
-  _expiresAt: string,
-): Promise<never> {
-  throw new Error(
-    'TODO: hold extension has no backend route yet (DevelopmentService.extendHold is service-only).',
-  );
-}
+// No hold-extend route exists: PaymentAdminController exposes list / verify /
+// expire only (DevelopmentService.extendHold is service-only with no mapping).
+// Holds expire automatically via the expiry sweep above — no client write.
 
 // ------------------------------------------------------------------
 // Recommendations composer — exact backend paths/payloads.

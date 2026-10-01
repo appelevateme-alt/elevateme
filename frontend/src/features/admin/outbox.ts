@@ -22,9 +22,8 @@ function normalize(res: OutboxRow[] | { items?: OutboxRow[] }): OutboxRow[] {
 
 /**
  * GET /admin/outbox?state=FAILED (default FAILED).
- * Backend truth (OutboxAdminController.list): admin-only, ids-only payloads.
- * No per-row retry endpoint exists — worker retries with backoff; FAILED is
- * poison-pill history (see docs/OUTBOX.md operator notes).
+ * Admin-only list. No per-row retry endpoint exists — the worker retries
+ * automatically; failed rows stay as history (see docs/OUTBOX.md).
  */
 export async function listOutbox(state: OutboxState = 'FAILED'): Promise<OutboxRow[]> {
   const res = await get<OutboxRow[] | { items?: OutboxRow[] }>(

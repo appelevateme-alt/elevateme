@@ -161,6 +161,7 @@ class PermissionRegressionTest {
     assertEquals(403, res.getStatusCode().value());
     verify(releaseRepo, never()).insertRelease(any(), any(), any(), any(), any());
     verify(releaseRepo, never()).releaseEvaluations(any());
+    verify(releaseRepo, never()).releaseEvaluationsByIds(any());
   }
 
   // 6. Guest scoped: unrelated session → 404.
@@ -351,19 +352,20 @@ class PermissionRegressionTest {
     when(repo.countExpected("sess-1")).thenReturn(6);
     when(repo.countReleased("sess-1")).thenReturn(0).thenReturn(3);
     when(repo.findExcludedWithReason("sess-1")).thenReturn(List.of());
+    when(repo.findOutstandingWithReason("sess-1")).thenReturn(List.of());
     Map<String, Object> e1 = new HashMap<>();
     e1.put("id", "e1");
     e1.put("studentId", "stu-e1");
     when(repo.lockEligibleEvaluations("sess-1")).thenReturn(List.of(e1));
     when(repo.insertRelease(eq("SESSION"), isNull(), eq("sess-1"), eq("staff-1"), eq("K-13")))
         .thenReturn("rel-13");
-    when(repo.releaseEvaluations("sess-1")).thenReturn(1);
+    when(repo.releaseEvaluationsByIds(any())).thenReturn(1);
 
     Map<String, Object> first = svc.release("staff-sub", "sess-1", "K-13", "req-1", false);
     Map<String, Object> replay = svc.release("staff-sub", "sess-1", "K-13", "req-2", false);
     assertEquals(first, replay);
     verify(repo, times(1)).insertRelease(any(), any(), any(), any(), any());
-    verify(repo, times(1)).releaseEvaluations(any());
+    verify(repo, times(1)).releaseEvaluationsByIds(any());
   }
 
   // 14. Release atomic: fault mid-transaction → zero partial.
@@ -387,6 +389,7 @@ class PermissionRegressionTest {
         () -> svc.release("staff-sub", "sess-1", "K-fault", "req-1", false));
     verify(repo, never()).insertRelease(any(), any(), any(), any(), any());
     verify(repo, never()).releaseEvaluations(any());
+    verify(repo, never()).releaseEvaluationsByIds(any());
     verify(outbox, never()).emit(any(), any(), any(), any(), any());
   }
 

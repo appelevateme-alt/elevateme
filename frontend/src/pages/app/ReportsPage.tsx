@@ -18,7 +18,7 @@ export function ReportsPage() {
       try {
         setItems(await listReports());
       } catch (e) {
-        setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to load reports.');
+        setError(e instanceof ApiError ? e.message : 'Failed to load reports.');
       } finally {
         setLoading(false);
       }

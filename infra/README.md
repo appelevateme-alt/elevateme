@@ -5,7 +5,7 @@
 - `infra/vercel.json`: same-origin `/api/*` → Java (`${JAVA_API_URL}` — set per env).
   Preserves `Authorization` + guest cookie, `Cache-Control: no-store, private` for `/api/*`.
   SPA fallback applies ONLY after `/api/` + static assets.
-- Env (Vercel project): `VITE_API_BASE=/api`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+- Env (Vercel project): `VITE_API_BASE=/api/v1`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
   Never `SERVICE_ROLE`, never DB password in `VITE_*`.
 
 ## Backend (Render Docker — proposed, no purchase authorized)
@@ -16,7 +16,7 @@
 
 ## Supabase
 - Separate dev/staging/prod projects (or clearly isolated envs). Previews never write prod.
-- Migrations: canonical in `database/migrations/` (Flyway V1–V4). Sync into
+- Migrations: canonical in `database/migrations/` (Flyway V1–V10 incl. V5 → V5.1 → V6…). Sync into
   `backend/src/main/resources/db/migration/` for local runs. Migration owner ≠ runtime role
   (`elevateme_owner` DDL vs least-privilege `app_runtime` — see `database/README.md`).
 - Storage: private bucket `profile-photos-private`. Java authorizes → short-lived signed URLs only.

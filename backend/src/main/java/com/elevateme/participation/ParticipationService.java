@@ -359,10 +359,50 @@ public class ParticipationService {
   /**
    * Guest scoped roster: scope already verified via {@code GuestService#requireGuestScope}
    * (unrelated =&gt; 404). No staff guard here — the invitation scope is the gate.
+   * Phase 1C: guest-safe projection — names + status only (no contacts, history,
+   * recommendations, allocation, attendance internals, evaluator identity, photos).
+   * Each row carries {@code evaluationId} so the sheet can be opened without the
+   * client supplying DB ids out-of-scope.
    */
   public Map<String, Object> getRosterDetailedForGuest(
       String sessionId, String q, String committee, String status, int page) {
-    return rosterPage(sessionId, q, committee, status, page);
+    Map<String, Object> full = rosterPage(sessionId, q, committee, status, page);
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> items =
+        (List<Map<String, Object>>) full.getOrDefault("items", List.of());
+    // Optional per-student allow-list is enforced by the controller (404 on
+    // unassigned); this projection additionally never leaks extra columns.
+    List<Map<String, Object>> rows = new ArrayList<>();
+    for (Map<String, Object> r : items) {
+      Map<String, Object> row = new HashMap<>();
+      Object studentId = r.get("studentId");
+      row.put("id", studentId == null ? null : String.valueOf(studentId));
+      row.put("studentId", studentId == null ? null : String.valueOf(studentId));
+      Object name = r.get("displayName");
+      if (name == null) {
+        name = r.get("name");
+      }
+      row.put("name", name == null ? null : String.valueOf(name));
+      Object emId = r.get("elevateMeId");
+      row.put("elevateMeId", emId == null ? null : String.valueOf(emId));
+      Object evalStatus = r.get("evalStatus");
+      if (evalStatus == null) {
+        evalStatus = r.get("reportStatus");
+      }
+      row.put("reportStatus", evalStatus == null ? null : String.valueOf(evalStatus));
+      Object evalId = r.get("evaluationId");
+      row.put("evaluationId", evalId == null ? null : String.valueOf(evalId));
+      // Deliberately omitted: allocation, attendance, assignedEvaluator, committee,
+      // photoKey/photoThumbUrl, registration internals, contacts, history.
+      rows.add(row);
+    }
+    Map<String, Object> out = new HashMap<>();
+    out.put("rows", rows);
+    out.put("items", rows);
+    out.put("page", full.get("page"));
+    out.put("pageSize", full.get("pageSize"));
+    out.put("total", full.get("total"));
+    return out;
   }
 
   private Map<String, Object> rosterPage(

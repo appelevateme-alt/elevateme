@@ -3,32 +3,35 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { PageHeading } from '../../components/PageHeading';
 import { EmptyState } from '../../components/EmptyState';
 import { ApiError } from '../../lib/api';
-import { CRITERIA_10, CRITERIA_LABELS } from '../../lib/scoring';
 import {
   buildExchangeFragment,
   cleanedGuestUrl,
-  extractFragmentToken,
   isExpiredOrRevoked,
 } from '../../features/guest-invite/types';
-import { exchangeGuestToken, getGuestRoster, type GuestRosterRow } from '../../features/guest-invite/api';
-import { getGuestEvaluationSheet } from '../../features/evaluation-sheet/api';
-import type { EvaluationSheet } from '../../features/evaluation-sheet/types';
+import {
+  exchangeGuestToken,
+  getGuestRosterScoped,
+  getGuestSession,
+  type GuestRosterRow,
+} from '../../features/guest-invite/api';
+import { filterGuestRoster, guestSheetPath } from '../../features/guest-invite/helpers';
 import styles from './GuestInvitePage.module.css';
 
 /**
- * /evaluate/invite — guest entry via one-time fragment (#t=...).
- * POST /guest/exchange sets the HttpOnly guest_session cookie (same-origin),
- * then history.replaceState strips the fragment so the token never leaks
- * (no logging, no storage). Expired/revoked => request-new-link (no leak).
- * Guests see roster + released sheets only. 409 => revision conflict UI.
+ * /evaluate/invite (entry) + /evaluate/session (roster) — guest evaluator roster.
+ * Invite link (/evaluate/invite#t=...?sessionId=) -> exchange -> HttpOnly
+ * guest_session cookie -> scope-resolved roster (names + status only, no
+ * contacts/history) -> click student -> editable sheet at
+ * /evaluate/students/:studentId. Session IDs are resolved from the invitation
+ * scope (URL query + cookie) — the guest is never asked to type DB/session IDs.
+ * No report release button is offered to guests (staff-only, 403).
  */
 export function GuestInvitePage() {
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<'idle' | 'exchanging' | 'ready' | 'expired' | 'error'>('idle');
   const [detail, setDetail] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string>(() => searchParams.get('sessionId') ?? '');
   const [roster, setRoster] = useState<GuestRosterRow[]>([]);
-  const [sheet, setSheet] = useState<EvaluationSheet | null>(null);
+  const [loadingRoster, setLoadingRoster] = useState(false);
   const [conflict, setConflict] = useState(false);
 
   const doExchange = useCallback(async (fragment: string) => {
@@ -53,7 +56,7 @@ export function GuestInvitePage() {
         setStatus('expired');
       } else {
         setStatus('error');
-        setDetail(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Exchange failed.');
+        setDetail(e instanceof ApiError ? e.message : 'Exchange failed.');
       }
     }
   }, []);
@@ -62,47 +65,53 @@ export function GuestInvitePage() {
     const hash = window.location.hash;
     const fragment = buildExchangeFragment(hash);
     if (!fragment) {
-      // No fragment: if a guest cookie already exists, allow roster lookup by sessionId.
-      if (searchParams.get('sessionId')) setStatus('ready');
+      // No fragment: if a guest cookie already exists (or a sessionId query from the
+      // invitation link), allow roster lookup from scope — never ask for IDs.
+      setStatus('ready');
       return;
     }
     // Never log the token.
     void doExchange(fragment);
-    void extractFragmentToken;
-  }, [doExchange, searchParams]);
+  }, [doExchange]);
 
-  async function loadRoster() {
-    if (!sessionId.trim()) {
-      setDetail('Enter the session ID from your invitation.');
-      return;
-    }
+  const loadRoster = useCallback(async () => {
+    setLoadingRoster(true);
     setDetail(null);
     setConflict(false);
     try {
-      const res = await getGuestRoster(sessionId.trim());
-      setRoster(res.rows);
-      if (res.rows.length === 0) setDetail('No roster entries for this invitation (guests see roster + released sheets only).');
+      // Resolve the assigned session from the invitation scope (cookie), falling
+      // back to the ?sessionId= carried by the invitation link (not user-typed).
+      let scopedSession: string | undefined;
+      try {
+        const scope = await getGuestSession();
+        if (scope.sessionId) scopedSession = scope.sessionId;
+      } catch {
+        /* fall back to link query */
+      }
+      const linkSession = searchParams.get('sessionId') ?? undefined;
+      const res = await getGuestRosterScoped(
+        scopedSession ? undefined : linkSession ? { sessionId: linkSession } : undefined,
+      );
+      // Strip to names + status only (no contacts/history); server already enforces scope.
+      const visible = filterGuestRoster(res.rows);
+      setRoster(visible);
+      if (visible.length === 0) {
+        setDetail('No students assigned to this invitation yet. Ask your coordinator if this looks wrong.');
+      }
     } catch (e) {
       if (e instanceof ApiError && isExpiredOrRevoked(e.status, e.code)) setStatus('expired');
       else if (e instanceof ApiError && (e.status === 409 || e.code === 'VERSION_CONFLICT')) setConflict(true);
-      else setDetail(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to load roster.');
-    }
-  }
-
-  async function openSheet(evaluationId: string) {
-    setDetail(null);
-    setConflict(false);
-    try {
-      setSheet(await getGuestEvaluationSheet(evaluationId));
-    } catch (e) {
-      if (e instanceof ApiError && isExpiredOrRevoked(e.status, e.code)) setStatus('expired');
       else if (e instanceof ApiError && (e.status === 404 || e.code === 'NOT_FOUND')) {
-        setDetail('Not found — guests can only open released sheets in their invitation scope.');
-      } else if (e instanceof ApiError && (e.status === 409 || e.code === 'VERSION_CONFLICT')) {
-        setConflict(true);
-      } else setDetail(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to open sheet.');
+        setDetail('Not found — this invitation covers a different session.');
+      } else setDetail(e instanceof ApiError ? e.message : 'Failed to load roster.');
+    } finally {
+      setLoadingRoster(false);
     }
-  }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (status === 'ready') void loadRoster();
+  }, [status, loadRoster]);
 
   if (status === 'idle' || status === 'exchanging') {
     return (
@@ -137,55 +146,33 @@ export function GuestInvitePage() {
   }
 
   return (
-    <main className={styles.page} data-testid="evaluate-invite">
-      <PageHeading title="Guest evaluations" desc="Roster + released sheets only. Your session cookie is HttpOnly and never exposed to scripts." />
+    <main className={styles.page} data-testid="evaluate-session">
+      <PageHeading title="Guest evaluations" desc="Your assigned students — names + status only. Select a student to open their editable sheet." />
       {conflict && (
         <div role="alert" className={styles.conflict} data-testid="revision-conflict">
-          <strong>Revision conflict.</strong> The sheet changed — refresh and retry.
+          <strong>Revision conflict.</strong> The roster changed — refresh and retry.
           <button type="button" onClick={() => { setConflict(false); void loadRoster(); }}>Refresh</button>
         </div>
       )}
-      <form
-        className={styles.row}
-        onSubmit={(e) => {
-          e.preventDefault();
-          void loadRoster();
-        }}
-      >
-        <label>Session ID
-          <input value={sessionId} onChange={(e) => setSessionId(e.target.value)} placeholder="Session ID from invitation" aria-label="Session ID" />
-        </label>
-        <button type="submit">Load roster</button>
-      </form>
+      <div className={styles.row}>
+        <button type="button" onClick={() => void loadRoster()} disabled={loadingRoster}>
+          {loadingRoster ? 'Loading…' : 'Refresh roster'}
+        </button>
+      </div>
       {detail && <p role="status" className={styles.meta}>{detail}</p>}
       {roster.length > 0 && (
         <ul className={styles.list}>
-          {roster.map((r) => (
-            <li key={r.id} data-testid="guest-roster-row">
-              {r.name ?? r.id} {r.elevateMeId ? `· ${r.elevateMeId}` : ''} {r.reportStatus ? `· ${r.reportStatus}` : ''}
-              {' '}
-              {(r.evaluationId || r.id) && (
-                <button type="button" onClick={() => void openSheet(r.evaluationId ?? r.id)}>Open sheet</button>
-              )}
-            </li>
-          ))}
+          {roster.map((r) => {
+            const studentId = r.studentId ?? r.id;
+            return (
+              <li key={r.id} data-testid="guest-roster-row">
+                {r.name ?? 'Student'} {r.elevateMeId ? `· ${r.elevateMeId}` : ''} {r.reportStatus ? `· ${r.reportStatus}` : ''}
+                {' '}
+                <Link to={guestSheetPath(studentId)} data-testid="guest-open-sheet">Open sheet</Link>
+              </li>
+            );
+          })}
         </ul>
-      )}
-      {sheet && (
-        <section aria-label="Released sheet" className={styles.sheet} data-testid="guest-sheet">
-          <h2>Released sheet — {sheet.studentName ?? sheet.studentId}</h2>
-          <dl className={styles.dl}>
-            {CRITERIA_10.map((k) => (
-              <div key={k}>
-                <dt>{CRITERIA_LABELS[k]}</dt>
-                <dd>{sheet.scores[k] ?? '—'}</dd>
-              </div>
-            ))}
-          </dl>
-          <p role="status">Total {sheet.total ?? '—'} / 1000 · Average {sheet.average ?? '—'} / 100 (server authoritative)</p>
-          {sheet.notes && <p>Remarks: {sheet.notes}</p>}
-          <button type="button" onClick={() => setSheet(null)}>Close</button>
-        </section>
       )}
     </main>
   );

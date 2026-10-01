@@ -18,6 +18,13 @@ npm run dev   # http://localhost:5173
 applies AFTER `/api` — proxied API requests are forwarded, never fallen back to
 `index.html`.
 
+Guest cookie (`guest_session`, see `GuestController.exchange`): `HttpOnly`,
+`SameSite=Strict`, `Secure` conditional (false on `http://localhost` dev, true
+otherwise/https), `Path=/`, `Max-Age` 24h. Frontend sends it via
+`credentials: "include"` (`src/lib/api.ts`). Cookie mutations under `/guest/**`
+additionally verify same-origin `Origin` (or `Referer` fallback) — mismatch → 403
+(`GuestService` CSRF gate, on top of `SameSite=Strict`).
+
 ### Backend — `./mvnw spring-boot:run`, env from `.env.example`
 
 ```bash
@@ -57,7 +64,8 @@ insert into storage.buckets (id, name, public) values ('profile-photos-private',
 
 Backend serves photos via signed URLs only (`STORAGE_ENDPOINT`,
 `STORAGE_BUCKET_PRIVATE`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY` in env).
-No public bucket. RLS: deny anonymous reads on the bucket.
+Expiries (see `PhotoService`): upload 60s (`UPLOAD_EXPIRES_IN`), read 300s
+(`READ_EXPIRES_IN`). No public bucket. RLS: deny anonymous reads on the bucket.
 
 ### Verified sender domain placeholder
 
@@ -77,14 +85,29 @@ sends real mail:
 | Staging | `https://<app>-staging.vercel.app` | `https://<app>-staging.onrender.com` |
 | Prod    | `https://<app>.vercel.app`          | `https://<app>.onrender.com`          |
 
-- Frontend deploy: Vercel project rooted at `frontend/`, build `npm run build`,
+- Frontend deploy: Vercel project Root Directory `frontend/`, build `npm run build`,
   output `dist` (see `infra/vercel.json`). `/api/:path*` rewrites to
   `${JAVA_API_URL}/api/:path*`; `/api` responses carry
   `Cache-Control: no-store, private` + `Vary: Authorization, Cookie`.
+  Env (Vercel project): `VITE_API_BASE=/api/v1` (same-origin gateway), never
+  `SERVICE_ROLE` / DB password in `VITE_*`.
+- WARNING: `infra/vercel.json` is NOT auto-consumed when Root Directory is
+  `frontend/` — Vercel only reads `vercel.json` at the project root. Either copy
+  `infra/vercel.json` → `frontend/vercel.json` for preview deploys, or replicate
+  the `/api/:path*` rewrite + `Cache-Control: no-store, private` headers in the
+  Vercel dashboard (Project → Settings).
 - Backend deploy: Render blueprint `infra/render.yaml` (type `web`,
   runtime `docker`, `dockerfilePath: ./infra/Dockerfile.backend`,
   health check `/api/health`). All env vars `sync: false` — set them in the
   Render dashboard per environment.
+
+### Auth Redirect URLs (Supabase dashboard → Auth → URL Configuration)
+
+Allow-list per environment (no secrets in repo):
+
+- Local: `http://localhost:5173/reset-password`, `http://localhost:5173/verify-email`
+- Staging: `https://<app>-staging.vercel.app/reset-password`, `https://<app>-staging.vercel.app/verify-email`
+- Prod: `https://<app>.vercel.app/reset-password`, `https://<app>.vercel.app/verify-email`
 
 ## 3. Preview-never-writes-prod rule
 
@@ -112,15 +135,32 @@ pg_restore --clean --if-exists -d "$RESTORE_TARGET_URL" elevateme-backup-<date>.
 
 - Keep at least one known-good backup before each Flyway migration that alters
   evaluation/summary tables.
-- Canonical migrations live in `database/migrations/`; backend Flyway path
-  `backend/src/main/resources/db/migration/` holds a placeholder + README
-  pointer (see `backend/README.md`).
+- Canonical migrations live in `database/migrations/` (Flyway V1–V10 incl.
+  V5 → V5.1 → V6…); backend Flyway path
+  `backend/src/main/resources/db/migration/` holds full mirrored copies + README
+  (see `backend/README.md`). Sync: `cp ../database/migrations/V*.sql
+  src/main/resources/db/migration/` (run from `backend/`).
+
+```bash
+# Clean-DB reset — dev/staging ONLY, NEVER prod.
+# Wipes the app schema, then re-runs all Flyway migrations on next boot/migrate.
+psql "$DATABASE_URL" -c "DROP SCHEMA app CASCADE;"
+cd backend
+./mvnw flyway:migrate # Windows: mvnw.cmd flyway:migrate (or reboot: auto-migrates)
+```
 
 ## 5. Phase 1d verification record (no secrets, no purchases)
 
 - Frontend `npm run build` (tsc + vite) passes; `frontend/dist/index.html` exists;
   `infra/vercel.json` `/api/:path*` headers verified `no-store, private`.
-- Frontend `npm run test` (vitest) passes.
+  NOTE: Vercel Root Directory `frontend/` does not auto-consume
+  `infra/vercel.json` — copy to `frontend/vercel.json` or replicate in dashboard (§2).
+- Frontend `npm run test` (vitest, unit-only via `frontend/vitest.config.ts`:
+  `src/tests/**/*.test.*`, `e2e/**` excluded) passes. E2E is separate:
+  `npx playwright test` (requires manual `@playwright/test` install, see `docs/E2E.md`).
+- Env: `VITE_API_BASE=/api/v1` (`.env.example`, `infra/README.md`, `frontend/README.md`).
+- DB: canonical `database/migrations/` V1–V10 (incl. V5 → V5.1 → V6…), fully
+  mirrored in `backend/src/main/resources/db/migration/` (no placeholder).
 - Backend: requires JDK 21 + Maven 3.9.9 (pinned wrapper
   `backend/.mvn/wrapper/maven-wrapper.properties`); this machine has JDK 17 and
   no `mvn`, so `mvn -B -o -DskipTests package` was NOT run locally — CI

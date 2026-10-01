@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useBlocker, useNavigate } from 'react-router-dom';
+import { Link, useBlocker, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { PageHeading } from '../../components/PageHeading';
@@ -233,14 +233,14 @@ export function ProgramBuilderPage() {
       setSaveState('error');
       if (e instanceof ApiError && e.status === 403) {
         setSubmitKind('forbidden');
-        setSubmitError(`${e.message} (code ${e.code})`);
+        setSubmitError(e.message);
       } else if (e instanceof ApiError && e.status === 404) {
         setSubmitKind('not-found');
-        setSubmitError(`${e.message} (code ${e.code})`);
+        setSubmitError(e.message);
       } else if (e instanceof ApiError && e.status === 409) {
         setSubmitError(conflictCopyFor409(e));
       } else {
-        setSubmitError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Saving draft failed.');
+        setSubmitError(e instanceof ApiError ? e.message : 'Saving draft failed.');
       }
     }
   }
@@ -258,14 +258,14 @@ export function ProgramBuilderPage() {
     } catch (e) {
       if (e instanceof ApiError && e.status === 403) {
         setSubmitKind('forbidden');
-        setSubmitError(`${e.message} (code ${e.code})`);
+        setSubmitError(e.message);
       } else if (e instanceof ApiError && e.status === 404) {
         setSubmitKind('not-found');
-        setSubmitError(`${e.message} (code ${e.code})`);
+        setSubmitError(e.message);
       } else if (e instanceof ApiError && e.status === 409) {
         setSubmitError(conflictCopyFor409(e));
       } else {
-        setSubmitError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Submit failed.');
+        setSubmitError(e instanceof ApiError ? e.message : 'Submit failed.');
       }
     }
   }
@@ -276,7 +276,7 @@ export function ProgramBuilderPage() {
         <PageHeading title="Program submitted" desc="Your program is now in review." />
         <EmptyState
           title="Restricted edits from here"
-          body="The program moved to SUBMITTED. Further edits are restricted — contact a coordinator for changes while it is under review."
+          body="The program moved to PENDING_REVIEW. Further edits are restricted — contact a coordinator for changes while it is under review."
           action={<button onClick={() => navigate(`/staff/programs/${createdId ?? ''}`)}>Open program workspace</button>}
         />
       </main>
@@ -285,6 +285,9 @@ export function ProgramBuilderPage() {
 
   return (
     <main className={styles.page} data-testid="program-builder">
+      <nav aria-label="Breadcrumb">
+        <Link to="/staff/programs">Back to programs</Link>
+      </nav>
       <PageHeading title="New program" desc="5-step builder. Save a draft explicitly — nothing is autosaved." />
       <div className={styles.layout}>
         <ol className={styles.steps} aria-label="Builder steps">

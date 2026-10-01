@@ -54,6 +54,19 @@ public class OutboxService {
   }
 
   /**
+   * Phase 1D strict emit for atomic releases: same-transaction insert that
+   * PROPAGATES failures so the release rolls back (no partial visibility or
+   * orphan notifications). {@code dedupe_key} keeps concurrent repeats safe
+   * (ON CONFLICT DO NOTHING at the repo layer).
+   */
+  public void emitStrict(
+      String aggregateType, String aggregateId, String eventType, String payloadJson, String dedupeKey) {
+    OutboxEvent event = OutboxEvent.of(aggregateType, aggregateId, eventType,
+        payloadJson == null ? "{}" : payloadJson);
+    repo.appendWithDedupe(event, dedupeKey);
+  }
+
+  /**
    * TODO hook: published edits affecting attendees should fan out a notification
    * outbox record per affected scope. Currently emits a single aggregate event;
    * per-recipient notification rows land with the notifications worker.

@@ -114,7 +114,7 @@ export function EvaluationSheetPage() {
       const kind = toErrorStateFrom(e);
       if (kind === 'denied' || kind === 'pending') setLoadKind('forbidden');
       else if (kind === 'notfound') setLoadKind('not-found');
-      setLoadError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to load evaluation.');
+      setLoadError(e instanceof ApiError ? e.message : 'Failed to load evaluation.');
     } finally {
       setLoading(false);
     }
@@ -167,7 +167,7 @@ export function EvaluationSheetPage() {
       }
       const offline = e instanceof TypeError || !window.navigator.onLine;
       setSaveState(offline ? 'offline' : 'error');
-      setSaveError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Save failed — will retry. Your draft is preserved.');
+      setSaveError(e instanceof ApiError ? e.message : 'Save failed — will retry. Your draft is preserved.');
       void reason;
       return false;
     }
@@ -273,7 +273,7 @@ export function EvaluationSheetPage() {
         setSubmitErrors([e.message, ...e.fieldErrors.map((f) => `${f.field}: ${f.message}`)]);
         requestAnimationFrame(() => errorSummaryRef.current?.focus());
       } else {
-        setSubmitErrors([e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Submit failed. Your draft is preserved — retry.']);
+        setSubmitErrors([e instanceof ApiError ? e.message : 'Submit failed. Your draft is preserved — retry.']);
         requestAnimationFrame(() => errorSummaryRef.current?.focus());
       }
     } finally {
@@ -382,7 +382,7 @@ export function EvaluationSheetPage() {
       </section>
 
       <p id="provisional-total" role="status" className={styles.total} data-testid="provisional-total">
-        Provisional total {displayTotal} / 1000 · {displayAvg % 1 === 0 ? displayAvg.toFixed(0) : displayAvg.toFixed(1)} / 100 (server authoritative)
+        Provisional total {displayTotal} / 1000 · {displayAvg % 1 === 0 ? displayAvg.toFixed(0) : displayAvg.toFixed(1)} / 100. Final total confirmed on save.
       </p>
 
       <div className={styles.sticky} data-testid="sheet-actions">
@@ -394,6 +394,7 @@ export function EvaluationSheetPage() {
         {locked && <span role="status" className={styles.lockedNote}>Locked ({sheet.state}). {submitted ? 'Submitted — thank you.' : ''}</span>}
         <button type="button" onClick={() => void handleNext()} data-testid="next-student">Next student</button>
         <Link to={sheet.sessionId ? `/staff/programs/x/sessions/${sheet.sessionId}/roster` : '/staff'}>Back to roster</Link>
+        <Link to="/staff/comment-bank">Comment bank</Link>
       </div>
 
       <ConfirmDialog

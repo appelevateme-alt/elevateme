@@ -63,7 +63,7 @@ describe('audit 18 — workspace next action never inert', () => {
   it('terminal lifecycles have a label the page renders with a real handler', () => {
     // Page renders submit/manage with onClick; edit-limited/view render a
     // status note plus a navigation button (no disabled button without handler).
-    expect(nextActionForLifecycle('SUBMITTED').label).toBeTruthy();
+    expect(nextActionForLifecycle('PENDING_REVIEW').label).toBeTruthy();
     expect(nextActionForLifecycle('ARCHIVED').label).toBeTruthy();
     expect(nextActionForLifecycle('DRAFT').action).toBe('submit');
     expect(nextActionForLifecycle('PUBLISHED').action).toBe('manage');

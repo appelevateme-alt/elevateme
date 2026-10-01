@@ -24,6 +24,21 @@ import java.util.List;
 public final class ProgramDtos {
   private ProgramDtos() {}
 
+  /**
+   * Phase 1E canonical discovery vocab (shared with frontend
+   * {@code features/programs/types}: PROGRAM_THEMES / PROGRAM_TYPES /
+   * PROGRAM_SUBTYPES). Exact values — unknown theme/type/subtype ⇒ 422.
+   */
+  public static final java.util.List<String> CANONICAL_THEMES =
+      java.util.List.of("Public Speaking", "Communication", "Negotiation", "Leadership");
+  public static final java.util.List<String> CANONICAL_TYPES =
+      java.util.List.of("SingleEvent", "Continuous", "Special");
+  public static final java.util.List<String> CANONICAL_SUBTYPES =
+      java.util.List.of("MUN", "Debate", "Competition", "Special");
+
+  /** Stable public pagination: 10 items per page (see ProgramsService.PAGE_SIZE). */
+  public static final int PUBLIC_PAGE_SIZE = 10;
+
   public record ProgramResponse(String id, String title, String status, Instant startsAt) {}
 
   public record CreateProgramRequest(

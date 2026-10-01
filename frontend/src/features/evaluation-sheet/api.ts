@@ -66,6 +66,46 @@ export async function getGuestEvaluationSheet(id: string): Promise<EvaluationShe
   return normalizeSheet(raw);
 }
 
+/**
+ * Phase 1C guest sheet by assigned student (no evaluation DB id from the client —
+ * resolved server-side from invitation scope + student).
+ */
+export async function getGuestEvaluationByStudent(studentId: string): Promise<EvaluationSheet> {
+  const raw = await get<RawEvaluationResponse>(
+    `/guest/students/${encodeURIComponent(studentId)}/evaluation`,
+  );
+  return normalizeSheet(raw);
+}
+
+/** Guest draft PATCH: partial allowed (null = blank). Version required (409 on stale). */
+export async function patchGuestDraft(
+  id: string,
+  scores: Record<string, number | null>,
+  remarks: string,
+  version: number,
+): Promise<SaveDraftResult> {
+  const ordered = scoresToOrderedArray(scores);
+  const res = await patch<{ version: number; provisionalTotal: number; scoredCount: number; state: string }>(
+    `/guest/evaluations/${encodeURIComponent(id)}`,
+    { scores: ordered, remarks, version },
+  );
+  return res;
+}
+
+/** Guest submit: all 10 int 0-100 required (server 422 otherwise). */
+export async function submitGuestEvaluation(
+  id: string,
+  scores: Record<string, number | null>,
+  version: number,
+): Promise<SubmitResult> {
+  const ordered = scoresToOrderedArray(scores);
+  const res = await post<SubmitResult>(
+    `/guest/evaluations/${encodeURIComponent(id)}/submit`,
+    { scores: ordered, version },
+  );
+  return res;
+}
+
 export interface SaveDraftResult {
   version: number;
   provisionalTotal: number;

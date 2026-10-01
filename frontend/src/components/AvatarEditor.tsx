@@ -15,6 +15,14 @@ interface AvatarEditorProps {
   name: string;
   photoUrl?: string;
   onUploaded?: (photoUrl: string) => void;
+  /**
+   * Pre-auth defer (SignUpPage): when true, never calls POST /me/photo-upload
+   * (avoids pre-auth 401). Stores the file locally, shows a pending notice,
+   * and reports it via onPendingFile. Uploads once the parent clears the flag
+   * after a session exists. Never retries in a loop.
+   */
+  deferUpload?: boolean;
+  onPendingFile?: (file: File | null) => void;
 }
 
 /**
@@ -23,7 +31,7 @@ interface AvatarEditorProps {
  * square preview + Replace; POST /me/photo-upload -> PUT uploadUrl -> POST /complete.
  * Retry preserves the selected file. 422 surfaces as an inline field error.
  */
-export function AvatarEditor({ name, photoUrl, onUploaded }: AvatarEditorProps) {
+export function AvatarEditor({ name, photoUrl, onUploaded, deferUpload, onPendingFile }: AvatarEditorProps) {
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -79,6 +87,7 @@ export function AvatarEditor({ name, photoUrl, onUploaded }: AvatarEditorProps) 
       setStatus('Saved');
       setPreview(done.photoUrl);
       setFile(null);
+      onPendingFile?.(null);
       await qc.invalidateQueries({ queryKey: STUDENT_HOME_QUERY_KEYS.me });
       await qc.invalidateQueries({ queryKey: STUDENT_HOME_QUERY_KEYS.summary });
       onUploaded?.(done.photoUrl);
@@ -101,16 +110,33 @@ export function AvatarEditor({ name, photoUrl, onUploaded }: AvatarEditorProps) 
     const check = validatePhotoFile({ mime: next.type, sizeBytes: next.size });
     if (!check.ok) {
       setFile(null);
+      onPendingFile?.(null);
       setStatus('Error');
       setError(check.error ?? 'Invalid photo.');
       return;
     }
     setFile(next);
     setLocalPreview(next);
+    // Pre-auth: hold locally, never call the API (no 401). Parent uploads
+    // after a session exists.
+    if (deferUpload) {
+      onPendingFile?.(next);
+      setStatus('Idle');
+      setError(null);
+      return;
+    }
     void runUpload(next);
   }
 
   function onRetry() {
+    if (deferUpload) {
+      if (file) {
+        // Still signed out: keep holding the file, do not hit the API.
+        return;
+      }
+      pickFile();
+      return;
+    }
     if (file) void runUpload(file);
     else pickFile();
   }
@@ -119,15 +145,27 @@ export function AvatarEditor({ name, photoUrl, onUploaded }: AvatarEditorProps) 
     pickFile();
   }
 
+  // Deferred upload: when the parent clears deferUpload (session available),
+  // upload the locally stored file once. Single attempt, never a 401 loop.
+  const deferRef = useRef(deferUpload);
+  useEffect(() => {
+    const wasDeferred = deferRef.current;
+    deferRef.current = deferUpload;
+    if (wasDeferred && !deferUpload && file && status !== 'Uploading' && status !== 'Saving') {
+      void runUpload(file);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deferUpload, file]);
+
   const initials = name.slice(0, 2).toUpperCase();
   const statusLabel =
     status === 'Uploading' ? 'Uploading…' : status === 'Saving' ? 'Saving…' : status === 'Saved' ? 'Saved' : status === 'Error' ? 'Error' : 'Idle';
 
   return (
     <div className={styles.wrap} data-testid="avatar-editor">
-      <div className={styles.previewBox} aria-label={`${name} photo preview`}>
+      <div className={styles.previewBox} aria-label={`${name} profile photo preview`}>
         {preview ? (
-          <img src={preview} alt={`${name} photo`} className={styles.img} loading="lazy" decoding="async" />
+          <img src={preview} alt={`${name} profile photo`} className={styles.img} loading="lazy" decoding="async" />
         ) : (
           <div className={styles.fallback} aria-label={`${name} initials`}>
             {initials}
@@ -158,11 +196,16 @@ export function AvatarEditor({ name, photoUrl, onUploaded }: AvatarEditorProps) 
         {error ? (
           <p className={styles.error} role="alert" data-testid="avatar-error">
             {error}{' '}
-            {status === 'Error' && file ? (
+            {status === 'Error' && file && !deferUpload ? (
               <button type="button" className={styles.retryBtn} onClick={onRetry}>
                 Retry
               </button>
             ) : null}
+          </p>
+        ) : null}
+        {deferUpload && file && !error ? (
+          <p className={styles.saved} data-testid="avatar-pending" aria-live="polite">
+            Photo will upload after sign-in.
           </p>
         ) : null}
         {status === 'Saved' ? (

@@ -2,13 +2,11 @@ import { useState } from 'react';
 import { PageHeading } from '../../components/PageHeading';
 import { ApiError } from '../../lib/api';
 import { adminCreateDevelopment, adminAssignDevelopment, removeAssignee } from '../../features/development/api';
+import { dedupe } from '../../features/admin-targeting/types';
 import styles from './AdminPhase5.module.css';
 
 /**
- * /admin/development — builder (POST /admin/development
- * {details,date,capacity,billingType,price,currency,paymentUrl,partner,deadline})
- * + assign (POST /admin/development/{id}/assign {recipientIds,audienceRule,reason})
- * + removal (DELETE /admin/development/{id}/assignees/{studentId}).
+ * /admin/development — builder + assign + removal.
  * Builder + assign are separate steps (two calls, never combined).
  */
 export function AdminDevelopmentPage() {
@@ -23,6 +21,8 @@ export function AdminDevelopmentPage() {
   const [deadline, setDeadline] = useState('');
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [assignIds, setAssignIds] = useState('');
+  const [assignInstitution, setAssignInstitution] = useState('');
+  const [assignSkill, setAssignSkill] = useState('');
   const [assignReason, setAssignReason] = useState('');
   const [assignCount, setAssignCount] = useState<number | null>(null);
   const [removeStudentId, setRemoveStudentId] = useState('');
@@ -52,7 +52,7 @@ export function AdminDevelopmentPage() {
       setStep(2);
       setNotice('Draft built. Now assign it (separate step).');
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Build failed.');
+      setError(e instanceof ApiError ? e.message : 'Build failed.');
     }
   }
 
@@ -60,31 +60,47 @@ export function AdminDevelopmentPage() {
     if (!createdId) return;
     setError(null);
     try {
-      const ids = assignIds.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+      const ids = dedupe(assignIds.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean));
+      const institutionId = assignInstitution.trim();
+      const skill = assignSkill.trim();
+      // Backend AssignRequest: explicit IDs and/or an institution audience rule.
+      // Skill is sent as the criterion hint; the server currently matches by
+      // institution only and records skill context in the reason line.
+      const audienceRule = institutionId || skill
+        ? {
+          institutionId: institutionId || null,
+          criterion: skill || null,
+          comparator: null,
+          threshold: null,
+        }
+        : null;
+      const reasonParts = [assignReason.trim(), skill ? `Skill focus: ${skill}` : '']
+        .filter(Boolean)
+        .join(' · ');
       const res = await adminAssignDevelopment(createdId, {
         recipientIds: ids,
-        audienceRule: null,
-        reason: assignReason.trim() || null,
+        audienceRule,
+        reason: reasonParts || null,
       });
       setAssignCount((res as { assigned?: number }).assigned ?? ids.length);
       setNotice(`Assigned to ${(res as { assigned?: number }).assigned ?? ids.length} student(s).`);
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Assign failed.');
+      setError(e instanceof ApiError ? e.message : 'Assign failed.');
     }
   }
 
   async function handleRemove() {
     if (!createdId || !removeStudentId.trim()) {
-      setError('Development ID and student ID are required for removal.');
+      setError('A draft and a student are required for removal.');
       return;
     }
     setError(null);
     try {
       await removeAssignee(createdId, removeStudentId.trim());
-      setNotice(`Removed ${removeStudentId.trim()} from ${createdId}. Confirmed registrations are never silently cancelled.`);
+      setNotice('Removed. Confirmed registrations are never silently cancelled.');
       setRemoveStudentId('');
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Removal failed.');
+      setError(e instanceof ApiError ? e.message : 'Removal failed.');
     }
   }
 
@@ -99,8 +115,8 @@ export function AdminDevelopmentPage() {
           <label className={styles.field}>Details
             <textarea value={details} onChange={(e) => setDetails(e.target.value)} rows={3} aria-label="Development details" />
           </label>
-          <label className={styles.field}>Date (optional, ISO)
-            <input value={date} onChange={(e) => setDate(e.target.value)} placeholder="2026-06-01T00:00:00Z" aria-label="Date" />
+          <label className={styles.field}>Date (optional)
+            <input value={date} onChange={(e) => setDate(e.target.value)} placeholder="2026-06-01" aria-label="Date" />
           </label>
           <label className={styles.field}>Capacity (optional)
             <input value={capacity} onChange={(e) => setCapacity(e.target.value)} inputMode="numeric" aria-label="Capacity" />
@@ -123,8 +139,8 @@ export function AdminDevelopmentPage() {
           <label className={styles.field}>Partner (optional)
             <input value={partner} onChange={(e) => setPartner(e.target.value)} aria-label="Partner" />
           </label>
-          <label className={styles.field}>Deadline (optional, ISO)
-            <input value={deadline} onChange={(e) => setDeadline(e.target.value)} placeholder="2026-06-01T00:00:00Z" aria-label="Deadline" />
+          <label className={styles.field}>Deadline (optional)
+            <input value={deadline} onChange={(e) => setDeadline(e.target.value)} placeholder="2026-06-01" aria-label="Deadline" />
           </label>
           <div className={styles.actions}>
             <button type="button" onClick={handleBuild}>Build draft</button>
@@ -136,9 +152,29 @@ export function AdminDevelopmentPage() {
         {step === 1 && <p className={styles.meta}>Build the draft first; assignment is a separate action.</p>}
         {step === 2 && (
           <form className={styles.form} onSubmit={(e) => e.preventDefault()}>
-            <p className={styles.meta}>Draft ID: {createdId}</p>
+            <p className={styles.meta}>Draft ready. Assign it to students.</p>
+            <p className={styles.meta}>
+              Only approved students are assigned. Repeat IDs are counted once.
+              Students who are not assigned cannot see this event.
+            </p>
             <label className={styles.field}>Student IDs (comma-separated)
               <input value={assignIds} onChange={(e) => setAssignIds(e.target.value)} aria-label="Assign student IDs" />
+            </label>
+            <label className={styles.field}>Institution (optional, adds everyone there)
+              <input
+                value={assignInstitution}
+                onChange={(e) => setAssignInstitution(e.target.value)}
+                aria-label="Assign institution"
+                placeholder="Exact institute name"
+              />
+            </label>
+            <label className={styles.field}>Skill focus (optional, recorded with the reason)
+              <input
+                value={assignSkill}
+                onChange={(e) => setAssignSkill(e.target.value)}
+                aria-label="Assign skill focus"
+                placeholder="For example: public speaking"
+              />
             </label>
             <label className={styles.field}>Reason (optional)
               <input value={assignReason} onChange={(e) => setAssignReason(e.target.value)} aria-label="Assign reason" />
@@ -153,7 +189,7 @@ export function AdminDevelopmentPage() {
       <section aria-label="Removal" className={styles.section}>
         <h2>Removal</h2>
         <p className={styles.meta}>
-          DELETE /admin/development/{'{id}'}/assignees/{'{studentId}'} — blocks new registration
+          Removing blocks new registration
           but never silently cancels a confirmed registration.
         </p>
         <form className={styles.form} onSubmit={(e) => e.preventDefault()}>
@@ -161,7 +197,7 @@ export function AdminDevelopmentPage() {
             <input value={removeStudentId} onChange={(e) => setRemoveStudentId(e.target.value)} aria-label="Remove student ID" />
           </label>
           <div className={styles.actions}>
-            <button type="button" onClick={handleRemove} disabled={!createdId}>Remove assignee</button>
+            <button type="button" onClick={handleRemove} disabled={!createdId}>Remove</button>
           </div>
         </form>
       </section>

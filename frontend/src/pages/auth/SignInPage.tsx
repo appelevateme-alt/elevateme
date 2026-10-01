@@ -1,8 +1,16 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeading } from '../../components/PageHeading';
 import { PublicHeader } from '../../components/PublicHeader';
 import { supabase } from '../../lib/supabase';
+import { get } from '../../lib/api';
+import {
+  resolvePostSignInTarget,
+  rolesFromMe,
+  type MeResponse,
+  type Session,
+  useAuth,
+} from '../../lib/auth';
 import styles from './SignInPage.module.css';
 
 export function safeNext(value: string | null): string | null {
@@ -33,21 +41,60 @@ export function signInErrorCopy(message: string): { text: string; unconfirmed: b
  * /sign-in — email+password via Supabase Auth.
  * Validation inline, 401 inline copy, ?next= redirect, forgot link.
  * Inputs preserved on error; focusable error summary.
+ *
+ * Phase 1A: never navigate to a fixed /app on success. Instead wait for the
+ * AuthProvider session (useAuth loading/session) OR fetch GET /me directly to
+ * determine the role dashboard (admin->/admin, staff family->/staff,
+ * student/parent->/app). Preserves ?next= when the role permits it, else the
+ * role dashboard. Shows a resolving state while the session settles so guards
+ * (RequireAuth) never see a premature null session and bounce back to sign-in.
  */
 export function SignInPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = safeNext(params.get('next'));
+  const { session, loading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<string[]>([]);
   const [unconfirmed, setUnconfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const [justSignedIn, setJustSignedIn] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
+  const didNavigateRef = useRef(false);
 
   function focusSummary() {
     requestAnimationFrame(() => summaryRef.current?.focus());
   }
+
+  function go(target: string) {
+    if (didNavigateRef.current) return;
+    didNavigateRef.current = true;
+    navigate(target, { replace: true });
+  }
+
+  // Already signed in (visited /sign-in while authenticated): leave to the
+  // role-correct destination instead of showing the form again.
+  useEffect(() => {
+    if (justSignedIn || didNavigateRef.current) return;
+    if (!authLoading && session) {
+      go(resolvePostSignInTarget(session, next));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, session, next]);
+
+  // Fallback: after a successful password sign-in, wait for the provider
+  // session. If the direct /me fetch in onSubmit already navigated, this is a
+  // no-op thanks to didNavigateRef (avoids a redirect loop).
+  useEffect(() => {
+    if (!justSignedIn || didNavigateRef.current) return;
+    if (authLoading || resolving) return;
+    if (session) {
+      go(resolvePostSignInTarget(session, next));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [justSignedIn, authLoading, resolving, session, next]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -77,18 +124,48 @@ export function SignInPage() {
         focusSummary();
         return;
       }
-      // Inputs preserved on error only; success navigates.
-      navigate(next ?? '/app', { replace: true });
+      // Success: resolve the role-correct destination from DB roles.
+      // Do NOT navigate to a fixed /app — wait for the session or /me.
+      setJustSignedIn(true);
+      setResolving(true);
+      try {
+        const me = await get<MeResponse>('/me');
+        const roles = rolesFromMe(me);
+        const temp: Session = {
+          userId: me.id,
+          email: me.email,
+          roles,
+          activeRole: roles[0],
+          status: me.status ?? 'Approved',
+        };
+        // Prefer the live provider session (respects activeRole switches);
+        // fall back to the just-fetched /me while the provider settles.
+        const effective = session ?? temp;
+        go(resolvePostSignInTarget(effective, next));
+      } catch {
+        // /me fetch failed here: leave navigation to the effect above, which
+        // waits for the AuthProvider session (SIGNED_IN -> resolveSession).
+        // Stay in the resolving/loading state until then.
+      } finally {
+        setResolving(false);
+      }
     } finally {
       setBusy(false);
     }
   }
+
+  const showResolving = justSignedIn && (busy || resolving || authLoading) && !didNavigateRef.current;
 
   return (
     <>
       <PublicHeader />
       <main className={styles.page} data-testid="page-sign-in">
         <PageHeading kicker="Welcome back" title="Sign in" desc="Sign in with your ElevateMe account email and password." />
+        {showResolving && (
+          <p role="status" className={styles.notice} data-testid="sign-in-resolving">
+            Signing you in…
+          </p>
+        )}
         {errors.length > 0 && (
           <div ref={summaryRef} role="alert" tabIndex={-1} className={styles.error} data-testid="sign-in-errors">
             <ul>
@@ -127,8 +204,8 @@ export function SignInPage() {
             />
           </label>
           <div className={styles.actions}>
-            <button type="submit" disabled={busy} className={styles.primary}>
-              {busy ? 'Signing in…' : 'Sign in'}
+            <button type="submit" disabled={busy || resolving} className={styles.primary}>
+              {busy ? 'Signing in…' : resolving ? 'Finding your workspace…' : 'Sign in'}
             </button>
             <Link to="/forgot-password">Forgot password?</Link>
           </div>

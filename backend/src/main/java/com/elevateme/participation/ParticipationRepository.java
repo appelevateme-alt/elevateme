@@ -235,6 +235,7 @@ public class ParticipationRepository {
             + " r.status AS registrationStatus,"
             + " a.status AS attendance,"
             + " COALESCE(e.evaluator_id::text, ea.assigned_by::text) AS assignedEvaluator,"
+            + " e.id::text AS evaluationId,"
             + " CASE WHEN e.id IS NULL THEN 'NOT_STARTED'"
             + "      WHEN e.state = 'DRAFT' THEN 'DRAFT'"
             + "      WHEN e.state = 'SUBMITTED' THEN 'SUBMITTED'"

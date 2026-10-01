@@ -89,3 +89,16 @@ export async function adminReplyQuery(id: string, body: string): Promise<void> {
 export async function adminSetQueryStatus(id: string, action: 'close' | 'reopen'): Promise<void> {
   await setQueryStatus(id, action);
 }
+
+/**
+ * POST /admin/queries {studentId,title,body} — DI-initiated thread.
+ * Backend truth (QueriesController.createDiInitiated + QueryDtos.CreateDiQueryRequest):
+ * starts in AWAITING_STUDENT_RESPONSE with initiator DI.
+ */
+export async function createDiQuery(payload: { studentId: string; title: string; body: string }): Promise<QueryThread> {
+  return post<QueryThread>('/admin/queries', {
+    studentId: payload.studentId,
+    title: payload.title,
+    body: payload.body,
+  });
+}

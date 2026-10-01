@@ -28,7 +28,7 @@ export function DevelopmentDetailPage() {
         setItem(await getDevelopment(decodeURIComponent(id)));
       } catch (e) {
         if (toErrorStateFrom(e) === 'notfound') setNotFound(true);
-        else setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to load development.');
+        else setError(e instanceof ApiError ? e.message : 'Failed to load development.');
       } finally {
         setLoading(false);
       }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { PageHeading } from '../../components/PageHeading';
 import { EmptyState } from '../../components/EmptyState';
 import { ApiError } from '../../lib/api';
+import { toColomboDisplay } from '../../lib/time';
 import { listOutbox, type OutboxRow, type OutboxState } from '../../features/admin/outbox';
 import styles from './OutboxPage.module.css';
 
@@ -11,7 +12,7 @@ const STATES: OutboxState[] = ['FAILED', 'PENDING', 'SENT', 'SKIPPED'];
  * /admin/outbox — FAILED triage table (recipient, type, entity, retries,
  * provider ID, error, Retry). Uses existing OutboxAdminController GET API.
  * No per-row retry endpoint exists: Retry re-checks the queue (refetch);
- * FAILED rows are poison-pill history — worker backs off automatically,
+ * failed rows stay as history — the worker retries automatically,
  * re-emit a new event if resend is warranted (docs/OUTBOX.md).
  */
 export function OutboxPage() {
@@ -28,7 +29,7 @@ export function OutboxPage() {
     try {
       setRows(await listOutbox(s));
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to load outbox.');
+      setError(e instanceof ApiError ? e.message : 'Failed to load outbox.');
     } finally {
       setLoading(false);
     }
@@ -48,11 +49,11 @@ export function OutboxPage() {
       const still = fresh.find((r) => r.id === row.id);
       setNotice(
         still
-          ? `Re-checked ${row.id}: still ${String(still.state ?? state)} after ${String(still.retryCount ?? 0)} retries. Worker retries with backoff; re-emit a new event if resend is warranted.`
-          : `Re-checked queue: ${row.id} no longer in ${state}.`,
+          ? `Re-checked queue: still ${String(still.state ?? state)} after ${String(still.retryCount ?? 0)} retries. Delivery failed, will retry.`
+          : `Re-checked queue: entry no longer in ${state}.`,
       );
     } catch (e) {
-      setNotice(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Re-check failed.');
+      setNotice(e instanceof ApiError ? e.message : 'Re-check failed.');
     } finally {
       setBusyId(null);
     }
@@ -60,7 +61,7 @@ export function OutboxPage() {
 
   return (
     <main className={styles.page} data-testid="page-admin-outbox">
-      <PageHeading title="Outbox" desc="Triage FAILED poison-pill rows. Payloads are ids-only." />
+      <PageHeading title="Outbox" desc="Triage failed deliveries." />
       <label className={styles.field}>
         State
         <select value={state} onChange={(e) => setState(e.target.value as OutboxState)} aria-label="Outbox state">
@@ -83,7 +84,7 @@ export function OutboxPage() {
         <EmptyState title={`No ${state} rows`} body="The outbox queue is clear for this state." />
       )}
       {rows.length > 0 && (
-        <div className={styles.wrap}>
+        <div className={styles.wrap} role="region" aria-label="Outbox deliveries" tabIndex={0}>
           <table className={styles.table}>
             <thead>
               <tr>
@@ -99,12 +100,12 @@ export function OutboxPage() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
-                  <td>{r.aggregateId ?? '—'}</td>
+                  <td>{r.aggregateType ?? '—'}</td>
                   <td>{r.eventType ?? '—'}</td>
-                  <td>{r.aggregateType ? `${r.aggregateType}:${r.aggregateId ?? ''}` : (r.aggregateId ?? '—')}</td>
-                  <td>{r.retryCount ?? 0}{r.nextRetryAt ? ` · next ${r.nextRetryAt}` : ''}</td>
+                  <td>{r.aggregateType ?? '—'}</td>
+                  <td>{r.retryCount ?? 0}{r.nextRetryAt ? ` · next ${toColomboDisplay(r.nextRetryAt)}` : ''}</td>
                   <td>{r.providerMessageId ?? '—'}</td>
-                  <td>{r.state ?? state}{r.state === 'FAILED' ? ' · poison-pill, see worker logs' : ''}</td>
+                  <td>{(r.state ?? state) === 'FAILED' ? 'Delivery failed, will retry' : (r.state ?? state)}</td>
                   <td>
                     <button type="button" disabled={busyId === r.id} onClick={() => void handleRetry(r)}>
                       {busyId === r.id ? 'Checking…' : 'Retry'}

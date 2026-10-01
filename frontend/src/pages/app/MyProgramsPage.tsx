@@ -25,12 +25,12 @@ export function MyProgramsPage() {
         const state = toErrorStateFrom(e);
         if (state === 'denied' || state === 'pending') {
           setErrorKind('forbidden');
-          setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Permission denied.');
+          setError(e instanceof ApiError ? e.message : 'Permission denied.');
         } else if (state === 'notfound') {
           setErrorKind('not-found');
-          setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Not found.');
+          setError(e instanceof ApiError ? e.message : 'Not found.');
         } else {
-          setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'Failed to load programs.');
+          setError(e instanceof ApiError ? e.message : 'Failed to load programs.');
         }
       } finally {
         setLoading(false);

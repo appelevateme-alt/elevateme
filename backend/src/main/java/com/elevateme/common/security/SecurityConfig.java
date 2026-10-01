@@ -67,6 +67,12 @@ public class SecurityConfig {
             a ->
                 a.requestMatchers("/api/health", "/api/v1/health", "/actuator/health")
                     .permitAll()
+                    // Phase 1E public discovery: anonymous list + get (no JWT).
+                    // Only GET /programs and GET /programs/{id} are public;
+                    // POST/PATCH/submit/publish/approve/archive/complete/sessions
+                    // + registrations + roster + evaluations stay authenticated.
+                    .requestMatchers(HttpMethod.GET, "/api/v1/programs", "/api/v1/programs/*")
+                    .permitAll()
                     // Guest fragment->cookie exchange is public (rate-limited at the controller).
                     .requestMatchers(HttpMethod.POST, "/api/v1/guest/exchange", "/api/guest/exchange")
                     .permitAll()

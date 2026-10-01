@@ -21,6 +21,36 @@
 | Approve users / roles / programs | deny | deny | deny | `decide_profile`, `set_profile_roles`, `approve_program`, audited |
 | Provision staff / admin accounts | deny | deny | deny | admin-only invite RPC; NO public signup for staff/admin |
 
+## Nav matrix (routes × role — mirrors `frontend/src/lib/permissions.ts`)
+
+| Route | student / parent | teacher / coordinator / evaluator | admin |
+|---|---|---|---|
+| `/app/*` (home, programs, performance, reports, recommendations, development, queries) | allow | deny | allow |
+| `/staff/*` (programs list, builder, workspace, edit, roster, evaluations, students, comment bank) | deny | allow (own programs + assigned sessions; writes still checked server-side) | allow (bypasses staff ownership for management reads; writes still checked + audited server-side) |
+| `/staff/programs` list | deny | allow | allow |
+| `/staff/programs/new` builder | deny | allow | allow |
+| `/staff/programs/:id` workspace + `:id/edit` (draft only) | deny | allow (owner / assigned) | allow |
+| `/staff/programs/:id/sessions/:sessionId/roster` → evaluate flow (`/staff/evaluations/:id`, Next student) | deny | allow (assigned) | allow |
+| `/staff/students/:id` detail | deny | allow (assigned) | allow |
+| `/staff/comment-bank` (shared + own private) | deny | allow | allow |
+| `/admin/*` (programs review, users review, recommendations, development, payments, queries, outbox, shared snippets) | deny | deny | allow |
+| `/admin/programs` (Approve / Request changes / Reject + note, Publish) | deny | deny | allow |
+| `/admin/users` + `/admin/users/:id` (account review) | deny | deny | allow |
+| `/admin/comment-bank` (shared snippets curation) | deny | deny | allow |
+| `/evaluate/invite`, `/evaluate/session`, `/evaluate/students/:studentId` (guest token scope) | deny | allow | allow |
+
+Notes:
+
+- Guards: `StaffLayout allow=['staff','coordinator','evaluator','admin']`,
+  `AdminLayout allow=['admin']`. Admin links never point at staff routes that
+  would exclude admin; admin reaches staff workspaces through the staff guard.
+- Placeholders never redirect to an unrelated page (no outbox catch-all).
+  Secondary non-MVP pages either link to their real owner page or show a
+  "Deferred" badge with a docs hint.
+- `canAccess(path, session)` in `lib/permissions.ts` is nav-only. It never
+  grants backend access — the backend (ScopeGuard + RLS + RPC) stays
+  authoritative and already enforced.
+
 ## Gates (must enforce in RLS + RPC, not UI)
 
 - Teacher/coordinator: `is_program_owner` / `is_session_evaluator` / `is_coordinator_student` / `is_my_evaluee` (existing `SECURITY DEFINER` helpers). No ownership → deny.

@@ -126,4 +126,19 @@ public class GuestRepository {
       // Best-effort sliding TTL refresh.
     }
   }
+
+  /**
+   * Phase 1C per-student assignment: explicit student allow-list for an invitation
+   * ({@code app.guest_invitation_students}). Empty = session scope is the gate
+   * (all registered students editable); non-empty = only listed students (others 404).
+   */
+  public java.util.List<String> findAssignedStudentIds(String invitationId) {
+    // Fail-closed: DB errors propagate to GuestService.checkGuestStudent, which
+    // audits (with requestId) and throws 404 — never allow on error.
+    return jdbc.query(
+        "SELECT student_id::text FROM app.guest_invitation_students"
+            + " WHERE invitation_id::text = ?",
+        (rs, n) -> rs.getString(1),
+        invitationId);
+  }
 }
