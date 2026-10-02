@@ -37,12 +37,14 @@ database/
     V8__evaluation_phase3.sql        # evaluation Phase 3 hardening + seed
     V9__outbox_provider.sql          # outbox provider_message_id + alert resolve doc
     V10__phase5_development.sql      # Phase 5 growth support (development_events, reply versioning)
+    V11__themes_spaced.sql           # widen programs themes CHECK to spaced canonical 'Public Speaking' (+ unspaced alias)
+    V12__rls_runtime.sql             # RLS allow_runtime for app_runtime/elevateme_app + audit identity sequence grants
   seed_dev.sql             # DEVELOPMENT ONLY synthetic data (@test.example.com)
   seed_phase2.sql          # DEVELOPMENT ONLY Phase 2 roster data (@test.example.com)
 ```
 
 Flyway defaults: `locations=filesystem:database/migrations`,
-`table=flyway_schema_history`, applied in `V1..V10` version order
+`table=flyway_schema_history`, applied in `V1..V12` version order
 (`V5` then `V5.1` then `V6` — Flyway parses `V5_1` as version `5.1`).
 Each migration is one transaction, re-runnable guards (`IF NOT EXISTS` /
 `ON CONFLICT DO NOTHING` / `DROP TRIGGER IF EXISTS`) where Postgres allows it.

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useBlocker, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { PageHeading } from '../../components/PageHeading';
 import { EmptyState } from '../../components/EmptyState';
 import { ScoreInputRow } from '../../components/ScoreInputRow';
@@ -29,6 +29,7 @@ import styles from './EvaluationSheetPage.module.css';
 export function EvaluationSheetPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const [sheet, setSheet] = useState<EvaluationSheet | null>(null);
   const [scores, setScores] = useState<Record<string, number | null>>(() => Object.fromEntries(CRITERIA_10.map((k) => [k, null])));
@@ -63,6 +64,13 @@ export function EvaluationSheetPage() {
   const draftsRef = useRef<Record<string, { scores: Record<string, number | null>; notes: string }>>({});
 
   const locked = sheet?.state !== 'DRAFT';
+
+  const stateFromLocation = (location.state as { programId?: string } | null)?.programId;
+  const rosterProgramId = stateFromLocation ?? sheet?.programId ?? null;
+  const rosterPath = rosterProgramId && sheet?.sessionId
+    ? `/staff/programs/${encodeURIComponent(rosterProgramId)}/sessions/${encodeURIComponent(sheet.sessionId)}/roster`
+    : null;
+  const plainStatus = sheet?.state === 'SUBMITTED' ? 'Submitted' : sheet?.state === 'LOCKED' ? 'Locked' : 'Draft';
 
   const provisional = useMemo(() => provisionalTotalOf(scores), [scores]);
   const normalized = useMemo(() => normalizedOf(scores), [scores]);
@@ -162,7 +170,7 @@ export function EvaluationSheetPage() {
       if (e instanceof ApiError && (e.status === 409 || e.code === 'VERSION_CONFLICT' || e.code === 'CONFLICT')) {
         setConflict(true);
         setSaveState('error');
-        setSaveError('This sheet changed elsewhere (revision conflict). Refresh to get the latest version, then retry.');
+        setSaveError('Someone else updated this sheet. Refresh to get the latest, then try again.');
         return false;
       }
       const offline = e instanceof TypeError || !window.navigator.onLine;
@@ -268,7 +276,7 @@ export function EvaluationSheetPage() {
     } catch (e) {
       if (e instanceof ApiError && (e.status === 409 || e.code === 'VERSION_CONFLICT')) {
         setConflict(true);
-        setSubmitErrors(['Revision conflict — refresh and retry.']);
+        setSubmitErrors(['Someone else updated this sheet — refresh and try again.']);
       } else if (e instanceof ApiError && (e.status === 422 || e.code === 'VALIDATION')) {
         setSubmitErrors([e.message, ...e.fieldErrors.map((f) => `${f.field}: ${f.message}`)]);
         requestAnimationFrame(() => errorSummaryRef.current?.focus());
@@ -289,8 +297,9 @@ export function EvaluationSheetPage() {
     }
     if (!id) return;
     draftsRef.current = preserveDraftForNext(draftsRef.current, id, scores, notes);
-    if (nextId) navigate(`/staff/evaluations/${nextId}`);
-    else if (sheet?.sessionId) navigate(`/staff/programs/x/sessions/${sheet.sessionId}/roster`);
+    if (nextId) navigate(`/staff/evaluations/${nextId}`, rosterProgramId ? { state: { programId: rosterProgramId } } : undefined);
+    else if (rosterPath) navigate(rosterPath);
+    else navigate('/staff/programs');
   }
 
   async function handleNextRetry() {
@@ -298,8 +307,9 @@ export function EvaluationSheetPage() {
     if (ok) {
       setNextDialog('none');
       draftsRef.current = preserveDraftForNext(draftsRef.current, id ?? '', scores, notes);
-      if (nextId) navigate(`/staff/evaluations/${nextId}`);
-      else if (sheet?.sessionId) navigate(`/staff/programs/x/sessions/${sheet.sessionId}/roster`);
+      if (nextId) navigate(`/staff/evaluations/${nextId}`, rosterProgramId ? { state: { programId: rosterProgramId } } : undefined);
+      else if (rosterPath) navigate(rosterPath);
+      else navigate('/staff/programs');
     }
   }
 
@@ -312,9 +322,9 @@ export function EvaluationSheetPage() {
     <main className={styles.page} data-testid="evaluation-sheet">
       <div className={styles.context} data-testid="sheet-context" aria-label="Student and session context">
         <PageHeading
-          kicker={sheet.sessionTitle ? `Session · ${sheet.sessionTitle}` : `Session · ${sheet.sessionId}`}
-          title={sheet.studentName || `Student ${sheet.studentId}`}
-          desc={`ElevateMe ID ${sheet.elevateMeId ?? sheet.studentId} · State ${sheet.state} · Revision ${version}`}
+          kicker={sheet.sessionTitle ? `Session · ${sheet.sessionTitle}` : 'Session details unavailable'}
+          title={sheet.studentName || 'Student details unavailable'}
+          desc={plainStatus}
         />
         <p className={styles.counts} role="status">
           {rosterCounts ? `Submitted ${rosterCounts.submitted} / Total ${rosterCounts.total}` : 'Submitted — / Total —'}
@@ -323,7 +333,7 @@ export function EvaluationSheetPage() {
 
       {conflict && (
         <div role="alert" className={styles.conflict} data-testid="revision-conflict">
-          <strong>Revision conflict.</strong> This sheet changed elsewhere. Your draft is preserved locally.
+          <strong>Someone else updated this sheet.</strong> Your draft is kept here — refresh to see the latest, then try saving again.
           <div className={styles.conflictActions}>
             <button type="button" onClick={() => void load()}>Refresh latest</button>
             <button type="button" onClick={() => void doSave('manual')}>Retry save</button>
@@ -382,18 +392,18 @@ export function EvaluationSheetPage() {
       </section>
 
       <p id="provisional-total" role="status" className={styles.total} data-testid="provisional-total">
-        Provisional total {displayTotal} / 1000 · {displayAvg % 1 === 0 ? displayAvg.toFixed(0) : displayAvg.toFixed(1)} / 100. Final total confirmed on save.
+        Current total {displayTotal} / 1000 · {displayAvg % 1 === 0 ? displayAvg.toFixed(0) : displayAvg.toFixed(1)} / 100. Final total confirmed on save.
       </p>
 
       <div className={styles.sticky} data-testid="sheet-actions">
         <SaveState state={saveState} />
-        <span className={styles.rev} data-testid="revision">Revision {version}</span>
+        <span className={styles.rev} data-testid="revision">{plainStatus}</span>
         {saveError && <span role="alert" className={styles.error}>{saveError}</span>}
         {!locked && <button type="button" onClick={() => void doSave('manual')} disabled={saveState === 'saving'}>Save draft</button>}
         {!locked && <button type="button" onClick={() => void handleSubmit()} disabled={submitting}>{submitting ? 'Submitting…' : 'Submit evaluation'}</button>}
-        {locked && <span role="status" className={styles.lockedNote}>Locked ({sheet.state}). {submitted ? 'Submitted — thank you.' : ''}</span>}
+        {locked && <span role="status" className={styles.lockedNote}>{plainStatus}{submitted ? ' — thank you.' : ''}.</span>}
         <button type="button" onClick={() => void handleNext()} data-testid="next-student">Next student</button>
-        <Link to={sheet.sessionId ? `/staff/programs/x/sessions/${sheet.sessionId}/roster` : '/staff'}>Back to roster</Link>
+        {rosterPath ? <Link to={rosterPath}>Back to roster</Link> : <Link to="/staff/programs">Back to programs</Link>}
         <Link to="/staff/comment-bank">Comment bank</Link>
       </div>
 

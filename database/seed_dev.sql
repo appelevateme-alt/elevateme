@@ -395,9 +395,17 @@ VALUES ('11111111-0000-0000-0000-000000000012', 'ADMIN_SHARED', '10000000-0000-0
   'Dev snippet: open with a one-line roadmap, then pause.')
 ON CONFLICT (id) DO NOTHING;
 
+-- Audit marker (idempotent: WHERE NOT EXISTS on (action, entity) so re-runs
+-- do not append a duplicate row; audit_events has no UNIQUE on this triplet).
 INSERT INTO app.audit_events (actor_type, actor_id, action, entity_type, entity_id,
   after_data, request_id)
-VALUES ('SYSTEM', NULL, 'seed.dev_loaded', 'database', 'seed_dev.sql',
-  '{"note": "synthetic @test.example.com data"}', 'dev-seed-001');
+SELECT 'SYSTEM', NULL, 'seed.dev_loaded', 'database', 'seed_dev.sql',
+  '{"note": "synthetic @test.example.com data"}', 'dev-seed-001'
+WHERE NOT EXISTS (
+  SELECT 1 FROM app.audit_events
+  WHERE action = 'seed.dev_loaded'
+    AND entity_type = 'database'
+    AND entity_id = 'seed_dev.sql'
+);
 
 COMMIT;

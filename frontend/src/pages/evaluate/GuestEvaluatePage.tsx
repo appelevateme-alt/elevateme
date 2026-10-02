@@ -67,6 +67,7 @@ export function GuestEvaluatePage() {
 
   const locked = sheet != null && sheet.state !== 'DRAFT';
   const submitted = saveState === 'submitted' || sheet?.state === 'SUBMITTED';
+  const plainStatus = sheet?.state === 'SUBMITTED' ? 'Submitted' : sheet?.state === 'LOCKED' ? 'Locked' : 'Draft';
 
   const provisional = useMemo(() => provisionalTotalOf(scores), [scores]);
   const normalized = useMemo(() => normalizedOf(scores), [scores]);
@@ -164,7 +165,7 @@ export function GuestEvaluatePage() {
       if (e instanceof ApiError && (e.status === 409 || e.code === 'VERSION_CONFLICT' || e.code === 'CONFLICT')) {
         setConflict(true);
         setSaveState('failed');
-        setSaveError('This sheet changed elsewhere (revision conflict). Refresh to get the latest version, then retry.');
+        setSaveError('Someone else updated this sheet. Refresh to get the latest, then try again.');
         return false;
       }
       setSaveState('failed');
@@ -233,7 +234,7 @@ export function GuestEvaluatePage() {
     } catch (e) {
       if (e instanceof ApiError && (e.status === 409 || e.code === 'VERSION_CONFLICT')) {
         setConflict(true);
-        setSubmitErrors(['Revision conflict — refresh and retry.']);
+        setSubmitErrors(['Someone else updated this sheet — refresh and try again.']);
       } else if (e instanceof ApiError && (e.status === 422 || e.code === 'VALIDATION' || e.code === 'VALIDATION_FAILED')) {
         setSubmitErrors([e.message, ...e.fieldErrors.map((f) => `${f.field}: ${f.message}`)]);
         requestAnimationFrame(() => errorSummaryRef.current?.focus());
@@ -286,13 +287,13 @@ export function GuestEvaluatePage() {
     <main className={styles.page} data-testid="guest-sheet">
       <PageHeading
         kicker={sheet.sessionTitle ? `Session · ${sheet.sessionTitle}` : 'Assigned session'}
-        title={sheet.studentName || `Student ${studentId}`}
-        desc={`State ${sheet.state} · Revision ${version}`}
+        title={sheet.studentName || 'Student details unavailable'}
+        desc={plainStatus}
       />
 
       {conflict && (
         <div role="alert" className={styles.conflict} data-testid="revision-conflict">
-          <strong>Revision conflict.</strong> This sheet changed elsewhere. Your draft is preserved.
+          <strong>Someone else updated this sheet.</strong> Your draft is kept here — refresh to see the latest, then try saving again.
           <div>
             <button type="button" onClick={() => void load()}>Refresh latest</button>
             {' '}
@@ -346,13 +347,13 @@ export function GuestEvaluatePage() {
       </section>
 
       <p id="guest-provisional-total" role="status" className={styles.meta} data-testid="provisional-total">
-        Provisional total {displayTotal} / 1000 · {Number.isInteger(displayAvg) ? displayAvg.toFixed(0) : displayAvg.toFixed(1)} / 100. Final total confirmed on save.
+        Current total {displayTotal} / 1000 · {Number.isInteger(displayAvg) ? displayAvg.toFixed(0) : displayAvg.toFixed(1)} / 100. Final total confirmed on save.
       </p>
 
       <div data-testid="sheet-actions">
         <span data-testid="guest-save-state" role="status">{guestSaveLabel(saveState)}</span>
         {' '}
-        <span data-testid="revision">Revision {version}</span>
+        <span data-testid="revision">{plainStatus}</span>
         {saveError && <span role="alert" className={styles.error}>{saveError}</span>}
         {!locked && (
           <button type="button" onClick={() => void doSave()} disabled={saveState === 'saving'}>
@@ -373,7 +374,7 @@ export function GuestEvaluatePage() {
         )}
         {locked && (
           <span role="status" className={styles.meta}>
-            Locked ({sheet.state}). {submitted ? 'Submitted — thank you.' : ''}
+            {plainStatus}. {submitted ? 'Submitted — thank you.' : ''}
           </span>
         )}
         {' '}

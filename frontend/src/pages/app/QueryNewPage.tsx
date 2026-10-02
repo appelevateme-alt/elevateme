@@ -1,10 +1,13 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { PageHeading } from '../../components/PageHeading';
 import { ApiError } from '../../lib/api';
 import { createQuery } from '../../features/queries/api';
 import { validateQueryInput, queryIdempotencyKey } from '../../features/queries/helpers';
 import { QUERY_LIMITS } from '../../features/queries/types';
+import { listPublicPrograms } from '../../features/programs/api';
+import { listReports, type ReportListItem } from '../../features/reports/api';
+import type { Program } from '../../features/programs/types';
 import styles from './QueriesPage.module.css';
 
 /** /app/queries/new — title 120 + body 5000, idempotency key, preserve on error. */
@@ -14,10 +17,28 @@ export function QueryNewPage() {
   const [body, setBody] = useState('');
   const [programId, setProgramId] = useState('');
   const [reportId, setReportId] = useState('');
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [reports, setReports] = useState<ReportListItem[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const keyRef = useRef<string>(queryIdempotencyKey());
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await listPublicPrograms({});
+        setPrograms(res.items ?? []);
+      } catch {
+        /* selects fall back to empty — submit still works unlinked */
+      }
+      try {
+        setReports(await listReports());
+      } catch {
+        /* same fallback */
+      }
+    })();
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -71,10 +92,20 @@ export function QueryNewPage() {
           <span className={styles.hint}>{body.length} / {QUERY_LIMITS.bodyMax}</span>
         </label>
         <label className={styles.field}>Linked program (optional)
-          <input value={programId} onChange={(e) => setProgramId(e.target.value)} placeholder="Program ID (optional)" aria-label="Linked program" />
+          <select value={programId} onChange={(e) => setProgramId(e.target.value)} aria-label="Linked program">
+            <option value="">No linked program</option>
+            {programs.map((p) => (
+              <option key={p.id} value={p.id}>{p.title || 'Untitled program'}</option>
+            ))}
+          </select>
         </label>
         <label className={styles.field}>Linked report (optional)
-          <input value={reportId} onChange={(e) => setReportId(e.target.value)} placeholder="Report ID (optional)" aria-label="Linked report" />
+          <select value={reportId} onChange={(e) => setReportId(e.target.value)} aria-label="Linked report">
+            <option value="">No linked report</option>
+            {reports.map((r) => (
+              <option key={r.id} value={r.id}>{r.programName || r.sessionName || 'Report'}</option>
+            ))}
+          </select>
         </label>
         <div className={styles.actions}>
           <button type="submit" disabled={submitting} className={styles.primary}>

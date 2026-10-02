@@ -22,10 +22,6 @@ function parseTypedIds(raw: string): string[] {
   return dedupe(raw.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean));
 }
 
-function shortId(id: string): string {
-  return id.length > 4 ? `…${id.slice(-4)}` : id;
-}
-
 function reportNumber(r: Record<string, unknown>): number | null {
   const norm = r['normalized'];
   if (typeof norm === 'number' && Number.isFinite(norm)) return norm;
@@ -43,10 +39,9 @@ function reportNumber(r: Record<string, unknown>): number | null {
 }
 
 function reportLabel(r: Record<string, unknown>, i: number): string {
-  const id = String(r['id'] ?? `report-${i + 1}`);
   const name = String(r['programName'] ?? r['program_name'] ?? r['title'] ?? `Report ${i + 1}`);
   const n = reportNumber(r);
-  return n == null ? `${name} (${id})` : `${name} — ${n}/100 (${id})`;
+  return n == null ? name : `${name} — ${n}/100`;
 }
 
 /**
@@ -178,7 +173,7 @@ export function AdminRecommendationsPage() {
       for (const id of missing.slice(0, 20)) {
         try {
           const p = await getStudentProfile(id);
-          if (p) entries[id] = p.displayName || p.elevateMeId || p.email || `Student ${shortId(id)}`;
+          if (p) entries[id] = p.displayName || p.elevateMeId || p.email || 'Student';
         } catch {
           continue;
         }
@@ -433,18 +428,18 @@ export function AdminRecommendationsPage() {
             </select>
           </label>
         ) : (
-          <label className={styles.field}>Report ID (optional, from the student profile)
+          <label className={styles.field}>Linked report (optional)
             <input
               value={linkedReportId}
               onChange={(e) => setLinkedReportId(e.target.value)}
               aria-label="Linked report"
-              placeholder="Copy the report ID from the student profile"
+              placeholder="Pick from the list when available"
             />
           </label>
         )}
         {singleId && (
           <p className={styles.meta}>
-            Find report IDs on the <Link to={`/admin/users/${encodeURIComponent(singleId)}`}>student profile</Link>.
+            Find reports on the <Link to={`/admin/users/${encodeURIComponent(singleId)}`}>student profile</Link>.
             {reportsLoading ? ' Loading reports…' : reportOptions.length === 0 ? ' No reports found yet.' : ''}
           </p>
         )}
@@ -457,25 +452,24 @@ export function AdminRecommendationsPage() {
           {singleId && prefillProfile && (
             <p className={styles.meta} data-testid="prefill-profile">
               To: {prefillProfile.displayName || prefillProfile.elevateMeId || prefillProfile.email || 'Student'}
-              {' '}({prefillProfile.id})
               {prefillStats && prefillStats.best != null
                 ? ` — best ${prefillStats.best}/100, change ${prefillStats.gain != null && prefillStats.gain >= 0 ? '+' : ''}${prefillStats.gain}`
                 : ' — no scores yet'}
             </p>
           )}
           <StudentSelector selected={selectedIds} onChange={handleSelectedChange} />
-          <label className={styles.field}>Extra student IDs (optional, comma-separated)
+          <label className={styles.field}>Extra students (optional, comma-separated)
             <input
               value={studentIds}
               onChange={(e) => handleStudentIdsChange(e.target.value)}
-              aria-label="Additional student IDs"
-              placeholder="Paste extra IDs separated by commas"
+              aria-label="Additional students"
+              placeholder="Paste extra entries separated by commas"
             />
           </label>
           {typedIds.length > 0 && (
             <ul className={styles.meta} aria-label="Extra students">
               {typedIds.map((id) => (
-                <li key={id}>{extraNames[id] ? `${extraNames[id]} (${shortId(id)})` : `Student ${shortId(id)} — looking up…`}</li>
+                <li key={id}>{extraNames[id] ?? 'Student — looking up…'}</li>
               ))}
             </ul>
           )}

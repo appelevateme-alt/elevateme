@@ -259,23 +259,27 @@ export function ProgramBuilderPage() {
     }
   }
 
-  /** Persists builder sessions not yet created server-side. Throws on first failure. */
+  /** Persists builder sessions not yet created server-side. Collects partial failures. */
   async function persistSessions(programId: string) {
     const pending = sessions.filter((s) => !persistedSessionsRef.current.has(sessionKey(s)));
     let saved = 0;
     for (const s of pending) {
-      await createSession(programId, {
-        title: s.title,
-        startsAt: s.startsAt,
-        endsAt: s.endsAt,
-        ...(s.location ? { location: s.location } : {}),
-        ...(s.committee ? { committee: s.committee } : {}),
-      });
-      persistedSessionsRef.current.add(sessionKey(s));
-      saved += 1;
+      try {
+        await createSession(programId, {
+          title: s.title,
+          startsAt: s.startsAt,
+          endsAt: s.endsAt,
+          ...(s.location ? { location: s.location } : {}),
+          ...(s.committee ? { committee: s.committee } : {}),
+        });
+        persistedSessionsRef.current.add(sessionKey(s));
+        saved += 1;
+      } catch {
+        // Collect partial failure — saved sessions are kept, report after the loop.
+      }
     }
-    if (pending.length > 0 && saved < pending.length) {
-      throw new Error(`Only ${saved} of ${pending.length} sessions were saved. Try again — saved sessions are kept.`);
+    if (saved < pending.length) {
+      throw new Error(`Only ${saved} of ${pending.length} sessions were saved. Saved sessions are kept — try again.`);
     }
   }
 
@@ -288,13 +292,25 @@ export function ProgramBuilderPage() {
     setSubmitKind(null);
     try {
       const body = payload();
-      const created = draftId ? { id: draftId } : await createProgram(body);
-      if (!draftId && (created as { version?: number }).version != null) {
-        setDraftVersion((created as { version?: number }).version ?? null);
+      let programId: string;
+      if (draftId) {
+        if (draftVersion == null) {
+          throw new Error('Draft version is missing — reload the program and try again.');
+        }
+        const saved = await saveProgramDraft(draftId, body, draftVersion);
+        if (saved.version != null) setDraftVersion(saved.version);
+        programId = draftId;
+      } else {
+        const created = await createProgram(body);
+        if ((created as { version?: number }).version != null) {
+          setDraftVersion((created as { version?: number }).version ?? null);
+        }
+        setDraftId(created.id);
+        programId = created.id;
       }
-      await persistSessions(created.id);
-      await submitProgram(created.id);
-      setCreatedId(created.id);
+      await persistSessions(programId);
+      await submitProgram(programId);
+      setCreatedId(programId);
       setDone(true);
       setDirty(false);
     } catch (e) {

@@ -185,7 +185,7 @@ class GuestEvaluateTest {
     when(evalRepo.nextRevisionNo("eval-1")).thenReturn(1);
     when(evalRepo.insertRevision(eq("eval-1"), eq(1), any(), eq("DRAFT"), isNull(), isNull()))
         .thenReturn("rev-1");
-    when(evalRepo.updateEvaluationOptimistic(eq("eval-1"), eq(1), isNull())).thenReturn(1);
+    when(evalRepo.updateEvaluationOptimistic(eq("eval-1"), eq(1), eq("good effort"))).thenReturn(1);
 
     List<Object> partial = new ArrayList<>();
     partial.add(80);

@@ -150,7 +150,7 @@ export function GuestInvitePage() {
       <PageHeading title="Guest evaluations" desc="Your assigned students — names + status only. Select a student to open their editable sheet." />
       {conflict && (
         <div role="alert" className={styles.conflict} data-testid="revision-conflict">
-          <strong>Revision conflict.</strong> The roster changed — refresh and retry.
+          <strong>Someone else updated the roster.</strong> Refresh and try again.
           <button type="button" onClick={() => { setConflict(false); void loadRoster(); }}>Refresh</button>
         </div>
       )}

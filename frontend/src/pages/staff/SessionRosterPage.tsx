@@ -58,6 +58,7 @@ export function SessionRosterPage() {
   const [releaseNotice, setReleaseNotice] = useState<string | null>(null);
   const [releaseError, setReleaseError] = useState<string | null>(null);
   const [blockedOutstanding, setBlockedOutstanding] = useState<OutstandingEntry[]>([]);
+  const [programTitle, setProgramTitle] = useState<string | null>(null);
   const idemKeyRef = useRef<string | null>(null);
 
   const load = useCallback(async (reset: boolean, nextPage: number) => {
@@ -100,6 +101,7 @@ export function SessionRosterPage() {
         const p = await getProgram(id);
         const opts = [{ value: '', label: 'All' }, ...(p.committees ?? []).map((c) => ({ value: c.name, label: c.name }))];
         setCommitteeOptions(opts);
+        setProgramTitle(p.title || null);
       } catch {
         /* keep All-only fallback */
       }
@@ -149,7 +151,7 @@ export function SessionRosterPage() {
     if (!next) return;
     const after = rows.slice(rows.indexOf(next) + 1).find((r) => r.reportStatus === 'draft');
     const suffix = after ? `?next=${encodeURIComponent(after.id)}` : '';
-    navigate(`/staff/evaluations/${encodeURIComponent(next.id)}${suffix}`);
+    navigate(`/staff/evaluations/${encodeURIComponent(next.id)}${suffix}`, id ? { state: { programId: id } } : undefined);
   }
 
   function openReleaseDialog() {
@@ -193,7 +195,7 @@ export function SessionRosterPage() {
         const list = e.outstanding ?? [];
         setBlockedOutstanding(list);
         const detail = list.length > 0
-          ? ` Outstanding: ${list.map((o) => `${o.name ?? o.studentId} (${o.reason})`).join(', ')}.`
+          ? ` Outstanding: ${list.map((o) => `${o.name ?? 'Unnamed student'} (${o.reason})`).join(', ')}.`
           : '';
         setReleaseError(
           `${e.message}${detail} — draft preserved, fix outstanding then retry with the same key.`,
@@ -226,7 +228,7 @@ export function SessionRosterPage() {
 
   return (
     <main className={styles.page} data-testid="session-roster">
-      <PageHeading title="Session roster" desc={`Program ${id} · Session ${sessionId}`} />
+      <PageHeading title="Session roster" desc={programTitle ?? 'Program details unavailable'} />
       <p><Link to={`/staff/programs/${id}`}>← Back to program workspace</Link></p>
       <p role="status" className={styles.meta} data-testid="roster-counts">
         Submitted {preview?.submitted ?? submittedCount} / Total {preview?.expected ?? total}
@@ -267,7 +269,7 @@ export function SessionRosterPage() {
           <ul className={styles.sheetLinks}>
             {rows.map((r) => (
               <li key={r.id}>
-                <Link to={`/staff/evaluations/${encodeURIComponent(r.id)}`} data-testid={`open-sheet-${r.id}`}>
+                <Link to={`/staff/evaluations/${encodeURIComponent(r.id)}`} state={id ? { programId: id } : undefined} data-testid={`open-sheet-${r.id}`}>
                   Open sheet — {r.name}
                 </Link>
               </li>
@@ -286,7 +288,7 @@ export function SessionRosterPage() {
           <ul data-testid="release-outstanding" aria-label="Outstanding reports">
             {outstandingList.map((o) => (
               <li key={o.studentId} data-testid={`outstanding-${o.studentId}`}>
-                {o.name ?? o.studentId} — {o.reason}
+                {o.name ?? 'Unnamed student'} — {o.reason}
               </li>
             ))}
           </ul>
@@ -295,7 +297,7 @@ export function SessionRosterPage() {
           <ul data-testid="release-excluded" aria-label="Excluded from release">
             {(preview.excludedReasons as Array<Record<string, unknown>>).map((x, i) => (
               <li key={`${String(x['studentId'] ?? i)}`}>
-                {String(x['name'] ?? x['studentId'] ?? `excluded-${i}`)} — {String(x['status'] ?? 'EXCLUDED')}
+                {String(x['name'] ?? 'Unnamed student')} — {String(x['status'] ?? 'EXCLUDED')}
                 {x['reason'] ? `: ${String(x['reason'])}` : ''}
               </li>
             ))}
@@ -336,7 +338,7 @@ export function SessionRosterPage() {
           <ul data-testid="dialog-outstanding">
             {dialogOutstanding.map((o) => (
               <li key={o.studentId}>
-                {o.name ?? o.studentId} — {o.reason}
+                {o.name ?? 'Unnamed student'} — {o.reason}
               </li>
             ))}
           </ul>

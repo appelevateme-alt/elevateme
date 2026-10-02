@@ -54,7 +54,7 @@ export function ProgramWorkspacePage() {
 
   async function nextAction() {
     if (!program) return;
-    if (program.lifecycle !== 'DRAFT') return;
+    if (program.lifecycle !== 'DRAFT' && program.lifecycle !== 'CHANGES_REQUESTED') return;
     setActing(true);
     try {
       const updated = await submitProgram(program.id);
@@ -88,7 +88,9 @@ export function ProgramWorkspacePage() {
           <p><StatusBadge value={program.lifecycle} /> <span className={styles.meta}>{remainingCapacity(program)} of {program.capacity} seats left</span></p>
         </div>
         <div className={styles.action}>
-          {next.action === 'submit' ? (
+          {program.lifecycle === 'CHANGES_REQUESTED' ? (
+            <button type="button" disabled={acting} onClick={() => void nextAction()}>{acting ? 'Submitting…' : 'Resubmit for review'}</button>
+          ) : next.action === 'submit' ? (
             <button type="button" disabled={acting} onClick={() => void nextAction()}>{acting ? 'Submitting…' : next.label}</button>
           ) : next.action === 'manage' ? (
             <button type="button" onClick={() => setTab('Sessions')}>{next.label}</button>
@@ -105,6 +107,9 @@ export function ProgramWorkspacePage() {
       {notice && <p role="status" className={styles.notice}>{notice}</p>}
       {program.lifecycle === 'PENDING_REVIEW' && (
         <p className={styles.restricted} role="note">Sent for review — edits are restricted while under review.</p>
+      )}
+      {program.lifecycle === 'CHANGES_REQUESTED' && (
+        <p className={styles.restricted} role="note">Reviewer asked for changes — update the draft, then resubmit.</p>
       )}
       <nav className={styles.tabs} aria-label="Program workspace">
         {TABS.map((t) => (
@@ -151,8 +156,8 @@ export function ProgramWorkspacePage() {
         {tab === 'Settings' && (
           <div>
             <p>Visibility: {program.visibility} · Lifecycle: {program.lifecycle}</p>
-            {program.lifecycle !== 'DRAFT' && <p className={styles.meta}>Settings are read-only after submission.</p>}
-            {program.lifecycle === 'DRAFT' && (
+            {program.lifecycle !== 'DRAFT' && program.lifecycle !== 'CHANGES_REQUESTED' && <p className={styles.meta}>Settings are read-only after submission.</p>}
+            {(program.lifecycle === 'DRAFT' || program.lifecycle === 'CHANGES_REQUESTED') && (
               <p>
                 <Link to={`/staff/programs/${encodeURIComponent(program.id)}/edit?returnTab=${encodeURIComponent(tab)}`}>
                   Edit draft
@@ -161,7 +166,7 @@ export function ProgramWorkspacePage() {
                 <Link to="/staff/comment-bank">Open comment bank</Link>
               </p>
             )}
-            {program.lifecycle !== 'DRAFT' && (
+            {program.lifecycle !== 'DRAFT' && program.lifecycle !== 'CHANGES_REQUESTED' && (
               <p>
                 <Link to="/staff/comment-bank">Open comment bank</Link>
               </p>

@@ -14,7 +14,7 @@ import java.util.List;
  * in service):
  * <ul>
  *   <li>type: SingleEvent|SINGLE_EVENT, Continuous|CONTINUOUS, Special|SPECIAL</li>
- *   <li>subtype: MUN|MODEL_UN, Debate|FRIENDLY_DEBATE, COMPETITION, SPECIAL, WORKSHOP, LEAGUE</li>
+  *   <li>subtype: MUN|MODEL_UN, Debate|FRIENDLY_DEBATE, COMPETITION, SPECIAL</li>
  *   <li>themes: PublicSpeaking|Communication|Negotiation|Leadership (subset, may be empty)</li>
  *   <li>visibility: INTERNAL|PUBLIC|INVITE_ONLY</li>
  * </ul>

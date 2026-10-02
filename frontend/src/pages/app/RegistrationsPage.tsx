@@ -64,9 +64,9 @@ export function RegistrationsPage() {
             <h2><Link to={`/programs/${encodeURIComponent(r.programId)}`}>{r.programTitle}</Link></h2>
             <p><StatusBadge value={r.status} /></p>
             {r.allocation && <p>Allocation: {r.allocation}</p>}
-            {(r.committee || r.country || r.sessionId) && (
+            {(r.committee || r.country) && (
               <p className={styles.meta}>
-                {[r.committee, r.country, r.sessionId].filter(Boolean).join(' · ')}
+                {[r.committee, r.country].filter(Boolean).join(' · ')}
               </p>
             )}
             <p>{nextStepsForStatus(r.status)}</p>

@@ -58,12 +58,16 @@ export function ProgramEditPage() {
     setNotice(null);
     try {
       const cap = capacity.trim() === '' ? undefined : Number(capacity);
+      if (program?.version == null) {
+        setNotice('Draft version is missing — reload the program and try again.');
+        return;
+      }
       await saveProgramDraft(id, {
         title: title.trim(),
         description,
         location: location.trim() || undefined,
         capacity: cap,
-      } as never);
+      } as never, program.version);
       navigate(`/staff/programs/${encodeURIComponent(id)}?tab=${encodeURIComponent(returnTab)}`, { replace: true });
     } catch (err) {
       setNotice(err instanceof ApiError ? err.message : 'Saving failed — try again.');
@@ -91,7 +95,7 @@ export function ProgramEditPage() {
   }
 
   const backTo = `/staff/programs/${encodeURIComponent(program.id)}?tab=${encodeURIComponent(returnTab)}`;
-  const locked = program.lifecycle !== 'DRAFT';
+  const locked = program.lifecycle !== 'DRAFT' && program.lifecycle !== 'CHANGES_REQUESTED';
 
   return (
     <main className={styles.page} data-testid="program-edit">

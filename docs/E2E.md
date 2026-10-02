@@ -3,8 +3,11 @@
 All specs under `frontend/e2e/` are **skeleton only**. They self-skip unless
 explicitly opted in, so unit CI stays green.
 
-- Skip gate: `test.skip(process.env.E2E_LIVE !== '1')`
-- Run live only with: `E2E_LIVE=1`
+- Skip gate: `test.skip(!E2E_ENABLED)` in `frontend/e2e/helpers.ts` (scenarios
+  01-14) and `test.skip(process.env.E2E_LIVE !== '1')` in `e2e/smoke.spec.ts` —
+  both self-skip unless explicitly opted in.
+- Run live only with: `E2E_LIVE=1` (runs against `http://localhost:5173` default)
+  or `E2E_BASE_URL=<target> [E2E_API_URL=<api>]` to override the target.
 - Selectors: `data-testid="page-sign-in"`, `data-testid="page-home"` (already in code)
 
 ## 0. Install (documented only — do NOT commit lockfile churn)
@@ -61,7 +64,10 @@ npx tsc --noEmit -p tsconfig.json  # e2e/ excluded, build stays green
 npm run build                       # must pass
 
 # live run (explicit opt-in only):
+# default target is http://localhost:5173 (see playwright.config.ts baseURL):
 E2E_LIVE=1 npx playwright test e2e/smoke.spec.ts
+# override target (e.g. preview deploy):
+E2E_BASE_URL=https://<preview-url> npx playwright test e2e/
 ```
 
 ## Rules
