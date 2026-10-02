@@ -62,6 +62,8 @@ export interface Program {
   subtype?: string;
   visibility: ProgramVisibility;
   lifecycle: ProgramLifecycle;
+  /** Optimistic-locking version (row_version). Required for PATCH draft saves. */
+  version?: number;
   startsAt: string;
   endsAt: string;
   location: string;

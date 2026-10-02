@@ -85,6 +85,7 @@ function normalizeProgramRow(raw: Record<string, unknown>): Program {
     organizer: String(raw['organizer'] ?? raw['ownerId'] ?? raw['owner_id'] ?? ''),
     eligibility: (raw['eligibility'] as string | undefined) ?? undefined,
     registrationDeadline: (raw['registrationDeadline'] as string | undefined) ?? undefined,
+    version: typeof raw['version'] === 'number' ? (raw['version'] as number) : undefined,
     sessions: Array.isArray(raw['sessions'])
       ? (raw['sessions'] as Program['sessions'])
       : [],
@@ -119,15 +120,118 @@ export interface CreateProgramPayload {
 }
 
 export async function createProgram(payload: CreateProgramPayload): Promise<Program> {
-  return post<Program>('/programs', payload);
+  const raw = await post<Record<string, unknown>>('/programs', toBackendCreate(payload));
+  return normalizeProgramRow(raw);
+}
+
+/**
+ * Backend contract mapper (spec §9 + ProgramDtos vocab).
+ * The builder speaks UI kinds (MUN|DEBATE|CONTINUOUS), free-picked themes and
+ * PUBLISHED_* visibility; the Java API accepts only:
+ * type SingleEvent|Continuous|Special, subtype MUN|Debate|Competition|Special,
+ * themes ⊆ {Public Speaking, Communication, Negotiation, Leadership},
+ * visibility INTERNAL|PUBLIC|INVITE_ONLY.
+ * Throws a plain-language Error (shown inline) instead of letting the
+ * server answer 422.
+ */
+export function toBackendCreate(p: CreateProgramPayload): Record<string, unknown> {
+  const { type, subtype } = toBackendType(p.kind, p.subtype);
+  return {
+    title: p.title,
+    description: p.description,
+    type,
+    ...(subtype ? { subtype } : {}),
+    themes: [toBackendTheme(p.theme)],
+    visibility: toBackendVisibility(p.visibility),
+    startsAt: p.startsAt,
+    endsAt: p.endsAt,
+    ...(p.registrationDeadline ? { registrationDeadline: p.registrationDeadline } : {}),
+    location: p.location,
+    venue: p.location,
+    capacity: p.capacity,
+    ...(p.eligibility ? { eligibility: p.eligibility } : {}),
+    // NOTE: sessions/committees/organizer are UI-side only — the create DTO
+    // has no such fields (unknown props are ignored server-side). Sessions
+    // are persisted separately via createSession() after create.
+  };
+}
+
+function toBackendType(kind: string, subtype?: string): { type: string; subtype?: string } {
+  const k = (kind || '').trim().toUpperCase();
+  const s = (subtype || '').trim();
+  if (k === 'MUN') return { type: 'SingleEvent', subtype: s || 'MUN' };
+  if (k === 'DEBATE') return { type: 'SingleEvent', subtype: s || 'Debate' };
+  if (k === 'CONTINUOUS') return { type: 'Continuous', ...(s ? { subtype: canonicalSubtype(s) } : {}) };
+  throw new Error(`Choose a program kind: MUN, Debate or Continuous (got "${kind}").`);
+}
+
+function canonicalSubtype(s: string): string {
+  const u = s.trim().toUpperCase();
+  if (u === 'MUN' || u === 'MODEL_UN') return 'MUN';
+  if (u === 'DEBATE' || u === 'FRIENDLY_DEBATE') return 'Debate';
+  if (u === 'COMPETITION') return 'Competition';
+  if (u === 'SPECIAL') return 'Special';
+  throw new Error(`Unknown subtype "${s}". Use MUN, Debate, Competition or Special.`);
+}
+
+export function toBackendTheme(theme: string): string {
+  const canon = ['Public Speaking', 'Communication', 'Negotiation', 'Leadership'];
+  const low = (theme || '').trim().toLowerCase().replace(/\s+/g, '');
+  const hit = canon.find((c) => c.toLowerCase().replace(/\s+/g, '') === low);
+  if (!hit) throw new Error('Choose a theme: Public Speaking, Communication, Negotiation or Leadership.');
+  return hit;
+}
+
+export function toBackendVisibility(v: string): string {
+  const u = (v || '').trim().toUpperCase();
+  if (u === 'PUBLISHED_PUBLIC' || u === 'PUBLIC') return 'PUBLIC';
+  if (u === 'PUBLISHED_TARGETED' || u === 'INVITE_ONLY' || u === 'ASSIGNED' || u === 'PRIVATE') return 'INVITE_ONLY';
+  if (u === 'INTERNAL' || u === 'DRAFT') return 'INTERNAL';
+  throw new Error('Choose visibility: public or targeted.');
+}
+
+/** POST /programs/{id}/sessions — persists one builder session (owner/admin, DRAFT). */
+export async function createSession(
+  programId: string,
+  s: { title: string; startsAt: string; endsAt: string; location?: string; committee?: string },
+): Promise<void> {
+  await post(`/programs/${encodeURIComponent(programId)}/sessions`, {
+    title: s.title,
+    startsAt: s.startsAt,
+    endsAt: s.endsAt,
+    ...(s.committee ? { committee: s.committee, topic: s.committee } : {}),
+    ...(s.location ? { venue: s.location } : {}),
+  });
 }
 
 export async function submitProgram(id: string): Promise<Program> {
   return post<Program>(`/programs/${encodeURIComponent(id)}/submit`);
 }
 
-export async function saveProgramDraft(id: string, payload: Partial<CreateProgramPayload>): Promise<Program> {
-  return patch<Program>(`/programs/${encodeURIComponent(id)}`, payload);
+export async function saveProgramDraft(
+  id: string,
+  payload: Partial<CreateProgramPayload>,
+  version?: number,
+): Promise<Program> {
+  if (version == null) throw new Error('Draft version is missing — reload the program and try again.');
+  const body: Record<string, unknown> = { version };
+  if (payload.title !== undefined) body['title'] = payload.title;
+  if (payload.description !== undefined) body['description'] = payload.description;
+  if (payload.kind !== undefined || payload.subtype !== undefined) {
+    const { type, subtype } = toBackendType(payload.kind ?? '', payload.subtype);
+    body['type'] = type;
+    if (subtype) body['subtype'] = subtype;
+  }
+  if (payload.theme !== undefined) body['themes'] = [toBackendTheme(payload.theme)];
+  if (payload.visibility !== undefined) body['visibility'] = toBackendVisibility(payload.visibility);
+  if (payload.startsAt !== undefined) body['startsAt'] = payload.startsAt;
+  if (payload.endsAt !== undefined) body['endsAt'] = payload.endsAt;
+  if (payload.registrationDeadline !== undefined) body['registrationDeadline'] = payload.registrationDeadline;
+  if (payload.location !== undefined) { body['location'] = payload.location; body['venue'] = payload.location; }
+  if (payload.capacity !== undefined) body['capacity'] = payload.capacity;
+  if (payload.eligibility !== undefined) body['eligibility'] = payload.eligibility;
+  const raw = await patch<Record<string, unknown>>(`/programs/${encodeURIComponent(id)}`, body);
+  return normalizeProgramRow(raw);
 }
 
 export type ProgramDecision = 'APPROVED' | 'CHANGES_REQUESTED' | 'REJECTED';

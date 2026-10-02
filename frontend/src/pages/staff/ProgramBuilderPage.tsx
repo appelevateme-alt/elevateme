@@ -6,8 +6,9 @@ import { PageHeading } from '../../components/PageHeading';
 import { EmptyState } from '../../components/EmptyState';
 import { EventRow } from '../../components/EventRow';
 import { ApiError } from '../../lib/api';
-import { createProgram, saveProgramDraft, submitProgram } from '../../features/programs/api';
+import { createProgram, createSession, saveProgramDraft, submitProgram } from '../../features/programs/api';
 import { conflictCopyFor409 } from '../../features/programs/helpers';
+import { PROGRAM_THEMES } from '../../features/programs/types';
 import {
   basicsSchema, datesLocationSchema, rulesSchema, sessionInputSchema, sessionsSchema,
   type BasicsInput, type DatesLocationInput, type RulesInput, type SessionInput,
@@ -31,6 +32,10 @@ export function ProgramBuilderPage() {
   const [done, setDone] = useState(false);
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
+  const [draftVersion, setDraftVersion] = useState<number | null>(null);
+  // Keys (title|startsAt|endsAt) of builder sessions already persisted via
+  // POST /programs/{id}/sessions — the create DTO carries no sessions.
+  const persistedSessionsRef = useRef<Set<string>>(new Set());
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitKind, setSubmitKind] = useState<'forbidden' | 'not-found' | null>(null);
@@ -222,10 +227,19 @@ export function ProgramBuilderPage() {
         return;
       }
       if (draftId) {
-        await saveProgramDraft(draftId, body);
+        if (draftVersion == null) {
+          setSubmitError('Draft version is missing — reload the program and try again.');
+          setSaveState('error');
+          return;
+        }
+        const saved = await saveProgramDraft(draftId, body, draftVersion);
+        if (saved.version != null) setDraftVersion(saved.version);
+        await persistSessions(draftId);
       } else {
         const created = await createProgram({ ...body, sessions: body.sessions.length > 0 ? body.sessions : [{ title: 'TBD', startsAt: body.startsAt || new Date().toISOString(), endsAt: body.endsAt || new Date().toISOString() }] });
         setDraftId(created.id);
+        if (created.version != null) setDraftVersion(created.version);
+        await persistSessions(created.id);
       }
       setSaveState('saved');
       setDirty(false);
@@ -240,9 +254,33 @@ export function ProgramBuilderPage() {
       } else if (e instanceof ApiError && e.status === 409) {
         setSubmitError(conflictCopyFor409(e));
       } else {
-        setSubmitError(e instanceof ApiError ? e.message : 'Saving draft failed.');
+        setSubmitError(e instanceof Error ? e.message : 'Saving draft failed.');
       }
     }
+  }
+
+  /** Persists builder sessions not yet created server-side. Throws on first failure. */
+  async function persistSessions(programId: string) {
+    const pending = sessions.filter((s) => !persistedSessionsRef.current.has(sessionKey(s)));
+    let saved = 0;
+    for (const s of pending) {
+      await createSession(programId, {
+        title: s.title,
+        startsAt: s.startsAt,
+        endsAt: s.endsAt,
+        ...(s.location ? { location: s.location } : {}),
+        ...(s.committee ? { committee: s.committee } : {}),
+      });
+      persistedSessionsRef.current.add(sessionKey(s));
+      saved += 1;
+    }
+    if (pending.length > 0 && saved < pending.length) {
+      throw new Error(`Only ${saved} of ${pending.length} sessions were saved. Try again — saved sessions are kept.`);
+    }
+  }
+
+  function sessionKey(s: { title: string; startsAt: string; endsAt: string }) {
+    return `${s.title}|${s.startsAt}|${s.endsAt}`;
   }
 
   async function submitAll() {
@@ -251,6 +289,10 @@ export function ProgramBuilderPage() {
     try {
       const body = payload();
       const created = draftId ? { id: draftId } : await createProgram(body);
+      if (!draftId && (created as { version?: number }).version != null) {
+        setDraftVersion((created as { version?: number }).version ?? null);
+      }
+      await persistSessions(created.id);
       await submitProgram(created.id);
       setCreatedId(created.id);
       setDone(true);
@@ -265,7 +307,7 @@ export function ProgramBuilderPage() {
       } else if (e instanceof ApiError && e.status === 409) {
         setSubmitError(conflictCopyFor409(e));
       } else {
-        setSubmitError(e instanceof ApiError ? e.message : 'Submit failed.');
+        setSubmitError(e instanceof Error ? e.message : 'Submit failed.');
       }
     }
   }
@@ -333,13 +375,17 @@ export function ProgramBuilderPage() {
               </select>
               {basicsErrors.kind && <span id="basics-kind-error" role="alert" className={styles.fieldError}>{basicsErrors.kind.message}</span>}
               <label htmlFor="basics-theme">Theme*</label>
-              <input
+              <select
                 id="basics-theme"
                 {...basics.register('theme', { onChange: markDirty })}
-                placeholder="e.g. Diplomacy"
                 aria-invalid={!!basicsErrors.theme}
                 aria-describedby={basicsErrors.theme ? 'basics-theme-error' : undefined}
-              />
+              >
+                <option value="">Choose a theme…</option>
+                {PROGRAM_THEMES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
               {basicsErrors.theme && <span id="basics-theme-error" role="alert" className={styles.fieldError}>{basicsErrors.theme.message}</span>}
               <label htmlFor="basics-subtype">Subtype</label>
               <input
