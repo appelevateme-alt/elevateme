@@ -67,11 +67,19 @@ export function CoordinatorDashboard() {
 
 /* ---------- Programme management (Supabase-backed + kept builder) ---------- */
 export function CoordinatorPrograms() {
+  const { session } = useAuth();
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('All statuses');
   const [showForm, setShowForm] = useState(false);
   const [draft, setDraft] = useState({ title: '', type: 'Single Event', start: '', capacity: '30', desc: '' });
   const [formError, setFormError] = useState('');
+  // Display labels -> DB category codes (001_core.sql CHECK) + RLS-safe
+  // insert (status Draft, created_by self, slug required).
+  const toCategory = (label) => (
+    label === 'Continuous Programme' ? 'ContinuousProgramme'
+      : label === 'Special Programme' ? 'SpecialProgramme'
+        : 'SingleEvent'
+  );
 
   const { data, loading, error, refetch } = useSupabaseList({
     table: 'programs',
@@ -104,11 +112,13 @@ export function CoordinatorPrograms() {
               try {
                 const res = await create({
                   title: draft.title.trim(),
-                  category: draft.type,
+                  slug: slugFor(draft.title),
+                  category: toCategory(draft.type),
                   start_date: draft.start || null,
                   capacity: Number(draft.capacity) || 30,
                   description: draft.desc,
                   status: 'Draft',
+                  created_by: session?.userId || null,
                 });
                 if (res?.error) throw new Error(res.error.message);
                 setShowForm(false);
@@ -143,6 +153,17 @@ export function CoordinatorPrograms() {
 
 /* ---------- Guided 6-step builder (Supabase-backed) ---------- */
 const STEPS = ['Basics', 'Schedule and location', 'Program structure', 'Registration rules', 'Media and description', 'Review and submit'];
+
+// RLS allows coordinators to INSERT programs only as status 'Draft' with
+// created_by = own id, and to UPDATE own rows only while status stays in
+// Draft/Submitted/ChangesRequested (see supabase/migrations/003_rls.sql).
+// Approval to UnderReview+ happens via the admin approve_program RPC —
+// never by writing status directly. Slug columns are NOT NULL with no
+// server default, so the client must supply one on every insert.
+function slugFor(title, fallback = 'program') {
+  const base = (title || fallback).toLowerCase().replaceAll(/[^a-z0-9]+/g, '-').replaceAll(/^-+|-+$/g, '').slice(0, 60) || fallback;
+  return `${base}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 export function NewProgram() {
   const { session } = useAuth();
@@ -184,7 +205,7 @@ export function NewProgram() {
     if (list.length > 0) { setErrors(list); return; }
     setErrors([]);
     try {
-      const payload = {
+      const base = {
         title: title.trim(),
         category,
         single_event_type: category === 'SingleEvent' ? eventType : null,
@@ -197,10 +218,10 @@ export function NewProgram() {
         created_by: session?.userId || null,
       };
       if (programId) {
-        const res = await updateProgram(programId, payload);
+        const res = await updateProgram(programId, base);
         if (res?.error) throw new Error(res.error.message);
       } else {
-        const res = await createProgram(payload);
+        const res = await createProgram({ ...base, slug: slugFor(title) });
         if (res?.error) throw new Error(res.error.message);
         const row = Array.isArray(res?.data) ? res.data[0] : res?.data;
         if (row?.id) setProgramId(row.id);
@@ -218,7 +239,7 @@ export function NewProgram() {
     if (all.length > 0) return;
     try {
       let id = programId;
-      const payload = {
+      const base = {
         title: title.trim(),
         category,
         single_event_type: category === 'SingleEvent' ? eventType : null,
@@ -227,23 +248,30 @@ export function NewProgram() {
         end_date: end,
         capacity: Number(capacity),
         description,
-        status: 'UnderReview',
         created_by: session?.userId || null,
       };
+      // Coordinators may only move own rows Draft -> Submitted (RLS allows
+      // Draft/Submitted/ChangesRequested). UnderReview+ is set by the admin
+      // approve_program RPC, never by direct write — writing 'UnderReview'
+      // here is denied with 42501 ("You do not have permission").
       if (id) {
-        const res = await updateProgram(id, payload);
+        const res = await updateProgram(id, { ...base, status: 'Submitted' });
         if (res?.error) throw new Error(res.error.message);
       } else {
-        const res = await createProgram(payload);
+        const res = await createProgram({ ...base, slug: slugFor(title), status: 'Draft' });
         if (res?.error) throw new Error(res.error.message);
         const row = Array.isArray(res?.data) ? res.data[0] : res?.data;
         id = row?.id || null;
         if (id) setProgramId(id);
+        if (!id) throw new Error('Could not create your program. Your input is preserved.');
+        const sub = await updateProgram(id, { status: 'Submitted' });
+        if (sub?.error) throw new Error(sub.error.message);
       }
       if (id && structure.trim()) {
         try {
           const sres = await createSession({
             program_id: id,
+            slug: slugFor(structure.trim().slice(0, 80), 'session'),
             title: structure.trim().slice(0, 80),
             topic: structure.trim().slice(0, 120),
             date: start || null,
