@@ -9,7 +9,7 @@ import { toAnnouncement, toProfile, toProgram, toRecommendation, toThread } from
 
 /* ---------- Platform overview (Supabase-backed counts) ---------- */
 export function AdminOverview() {
-  const { count: pendingPrograms } = useSupabaseList({ table: 'programs', filters: { status: 'UnderReview' }, page: 1, pageSize: 1 });
+  const { count: pendingPrograms } = useSupabaseList({ table: 'programs', filters: { status: ['Submitted','UnderReview'] }, page: 1, pageSize: 1 });
   const { count: pendingUsers } = useSupabaseList({ table: 'profiles', filters: { status: 'PendingReview' }, page: 1, pageSize: 1 });
   const { count: activePrograms } = useSupabaseList({ table: 'programs', filters: { status: 'Published' }, page: 1, pageSize: 1 });
   const { count: studentCount } = useSupabaseList({ table: 'profiles', contains: { col: 'roles', values: ['student'] }, page: 1, pageSize: 1 });
@@ -61,7 +61,7 @@ export function AdminApprovals() {
   const [typeFilter, setTypeFilter] = useState('All request types');
   const [statusFilter, setStatusFilter] = useState('Pending review');
 
-  const { data: progRows, refetch: refetchProgs } = useSupabaseList({ table: 'programs', filters: { status: 'UnderReview' }, page: 1, pageSize: 10 });
+  const { data: progRows, refetch: refetchProgs } = useSupabaseList({ table: 'programs', filters: { status: ['Submitted','UnderReview'] }, page: 1, pageSize: 10 });
   const { data: userRows, refetch: refetchUsers } = useSupabaseList({ table: 'profiles', filters: { status: 'PendingReview' }, page: 1, pageSize: 10 });
   const { data: evalRows, refetch: refetchEvals } = useSupabaseList({ table: 'evaluations', filters: { released: false }, page: 1, pageSize: 10 });
 
