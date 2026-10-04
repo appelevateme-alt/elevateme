@@ -439,24 +439,29 @@ function Workspace({ programId, active }) {
           {!sessLoading && !sessError && <DataTable headers={['Session', 'Topic', 'Date', 'Venue']} rows={sessions.map((s) => [s.title, s.topic, s.date, s.venue])} />}
         </>
       )}
-      {active === 'Students' && (
-        <>
-          {regsLoading && <p>Loading…</p>}
-          {regsError && <div className="notice"><strong>Couldn’t load students.</strong> {regsError.message}</div>}
-          {decideError && <p role="alert" className="field-error">{decideError}</p>}
-          {!regsLoading && !regsError && (
-            <DataTable headers={['Student', 'ElevateMe ID', 'Allocation', 'Registration', 'Evaluation', '']}
-              rows={roster.map((r) => [r.studentName, r.elevateMeId, r.allocation, <Status key={`${r.id}-s`} value={r.status} />, <Status key={`${r.id}-e`} value={r.evaluationState} />,
-                r.status === 'Pending'
-                  ? <span key={`${r.id}-a`} style={{ display: 'flex', gap: 6 }}>
-                    <Button small disabled={deciding === r.id} onClick={() => decideRegistration(r.id, 'Confirmed')}>Confirm</Button>
-                    <Button small variant="secondary" disabled={deciding === r.id} onClick={() => decideRegistration(r.id, 'Waitlisted')}>Waitlist</Button>
-                    <Button small variant="secondary" disabled={deciding === r.id} onClick={() => decideRegistration(r.id, 'Rejected')}>Reject</Button>
-                  </span>
-                  : <span key={`${r.id}-a`} style={{ color: 'var(--muted)', fontSize: '.82rem' }}>Decided</span>])} />
-          )}
-        </>
-      )}
+  {active === 'Students' && (
+  <>
+    {regsLoading && <p>Loading…</p>}
+    {regsError && <div className="notice"><strong>Couldn’t load students.</strong> {regsError.message}</div>}
+    {decideError && <p role="alert" className="field-error">{decideError}</p>}
+    {!regsLoading && !regsError && (
+      <DataTable headers={['Student', 'ElevateMe ID', 'Allocation', 'Registration', 'Evaluation', '']}
+        rows={roster.map((r) => [r.studentName, r.elevateMeId, r.allocation, <Status key={`${r.id}-s`} value={r.status} />, <Status key={`${r.id}-e`} value={r.evaluationState} />,
+          <span key={`${r.id}-a`} style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {r.status === 'Pending' ? (
+              <>
+                <Button small disabled={deciding === r.id} onClick={() => decideRegistration(r.id, 'Confirmed')}>Confirm</Button>
+                <Button small variant="secondary" disabled={deciding === r.id} onClick={() => decideRegistration(r.id, 'Waitlisted')}>Waitlist</Button>
+                <Button small variant="secondary" disabled={deciding === r.id} onClick={() => decideRegistration(r.id, 'Rejected')}>Reject</Button>
+              </>
+            ) : (
+              <span style={{ color: 'var(--muted)', fontSize: '.82rem' }}>Decided</span>
+            )}
+            <Link to={`/evaluator/assignments/${sessions[0]?.id || programId}/students/${r.elevateMeId || r.id}`} className="button secondary small">Evaluate</Link>
+          </span>])} />
+    )}
+  </>
+)}
       {active === 'Evaluators' && (
         evaluatorCount > 0 ? (
           <DataTable headers={['Evaluator', 'Session', 'Access']} rows={(evalRows || []).map((e, i) => [e.evaluator_id || `Evaluator ${i + 1}`, sessions[0]?.title || '—', <Status key={`e-${i}`} value={e.status || 'Approved'} />])} />

@@ -321,17 +321,18 @@ export function PerStudentEvaluate() {
         </>
       )}
       {confirming && !locked && (
-        <div className="dialog-backdrop" onClick={() => setConfirming(false)}>
-          <div role="alertdialog" aria-modal="true" aria-labelledby="ct" className="dialog" onClick={(e) => e.stopPropagation()}>
-            <h2 id="ct">Submit this evaluation?</h2>
-            <p>Submitting locks the sheet. The student sees it only after release.</p>
-            <div className="dialog-actions">
-              <Button variant="secondary" onClick={() => setConfirming(false)}>Cancel</Button>
-              <Button disabled={saving} onClick={submitLocked}>{saving ? 'Submitting…' : 'Submit and lock'}</Button>
-            </div>
-          </div>
-        </div>
-      )}
+  <div className="dialog-backdrop" onClick={() => setConfirming(false)}>
+    <div role="alertdialog" aria-modal="true" aria-labelledby="ct" className="dialog" onClick={(e) => e.stopPropagation()}>
+      <h2 id="ct">Submit this evaluation?</h2>
+      <p>Submitting locks the sheet. The student sees it only after release.</p>
+      {error && <p role="alert" className="field-error" style={{ marginTop: 10 }}>{error}</p>}
+      <div className="dialog-actions">
+        <Button variant="secondary" onClick={() => setConfirming(false)}>Cancel</Button>
+        <Button disabled={saving} onClick={submitLocked}>{saving ? 'Submitting…' : 'Submit and lock'}</Button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }
