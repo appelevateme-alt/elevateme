@@ -104,7 +104,7 @@ export function StudentPrograms() {
     pageSize: 20,
   });
   const programs = (data || []).map(toProgram).filter((p) => {
-    if (p.status !== 'Published' && p.status !== 'InProgress') return false;
+    if (p.status !== 'Published' && p.status !== 'InProgress' && p.status !== 'Approved') return false;
     if (!q) return true;
     return `${p.date} ${p.typeLabel} ${p.title} ${p.meta}`.toLowerCase().includes(q.toLowerCase());
   });
@@ -392,7 +392,7 @@ export function StudentProfile() {
 /* ---------- Kept extras ---------- */
 export function StudentDevelopment() {
   const { data: programRows } = useSupabaseList({ table: 'programs', page: 1, pageSize: 5 });
-  const programs = (programRows || []).map(toProgram).filter((p) => p.status === 'Published' || p.status === 'InProgress');
+  const programs = (programRows || []).map(toProgram).filter((p) => p.status === 'Published' || p.status === 'InProgress' || p.status === 'Approved');
   const suggestion = programs[0];
   return (
     <div>
