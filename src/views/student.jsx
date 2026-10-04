@@ -27,6 +27,70 @@ export function StudentDashboard() {
     pageSize: 20,
   });
   const { data: annRows } = useSupabaseList({ table: 'announcements', filters: { status: 'Published' }, page: 1, pageSize: 3 });
+  // Latest 3 evaluations that have actually been released to this student.
+const {
+  data: recentEvalRows,
+  loading: recentEvalsLoading,
+} = useSupabaseList({
+  table: 'evaluations',
+
+  // evaluations.program_id is linked to programs.id
+  // so Supabase can return the program title with the evaluation.
+  select: '*, programs(id, title)',
+
+  filters: {
+    student_id: session?.userId || '00000000-0000-0000-0000-000000000000',
+    released: true,
+  },
+
+  order: {
+    col: 'released_at',
+    ascending: false,
+  },
+
+  page: 1,
+  pageSize: 3,
+});
+
+const recentEvalIds = (recentEvalRows || [])
+  .map((evaluation) => evaluation.id)
+  .filter(Boolean);
+
+// 3 evaluations × 10 criteria = maximum 30 rows.
+const {
+  data: recentScoreRows,
+  loading: recentScoresLoading,
+} = useSupabaseList({
+  table: 'evaluation_scores',
+  filters: {
+    evaluation_id:
+      recentEvalIds.length > 0
+        ? recentEvalIds
+        : ['00000000-0000-0000-0000-000000000000'],
+  },
+  page: 1,
+  pageSize: 30,
+});
+
+const recentScores = (recentEvalRows || []).map((evaluation) => {
+  const scores = (recentScoreRows || [])
+    .filter((score) => score.evaluation_id === evaluation.id)
+    .map((score) => score.score ?? score.value);
+
+  const result = total1000(scores);
+
+  return {
+  id: evaluation.id,
+
+  programName:
+    evaluation.programs?.title ||
+    'Program',
+
+  score: scores.length > 0 ? result.scaled : null,
+
+  releasedAt: evaluation.released_at,
+};
+});
 
   const regs = (regRows || []).map(toRegistration);
   const recs = (recRows || []).map(toRecommendation);
@@ -47,6 +111,77 @@ export function StudentDashboard() {
         ['Active programs', activePrograms, regs.length > 0 ? 'Across your registrations' : 'None yet'],
         ['Recommendations', recLabel, highPriority > 0 ? `${highPriority} marked high priority` : 'None yet'],
       ]} />
+      <Panel
+  title="Recent scores"
+  // action={
+  //   <Link to="/student/performance" className="link-quiet">
+  //     View performance →
+  //   </Link>
+  // }
+>
+  {recentEvalsLoading || recentScoresLoading ? (
+    <SkeletonRows rows={3} />
+  ) : recentScores.length === 0 ? (
+    <Empty
+      title="No released scores yet."
+      body="Your recent scores will appear here once an evaluation is released."
+    />
+  ) : (
+    <div className="flat-list">
+      {recentScores.map((evaluation, index) => (
+  <div
+    key={evaluation.id}
+    className="list-row compact"
+    style={{
+      marginBottom:
+        index === 0 && recentScores.length > 1
+          ? '16px'
+          : 0,
+    }}
+  >
+    <div className="row-meta">
+      {evaluation.releasedAt
+        ? new Date(evaluation.releasedAt).toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'short',
+          })
+        : 'Released'}
+    </div>
+
+    <div className="row-main">
+      <h3>{evaluation.programName}</h3>
+
+      <p>
+        {index === 0
+          ? 'Most recent evaluation'
+          : 'Released evaluation'}
+      </p>
+    </div>
+
+    <div className="row-action">
+      <strong
+        style={{
+          font: '700 1.15rem Manrope',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {evaluation.score == null
+          ? '—'
+          : `${evaluation.score} / 100`}
+      </strong>
+
+      <Link
+        to={`/student/performance/${evaluation.id}`}
+        className="button secondary small"
+      >
+        Open
+      </Link>
+    </div>
+  </div>
+))}
+    </div>
+  )}
+</Panel>
       <div className="grid dashboard">
         {regs.length > 0 ? (
           <section className="program-feature">

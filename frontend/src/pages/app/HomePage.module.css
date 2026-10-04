@@ -20,6 +20,98 @@
 .parentBanner strong { display: block; margin-bottom: 4px; }
 .parentBanner p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
 .avatarReplace { margin-top: 12px; }
+.recentScoresWindow {
+  margin-top: 16px;
+  border: 1px solid var(--line-dark);
+  background: var(--white);
+}
+
+.recentScoresHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.recentScoresHeader h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.recentScoresHeader p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.recentScoresHeader a {
+  color: var(--dark-blue);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.recentScoresList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.recentScoresList li + li {
+  border-top: 1px solid var(--line);
+}
+
+.scoreRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 12px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.scoreRow:hover {
+  background: var(--paper);
+}
+
+.scoreInfo {
+  min-width: 0;
+}
+
+.scoreInfo strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.scoreInfo span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.scoreValue {
+  flex: none;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.scoreValue span {
+  margin-left: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.noScores {
+  margin: 0;
+  padding: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
 @media (max-width: 600px) {
   .page { padding: 12px; }
   .profile { flex-direction: column; align-items: flex-start; }
