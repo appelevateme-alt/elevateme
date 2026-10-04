@@ -390,10 +390,13 @@ const WORK_TABS = ['Overview', 'Sessions', 'Students', 'Evaluators', 'Performanc
 function Workspace({ programId, active }) {
   const { data: progRow, loading: progLoading, error: progError } = useSupabaseRecord({ table: 'programs', id: programId });
   const { data: sessionRows, loading: sessLoading, error: sessError } = useSupabaseList({ table: 'sessions', filters: { program_id: programId }, page: 1, pageSize: 50 });
-  const { data: regRows, loading: regsLoading, error: regsError, refetch: refetchRegs } = useSupabaseList({ table: 'registrations', filters: { program_id: programId }, page: 1, pageSize: 50 });
+  const { data: regRows, loading: regsLoading, error: regsError, refetch: refetchRegs } = useSupabaseList({ table: 'registrations', select: '*, profiles(id, elevate_me_id, full_name)', filters: { program_id: programId }, page: 1, pageSize: 50 });
   const { data: evalRows } = useSupabaseList({ table: 'program_evaluators', filters: { program_id: programId }, page: 1, pageSize: 20 });
+  const { data: evaluationRows, refetch: refetchEvaluations } = useSupabaseList({ table: 'evaluations', filters: { program_id: programId }, page: 1, pageSize: 100 });
   const [deciding, setDeciding] = useState(null);
   const [decideError, setDecideError] = useState('');
+  const [releasing, setReleasing] = useState(null);
+  const [releaseError, setReleaseError] = useState('');
 
   // Owning-coordinator decision via the audited, capacity-checked RPC.
   const decideRegistration = async (regId, decision) => {
@@ -407,6 +410,36 @@ function Workspace({ programId, active }) {
       setDecideError(err?.message || 'Could not record decision.');
     } finally {
       setDeciding(null);
+    }
+  };
+
+  // Releases every Submitted evaluation across every session in this
+  // program (admin or owning-coordinator only — see release_evaluations RPC).
+  const releaseAllEvaluations = async () => {
+    setReleaseError('');
+    setReleasing(true);
+    try {
+      const sessionIds = [...new Set((sessionRows || []).map((s) => s.id).filter(Boolean))];
+      if (sessionIds.length === 0) throw new Error('No sessions to release.');
+      let released = 0;
+      const failures = [];
+      for (const sessionId of sessionIds) {
+        const { error } = await supabase.rpc('release_evaluations', { p_session_id: sessionId });
+        if (error) {
+          // "Nothing to release" just means this session had no Submitted
+          // sheets — not a real failure when releasing across every session.
+          if (!/nothing to release/i.test(error.message || '')) failures.push(error.message);
+        } else {
+          released += 1;
+        }
+      }
+      if (failures.length > 0) throw new Error(failures.join(' '));
+      if (released === 0) throw new Error('Nothing to release: no submitted evaluations found.');
+      refetchEvaluations?.();
+    } catch (err) {
+      setReleaseError(err?.message || 'Could not release evaluations.');
+    } finally {
+      setReleasing(false);
     }
   };
 
@@ -444,21 +477,40 @@ function Workspace({ programId, active }) {
     {regsLoading && <p>Loading…</p>}
     {regsError && <div className="notice"><strong>Couldn’t load students.</strong> {regsError.message}</div>}
     {decideError && <p role="alert" className="field-error">{decideError}</p>}
+    {releaseError && <p role="alert" className="field-error">{releaseError}</p>}
     {!regsLoading && !regsError && (
       <DataTable headers={['Student', 'ElevateMe ID', 'Allocation', 'Registration', 'Evaluation', '']}
-        rows={roster.map((r) => [r.studentName, r.elevateMeId, r.allocation, <Status key={`${r.id}-s`} value={r.status} />, <Status key={`${r.id}-e`} value={r.evaluationState} />,
-          <span key={`${r.id}-a`} style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {r.status === 'Pending' ? (
-              <>
-                <Button small disabled={deciding === r.id} onClick={() => decideRegistration(r.id, 'Confirmed')}>Confirm</Button>
-                <Button small variant="secondary" disabled={deciding === r.id} onClick={() => decideRegistration(r.id, 'Waitlisted')}>Waitlist</Button>
-                <Button small variant="secondary" disabled={deciding === r.id} onClick={() => decideRegistration(r.id, 'Rejected')}>Reject</Button>
-              </>
-            ) : (
-              <span style={{ color: 'var(--muted)', fontSize: '.82rem' }}>Decided</span>
-            )}
-            <Link to={`/evaluator/assignments/${sessions[0]?.id || programId}/students/${r.elevateMeId || r.id}`} className="button secondary small">Evaluate</Link>
-          </span>])} />
+        rows={(regRows || []).map((row) => {
+          const r = toRegistration(row);
+          const studentEmId = row.profiles?.elevate_me_id || '';
+          const studentName = row.profiles?.full_name || r.studentName || '—';
+          const evaluation = (evaluationRows || []).find((e) => e.student_id === row.student_id && e.session_id === row.session_id);
+          return [studentName, studentEmId, r.allocation, <Status key={`${r.id}-s`} value={r.status} />, <Status key={`${r.id}-e`} value={r.evaluationState} />,
+            <span key={`${r.id}-a`} style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {r.status === 'Pending' ? (
+                <>
+                  <Button small disabled={deciding === r.id} onClick={() => decideRegistration(r.id, 'Confirmed')}>Confirm</Button>
+                  <Button small variant="secondary" disabled={deciding === r.id} onClick={() => decideRegistration(r.id, 'Waitlisted')}>Waitlist</Button>
+                  <Button small variant="secondary" disabled={deciding === r.id} onClick={() => decideRegistration(r.id, 'Rejected')}>Reject</Button>
+                </>
+              ) : (
+                <span style={{ color: 'var(--muted)', fontSize: '.82rem' }}>Decided</span>
+              )}
+              {sessions[0]?.id && studentEmId && (
+                <Link to={`/evaluator/assignments/${sessions[0].id}/students/${studentEmId}`} className="button secondary small">Evaluate</Link>
+              )}
+              {evaluation?.released && (
+                <span style={{ color: 'var(--muted)', fontSize: '.82rem' }}>Released</span>
+              )}
+            </span>];
+        })} />
+    )}
+    {!regsLoading && !regsError && (evaluationRows || []).length > 0 && (
+      <div style={{ marginTop: 16 }}>
+        <Button disabled={releasing} onClick={releaseAllEvaluations}>
+          {releasing ? 'Releasing…' : 'Release all evaluations'}
+        </Button>
+      </div>
     )}
   </>
 )}
@@ -527,7 +579,9 @@ export function CoordinatorStudents() {
     page: 1,
     pageSize: 20,
   });
-  const { data: regRows } = useSupabaseList({ table: 'registrations', page: 1, pageSize: 100 });
+  const { data: regRows, loading: regsLoading, error: regsError, refetch: refetchRegs } 
+  = useSupabaseList({ table: 'registrations', select: '*, profiles(id, elevate_me_id, full_name)', 
+    filters: { program_id: programId }, page: 1, pageSize: 50 });
   const { data: programRows } = useSupabaseList({ table: 'programs', page: 1, pageSize: 50 });
   const profiles = (profileRows || []).map(toProfile);
   const regs = (regRows || []).map(toRegistration);

@@ -213,6 +213,7 @@ export function PerStudentEvaluate() {
           return;
         }
         const cres = await createEval({
+          slug: `eval-${resolvedStudentId}-${assignmentId}-${Date.now().toString(36)}`,
           student_id: resolvedStudentId,
           program_id: programId,
           session_id: assignmentId,
@@ -247,6 +248,7 @@ export function PerStudentEvaluate() {
           return;
         }
         const cres = await createEval({
+          slug: `eval-${resolvedStudentId}-${assignmentId}-${Date.now().toString(36)}`,
           student_id: resolvedStudentId,
           program_id: programId,
           session_id: assignmentId,
