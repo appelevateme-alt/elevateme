@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, Navigate } from 'react-router-dom';
 import { AuthProvider } from './lib/auth.jsx';
 import { RequireAuth, RequireRole, Shell } from './components/shell.jsx';
 
@@ -14,20 +14,12 @@ import {
   ParentRecommendations, ParentStudent, ParentStudentPerformance,
   ParentStudentRecommendations, ThreadDetail,
 } from './views/parent.jsx';
-import {
-  CoordinatorDashboard, CoordinatorEvaluators, CoordinatorInsights,
-  CoordinatorPerformance, CoordinatorProfile, CoordinatorPrograms,
-  CoordinatorSessions, CoordinatorStudentDetail, CoordinatorStudents,
-  NewProgram, ProgramEdit, ProgramEvaluatorsTab, ProgramOverview,
-  ProgramSessionsTab, ProgramStudentsTab,
-} from './views/coordinator.jsx';
-import {
-  AssignmentPage, EvaluatorHome, EvaluatorStudents, EvaluatorSubmissions,
-  LegacyEvaluate, PerStudentEvaluate,
-} from './views/evaluator.jsx';
+import { NewProgram, ProgramEdit, ProgramOverview, ProgramSessionsTab, ProgramStudentsTab, ProgramPerformanceTab, ProgramSettingsTab, AdminStudents } from './views/program-management.jsx';
+import { GuestWorkspace } from './features/evaluator-access/GuestWorkspace.jsx';
+import { AdminInvitations, AdminReviewQueue, AdminReviewDetail, AdminDelivery } from './features/evaluator-access/AdminAccess.jsx';
 import {
   AdminAnnouncements, AdminApprovals, AdminAudit, AdminConfig,
-  AdminEvaluations, AdminInstitutes, AdminMessages, AdminOverview,
+  AdminInstitutes, AdminMessages, AdminOverview,
   AdminPrograms, AdminRecommendations, AdminReports, AdminUsers,
 } from './views/admin.jsx';
 
@@ -36,12 +28,6 @@ function StudentShell({ children }) {
 }
 function ParentShell({ children }) {
   return <RequireAuth><Shell role="parent"><RequireRole allow={['parent']} label="Parent">{children}</RequireRole></Shell></RequireAuth>;
-}
-function CoordinatorShell({ children }) {
-  return <RequireAuth><Shell role="coordinator"><RequireRole allow={['coordinator']} label="Coordinator">{children}</RequireRole></Shell></RequireAuth>;
-}
-function EvaluatorShell({ children }) {
-  return <RequireAuth><Shell role="evaluator"><RequireRole allow={['evaluator', 'coordinator']} label="Evaluator">{children}</RequireRole></Shell></RequireAuth>;
 }
 function AdminShell({ children }) {
   return <RequireAuth><Shell role="admin"><RequireRole allow={['admin']} label="Admin">{children}</RequireRole></Shell></RequireAuth>;
@@ -89,40 +75,28 @@ export default function App() {
         <Route path="/parent/students/:studentId/performance" element={<ParentShell><ParentStudentPerformance /></ParentShell>} />
         <Route path="/parent/students/:studentId/recommendations" element={<ParentShell><ParentStudentRecommendations /></ParentShell>} />
 
-        {/* Coordinator */}
-        <Route path="/coordinator" element={<CoordinatorShell><CoordinatorDashboard /></CoordinatorShell>} />
-        <Route path="/coordinator/programs" element={<CoordinatorShell><CoordinatorPrograms /></CoordinatorShell>} />
-        <Route path="/coordinator/programs/new" element={<CoordinatorShell><NewProgram /></CoordinatorShell>} />
-        <Route path="/coordinator/programs/:programId" element={<CoordinatorShell><ProgramOverview /></CoordinatorShell>} />
-        <Route path="/coordinator/programs/:programId/edit" element={<CoordinatorShell><ProgramEdit /></CoordinatorShell>} />
-        <Route path="/coordinator/programs/:programId/sessions" element={<CoordinatorShell><ProgramSessionsTab /></CoordinatorShell>} />
-        <Route path="/coordinator/programs/:programId/students" element={<CoordinatorShell><ProgramStudentsTab /></CoordinatorShell>} />
-        <Route path="/coordinator/programs/:programId/evaluators" element={<CoordinatorShell><ProgramEvaluatorsTab /></CoordinatorShell>} />
-        <Route path="/coordinator/sessions" element={<CoordinatorShell><CoordinatorSessions /></CoordinatorShell>} />
-        <Route path="/coordinator/students" element={<CoordinatorShell><CoordinatorStudents /></CoordinatorShell>} />
-        <Route path="/coordinator/students/:studentId" element={<CoordinatorShell><CoordinatorStudentDetail /></CoordinatorShell>} />
-        <Route path="/coordinator/evaluators" element={<CoordinatorShell><CoordinatorEvaluators /></CoordinatorShell>} />
-        <Route path="/coordinator/performance" element={<CoordinatorShell><CoordinatorPerformance /></CoordinatorShell>} />
-        <Route path="/coordinator/insights" element={<CoordinatorShell><CoordinatorInsights /></CoordinatorShell>} />
-        <Route path="/coordinator/profile" element={<CoordinatorShell><CoordinatorProfile /></CoordinatorShell>} />
-
-        {/* Evaluator */}
-        <Route path="/evaluator" element={<EvaluatorShell><EvaluatorHome /></EvaluatorShell>} />
-        <Route path="/evaluator/assignments/:assignmentId" element={<EvaluatorShell><AssignmentPage /></EvaluatorShell>} />
-        <Route path="/evaluator/assignments/:assignmentId/students/:studentId" element={<EvaluatorShell><PerStudentEvaluate /></EvaluatorShell>} />
-        <Route path="/evaluator/evaluation" element={<EvaluatorShell><LegacyEvaluate /></EvaluatorShell>} />
-        <Route path="/evaluator/evaluate" element={<EvaluatorShell><LegacyEvaluate /></EvaluatorShell>} />
-        <Route path="/evaluator/students" element={<EvaluatorShell><EvaluatorStudents /></EvaluatorShell>} />
-        <Route path="/evaluator/status" element={<EvaluatorShell><EvaluatorSubmissions /></EvaluatorShell>} />
-        <Route path="/evaluator/submissions" element={<EvaluatorShell><EvaluatorSubmissions /></EvaluatorShell>} />
+        <Route path="/evaluate/*" element={<GuestWorkspace />} />
+        <Route path="/evaluator/*" element={<Navigate to="/evaluate/invite" replace />} />
+        <Route path="/coordinator/*" element={<Navigate to="/evaluate/invite" replace />} />
 
         {/* Admin */}
         <Route path="/admin" element={<AdminShell><AdminOverview /></AdminShell>} />
         <Route path="/admin/approvals" element={<AdminShell><AdminApprovals /></AdminShell>} />
         <Route path="/admin/programs" element={<AdminShell><AdminPrograms /></AdminShell>} />
+        <Route path="/admin/programs/new" element={<AdminShell><NewProgram /></AdminShell>} />
+        <Route path="/admin/programs/:programId" element={<AdminShell><ProgramOverview /></AdminShell>} />
+        <Route path="/admin/programs/:programId/edit" element={<AdminShell><ProgramEdit /></AdminShell>} />
+        <Route path="/admin/programs/:programId/sessions" element={<AdminShell><ProgramSessionsTab /></AdminShell>} />
+        <Route path="/admin/programs/:programId/students" element={<AdminShell><ProgramStudentsTab /></AdminShell>} />
+        <Route path="/admin/programs/:programId/performance" element={<AdminShell><ProgramPerformanceTab /></AdminShell>} />
+        <Route path="/admin/programs/:programId/settings" element={<AdminShell><ProgramSettingsTab /></AdminShell>} />
+        <Route path="/admin/students" element={<AdminShell><AdminStudents /></AdminShell>} />
+        <Route path="/admin/evaluator-invitations" element={<AdminShell><AdminInvitations /></AdminShell>} />
+        <Route path="/admin/evaluations/:id" element={<AdminShell><AdminReviewDetail /></AdminShell>} />
+        <Route path="/admin/delivery" element={<AdminShell><AdminDelivery /></AdminShell>} />
         <Route path="/admin/users" element={<AdminShell><AdminUsers /></AdminShell>} />
         <Route path="/admin/institutes" element={<AdminShell><AdminInstitutes /></AdminShell>} />
-        <Route path="/admin/evaluations" element={<AdminShell><AdminEvaluations /></AdminShell>} />
+        <Route path="/admin/evaluations" element={<AdminShell><AdminReviewQueue /></AdminShell>} />
         <Route path="/admin/recommendations" element={<AdminShell><AdminRecommendations /></AdminShell>} />
         <Route path="/admin/announcements" element={<AdminShell><AdminAnnouncements /></AdminShell>} />
         <Route path="/admin/messages" element={<AdminShell><AdminMessages /></AdminShell>} />

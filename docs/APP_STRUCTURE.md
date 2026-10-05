@@ -1,5 +1,20 @@
 # ElevateMe — Backend Structure & How It Works
 
+## Current evaluator-access cutover
+
+Migration `010_temporary_evaluator_access.sql` is the current authority for
+evaluation work. DI admins issue a single-use evaluator link with a fixed
+24-hour deadline. The Java access service stores scoped sheets and revisions in
+the private `evaluator_private` schema, keeps evaluator identity/internal notes
+out of student-facing views, and releases reports only after admin approval.
+
+The older `coordinator`/`evaluator` role and `program_evaluators` workflow is
+retained only as historical data. Its RLS ownership/assignment paths and old
+submission/release RPC execution grants are removed by migration 010. See
+[`docs/PERMISSIONS.md`](PERMISSIONS.md) and
+[`docs/ElevateMe_Evaluator_Access_Deployment.md`](ElevateMe_Evaluator_Access_Deployment.md)
+for the current matrix and deployment sequence.
+
 > Generated 2026-09-21. Matches the live Supabase project
 > (`aivdidyfygbwuhesfhce`, Postgres 14, region ap-southeast-2).
 > Setup/credentials: `supabase/ADMIN_BOOTSTRAP.md`. Migrations: `supabase/migrations/` (001–008, run in order).

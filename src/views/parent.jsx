@@ -37,8 +37,8 @@ function linkedTitle(linked, fallback) {
 
 export function ParentOverview() {
   const { data: recRows } = useSupabaseList({ table: 'recommendations', page: 1, pageSize: 20 });
-  const { data: evalRows } = useSupabaseList({ table: 'evaluations', filters: { released: true }, page: 1, pageSize: 20 });
-  const { data: scoreRows } = useSupabaseList({ table: 'evaluation_scores', page: 1, pageSize: 100 });
+  const { data: evalRows } = useSupabaseList({ table: 'published_evaluations', filters: { released: true }, page: 1, pageSize: 20 });
+  const { data: scoreRows } = useSupabaseList({ table: 'published_evaluation_scores', page: 1, pageSize: 100 });
   const recs = (recRows || []).map(toRecommendation);
   const evals = (evalRows || []).map(toEvaluation);
   const topRec = recs[0];
@@ -104,8 +104,8 @@ export function ParentOverview() {
 export function ParentPerformance() {
   const linked = useLinkedStudent();
   const perfTitle = linkedTitle(linked, 'progress');
-  const { data: evalRows, loading, error } = useSupabaseList({ table: 'evaluations', filters: { released: true }, page: 1, pageSize: 20 });
-  const { data: scoreRows } = useSupabaseList({ table: 'evaluation_scores', page: 1, pageSize: 100 });
+  const { data: evalRows, loading, error } = useSupabaseList({ table: 'published_evaluations', filters: { released: true }, page: 1, pageSize: 20 });
+  const { data: scoreRows } = useSupabaseList({ table: 'published_evaluation_scores', page: 1, pageSize: 100 });
   const evals = (evalRows || []).map(toEvaluation).filter((e) => e.released);
   const evalIds = new Set(evals.map((e) => e.id));
   const myScores = (scoreRows || []).filter((s) => evalIds.has(s.evaluation_id ?? s.evaluationId));
@@ -218,7 +218,7 @@ export function ParentStudentPerformance() {
   const linked = useLinkedStudent();
   const whoDesc = linked?.name ? `${linked.name}${linked.elevateMeId ? ` · ${linked.elevateMeId}` : ''}` : studentId;
   const { data: evalRows, loading, error } = useSupabaseList({
-    table: 'evaluations',
+    table: 'published_evaluations',
     filters: linkedId ? { student_id: linkedId, released: true } : { released: true },
     page: 1,
     pageSize: 20,

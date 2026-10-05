@@ -16,25 +16,14 @@ export const ROLE_NAV = {
     { href: '/parent/recommendations', label: 'Recommendations' },
     { href: '/parent/messages', label: 'Messages' },
   ],
-  coordinator: [
-    { href: '/coordinator', label: 'Overview' },
-    { href: '/coordinator/programs', label: 'Programs' },
-    { href: '/coordinator/students', label: 'Students' },
-    { href: '/coordinator/evaluators', label: 'Evaluators' },
-    { href: '/coordinator/performance', label: 'Performance' },
-    { href: '/coordinator/profile', label: 'Profile' },
-  ],
-  evaluator: [
-    { href: '/evaluator', label: 'Assignments' },
-    { href: '/evaluator/submissions', label: 'Submissions' },
-    { href: '/evaluator/evaluation', label: 'Evaluation form' },
-  ],
   admin: [
     { href: '/admin', label: 'Overview' },
     { href: '/admin/approvals', label: 'Approval queue' },
     { href: '/admin/programs', label: 'Programs' },
     { href: '/admin/users', label: 'Users' },
     { href: '/admin/evaluations', label: 'Evaluations' },
+    { href: '/admin/evaluator-invitations', label: 'Evaluator access' },
+    { href: '/admin/delivery', label: 'Report delivery' },
     { href: '/admin/recommendations', label: 'Recommendations' },
     { href: '/admin/announcements', label: 'Announcements' },
     { href: '/admin/messages', label: 'Messages' },
@@ -48,15 +37,6 @@ export const ROLE_NAV_MORE = {
     { href: '/student/parent-access', label: 'Parent Access' },
   ],
   parent: [],
-  coordinator: [
-    { href: '/coordinator/sessions', label: 'Sessions / Committees' },
-    { href: '/coordinator/insights', label: 'Cohort Insights' },
-  ],
-  evaluator: [
-    { href: '/evaluator/evaluate', label: 'Evaluation Form (legacy)' },
-    { href: '/evaluator/students', label: 'Student List' },
-    { href: '/evaluator/status', label: 'Submission Status' },
-  ],
   admin: [
     { href: '/admin/reports', label: 'Reports' },
     { href: '/admin/configuration', label: 'Configuration' },
@@ -73,15 +53,13 @@ export const PUBLIC_NAV = [
 export const ROLE_LABEL = {
   student: 'Student',
   parent: 'Parent',
-  coordinator: 'Coordinator',
-  evaluator: 'Evaluator',
+  coordinator: 'Retired staff account',
+  evaluator: 'Retired staff account',
   admin: 'DI Admin',
 };
 
 export const ROLE_USER = {
   student: { name: 'Nimuthu Fernando', meta: 'Student · EM-00124', initials: 'NF' },
   parent: { name: 'S. Fernando', meta: 'Parent · Linked to 1 student', initials: 'SF' },
-  coordinator: { name: 'Ms. Perera', meta: 'Programme Coordinator', initials: 'MP' },
-  evaluator: { name: 'Dr. Jayasinghe', meta: 'Resource Person', initials: 'DJ' },
   admin: { name: 'Diplomatic Impact', meta: 'Platform Administrator', initials: 'DI' },
 };

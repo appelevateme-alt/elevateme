@@ -1,5 +1,5 @@
 {
-  "_legacyNote": "DEPRECATED root entry: serves legacy src/main.jsx only. Revamp lives in frontend/ per docs/REVMAP.md migration plan. Do not add features here; see README.md pointer.",
+  "_legacyNote": "The deployed Vercel project currently builds src/main.jsx. This review branch keeps the evaluator-access cutover in the root entry; the frontend/ TypeScript revamp remains isolated until the hosting cutover.",
   "name": "elevateme",
   "private": true,
   "version": "0.0.0",
@@ -17,6 +17,8 @@
     "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-socket": "^0.2.11",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",

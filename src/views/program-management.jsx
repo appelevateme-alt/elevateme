@@ -7,8 +7,8 @@ import { supabase } from '../lib/supabaseClient.js';
 import { toEvaluation, toProfile, toProgram, toRegistration, toSession } from '../lib/adapters.js';
 import { useAuth } from '../lib/auth.jsx';
 
-/* ---------- Coordinator overview (prototype) ---------- */
-export function CoordinatorDashboard() {
+/* ---------- Admin programme overview ---------- */
+export function AdminOverviewLegacy() {
   const { data: progRows, count: progCount, loading: progsLoading } = useSupabaseList({ table: 'programs', page: 1, pageSize: 3 });
   const { count: regCount } = useSupabaseList({ table: 'registrations', page: 1, pageSize: 1 });
   const { count: evalCount } = useSupabaseList({ table: 'evaluations', filters: { released: false }, page: 1, pageSize: 1 });
@@ -21,8 +21,8 @@ export function CoordinatorDashboard() {
 
   return (
     <div>
-      <PageHead kicker="Coordinator overview" title="Programs at a glance." desc="Monitor registration, session readiness and evaluation completion."
-        action={<Link to="/coordinator/programs" className="button">Create program →</Link>} />
+      <PageHead kicker="Admin overview" title="Programs at a glance." desc="Monitor registration, session readiness and evaluation completion."
+        action={<Link to="/admin/programs" className="button">Create program →</Link>} />
       <Metrics items={[
         ['Active programs', progsLoading ? '00' : String(progCount ?? programs.length).padStart(2, '0'), changesNeeded > 0 ? `${changesNeeded} need changes` : 'Across your programs'],
         ['Registered students', String(regCount).padStart(2, '0'), 'Across all programs'],
@@ -31,7 +31,7 @@ export function CoordinatorDashboard() {
       ]} />
       <div className="grid dashboard">
         <section className="panel">
-          <div className="panel-head"><h2>Program status</h2><Link to="/coordinator/programs" className="button quiet small">Manage all →</Link></div>
+          <div className="panel-head"><h2>Program status</h2><Link to="/admin/programs" className="button quiet small">Manage all →</Link></div>
           <div className="panel-body">
             <div className="flat-list">
               {programs.slice(0, 3).map((p) => (
@@ -66,7 +66,7 @@ export function CoordinatorDashboard() {
 }
 
 /* ---------- Programme management (Supabase-backed + kept builder) ---------- */
-export function CoordinatorPrograms() {
+export function AdminProgramsLegacy() {
   const { session } = useAuth();
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('All statuses');
@@ -95,7 +95,7 @@ export function CoordinatorPrograms() {
   return (
     <div>
       <PageHead kicker="Programme management" title="Your programs." desc="Create events, manage their structure and submit them to Diplomatic Impact for approval."
-        action={<div style={{ display: 'flex', gap: 10 }}><Button onClick={() => setShowForm((s) => !s)}>{showForm ? 'Close' : 'Quick create →'}</Button><Link to="/coordinator/programs/new" className="button secondary">Guided builder →</Link></div>} />
+        action={<div style={{ display: 'flex', gap: 10 }}><Button onClick={() => setShowForm((s) => !s)}>{showForm ? 'Close' : 'Quick create →'}</Button><Link to="/admin/programs/new" className="button secondary">Guided builder →</Link></div>} />
       {showForm && (
         <section className="panel" style={{ marginBottom: 24 }}>
           <div className="panel-head"><h2>Create a program</h2><button className="icon-button" aria-label="Close" onClick={() => setShowForm(false)}>✕</button></div>
@@ -144,7 +144,7 @@ export function CoordinatorPrograms() {
           rows={rows.map((p) => [
             <strong key="t">{p.title}</strong>, p.typeLabel, `${p.date} 2026`, `${p.registered} / ${p.capacity}`,
             <Status key="s" value={p.status} />,
-            <Link key="m" to={`/coordinator/programs/${p.id}`} className="button secondary small">Manage</Link>,
+            <Link key="m" to={`/admin/programs/${p.id}`} className="button secondary small">Manage</Link>,
           ])} caption="Managed programs" />
       )}
     </div>
@@ -154,8 +154,9 @@ export function CoordinatorPrograms() {
 /* ---------- Guided 6-step builder (Supabase-backed) ---------- */
 const STEPS = ['Basics', 'Schedule and location', 'Program structure', 'Registration rules', 'Media and description', 'Review and submit'];
 
-// RLS allows coordinators to INSERT programs only as status 'Draft' with
-// created_by = own id, and to UPDATE own rows only while status stays in
+// RLS allows the authenticated programme owner to INSERT programs only as
+// status 'Draft' with created_by = own id, and to UPDATE own rows only while
+// status stays in
 // Draft/Submitted/ChangesRequested (see supabase/migrations/003_rls.sql).
 // Approval to UnderReview+ happens via the admin approve_program RPC —
 // never by writing status directly. Slug columns are NOT NULL with no
@@ -250,7 +251,7 @@ export function NewProgram() {
         description,
         created_by: session?.userId || null,
       };
-      // Coordinators may only move own rows Draft -> Submitted (RLS allows
+      // Programme owners may only move own rows Draft -> Submitted (RLS allows
       // Draft/Submitted/ChangesRequested). UnderReview+ is set by the admin
       // approve_program RPC, never by direct write — writing 'UnderReview'
       // here is denied with 42501 ("You do not have permission").
@@ -294,7 +295,7 @@ export function NewProgram() {
         <div className="notice" style={{ marginBottom: 22 }}>
           <strong>What happens next.</strong> An administrator reviews <strong>{title || 'your program'}</strong> and approves, requests changes, or rejects it.
         </div>
-        <Link to="/coordinator/programs" className="button secondary">Back to programs</Link>
+        <Link to="/admin/programs" className="button secondary">Back to programs</Link>
       </div>
     );
   }
@@ -385,20 +386,17 @@ export function NewProgram() {
 }
 
 /* ---------- Program workspace tabs (Supabase-backed) ---------- */
-const WORK_TABS = ['Overview', 'Sessions', 'Students', 'Evaluators', 'Performance', 'Settings'];
+const WORK_TABS = ['Overview', 'Sessions', 'Students', 'Performance', 'Settings'];
 
 function Workspace({ programId, active }) {
   const { data: progRow, loading: progLoading, error: progError } = useSupabaseRecord({ table: 'programs', id: programId });
   const { data: sessionRows, loading: sessLoading, error: sessError } = useSupabaseList({ table: 'sessions', filters: { program_id: programId }, page: 1, pageSize: 50 });
   const { data: regRows, loading: regsLoading, error: regsError, refetch: refetchRegs } = useSupabaseList({ table: 'registrations', select: '*, profiles(id, elevate_me_id, full_name)', filters: { program_id: programId }, page: 1, pageSize: 50 });
-  const { data: evalRows } = useSupabaseList({ table: 'program_evaluators', filters: { program_id: programId }, page: 1, pageSize: 20 });
-  const { data: evaluationRows, refetch: refetchEvaluations } = useSupabaseList({ table: 'evaluations', filters: { program_id: programId }, page: 1, pageSize: 100 });
+  const { data: evaluationRows } = useSupabaseList({ table: 'evaluations', filters: { program_id: programId }, page: 1, pageSize: 100 });
   const [deciding, setDeciding] = useState(null);
   const [decideError, setDecideError] = useState('');
-  const [releasing, setReleasing] = useState(null);
-  const [releaseError, setReleaseError] = useState('');
 
-  // Owning-coordinator decision via the audited, capacity-checked RPC.
+  // Admin decision via the audited, capacity-checked RPC.
   const decideRegistration = async (regId, decision) => {
     setDecideError('');
     setDeciding(regId);
@@ -413,51 +411,19 @@ function Workspace({ programId, active }) {
     }
   };
 
-  // Releases every Submitted evaluation across every session in this
-  // program (admin or owning-coordinator only — see release_evaluations RPC).
-  const releaseAllEvaluations = async () => {
-    setReleaseError('');
-    setReleasing(true);
-    try {
-      const sessionIds = [...new Set((sessionRows || []).map((s) => s.id).filter(Boolean))];
-      if (sessionIds.length === 0) throw new Error('No sessions to release.');
-      let released = 0;
-      const failures = [];
-      for (const sessionId of sessionIds) {
-        const { error } = await supabase.rpc('release_evaluations', { p_session_id: sessionId });
-        if (error) {
-          // "Nothing to release" just means this session had no Submitted
-          // sheets — not a real failure when releasing across every session.
-          if (!/nothing to release/i.test(error.message || '')) failures.push(error.message);
-        } else {
-          released += 1;
-        }
-      }
-      if (failures.length > 0) throw new Error(failures.join(' '));
-      if (released === 0) throw new Error('Nothing to release: no submitted evaluations found.');
-      refetchEvaluations?.();
-    } catch (err) {
-      setReleaseError(err?.message || 'Could not release evaluations.');
-    } finally {
-      setReleasing(false);
-    }
-  };
-
   if (progLoading) return <div><p>Loading…</p><SkeletonRows rows={4} /></div>;
   if (progError) return <div className="notice"><strong>Couldn’t load this program.</strong> {progError.message}</div>;
   if (!progRow) return <div className="notice"><strong>Program not found.</strong> It may have been removed.</div>;
 
   const program = toProgram(progRow);
   const sessions = (sessionRows || []).map(toSession);
-  const roster = (regRows || []).map(toRegistration);
-  const evaluatorCount = (evalRows || []).length;
   const nextAction = { Draft: 'Submit for approval', ChangesRequested: 'Revise and resubmit', Approved: 'Publish to directory', Published: 'Close registration when full', InProgress: 'Track evaluations', UnderReview: 'Awaiting admin review' };
 
   return (
     <div>
       <PageHead kicker="Program workspace" title={`${program.title}.`} desc={`${program.institute} · ${program.startDate} → ${program.endDate} · Next: ${nextAction[program.status] || program.status}`}
-        action={<div style={{ display: 'flex', gap: 10 }}><Status value={program.status} /><Link to={`/coordinator/programs/${program.id}/edit`} className="button secondary small">Edit</Link></div>} />
-      <Tabs tabs={WORK_TABS} active={active} base={`/coordinator/programs/${program.id}`} />
+        action={<div style={{ display: 'flex', gap: 10 }}><Status value={program.status} /><Link to={`/admin/programs/${program.id}/edit`} className="button secondary small">Edit</Link></div>} />
+      <Tabs tabs={WORK_TABS} active={active} base={`/admin/programs/${program.id}`} />
       {active === 'Overview' && (
         <div className="flat-list">
           {[['Type', program.typeLabel || program.category], ['Venue', program.venue], ['Capacity', `${program.registered}/${program.capacity}`], ['Description', program.description]].map(([k, v]) => (
@@ -477,7 +443,6 @@ function Workspace({ programId, active }) {
     {regsLoading && <p>Loading…</p>}
     {regsError && <div className="notice"><strong>Couldn’t load students.</strong> {regsError.message}</div>}
     {decideError && <p role="alert" className="field-error">{decideError}</p>}
-    {releaseError && <p role="alert" className="field-error">{releaseError}</p>}
     {!regsLoading && !regsError && (
       <DataTable headers={['Student', 'ElevateMe ID', 'Allocation', 'Registration', 'Evaluation', '']}
         rows={(regRows || []).map((row) => {
@@ -496,31 +461,16 @@ function Workspace({ programId, active }) {
               ) : (
                 <span style={{ color: 'var(--muted)', fontSize: '.82rem' }}>Decided</span>
               )}
-              {sessions[0]?.id && studentEmId && (
-                <Link to={`/evaluator/assignments/${sessions[0].id}/students/${studentEmId}`} className="button secondary small">Evaluate</Link>
-              )}
+              <Link to="/admin/evaluator-invitations" className="button secondary small">Assign evaluator</Link>
               {evaluation?.released && (
                 <span style={{ color: 'var(--muted)', fontSize: '.82rem' }}>Released</span>
               )}
             </span>];
         })} />
     )}
-    {!regsLoading && !regsError && (evaluationRows || []).length > 0 && (
-      <div style={{ marginTop: 16 }}>
-        <Button disabled={releasing} onClick={releaseAllEvaluations}>
-          {releasing ? 'Releasing…' : 'Release all evaluations'}
-        </Button>
-      </div>
-    )}
+    <p><Link to="/admin/evaluations" className="button">Review and release reports</Link></p>
   </>
 )}
-      {active === 'Evaluators' && (
-        evaluatorCount > 0 ? (
-          <DataTable headers={['Evaluator', 'Session', 'Access']} rows={(evalRows || []).map((e, i) => [e.evaluator_id || `Evaluator ${i + 1}`, sessions[0]?.title || '—', <Status key={`e-${i}`} value={e.status || 'Approved'} />])} />
-        ) : (
-          <Empty title="No evaluators assigned." body="Assign evaluators to this program to begin." />
-        )
-      )}
       {active === 'Performance' && <p style={{ color: 'var(--muted)' }}>Individual and aggregate views unlock in Performance once evaluations are released.</p>}
       {active === 'Settings' && <p style={{ color: 'var(--muted)' }}>Registration window, capacity, visibility, and contact details. Editing is restricted after submission according to lifecycle status.</p>}
     </div>
@@ -530,7 +480,8 @@ function Workspace({ programId, active }) {
 export function ProgramOverview() { const { programId } = useParams(); return <Workspace programId={programId} active="Overview" />; }
 export function ProgramSessionsTab() { const { programId } = useParams(); return <Workspace programId={programId} active="Sessions" />; }
 export function ProgramStudentsTab() { const { programId } = useParams(); return <Workspace programId={programId} active="Students" />; }
-export function ProgramEvaluatorsTab() { const { programId } = useParams(); return <Workspace programId={programId} active="Evaluators" />; }
+export function ProgramPerformanceTab() { const { programId } = useParams(); return <Workspace programId={programId} active="Performance" />; }
+export function ProgramSettingsTab() { const { programId } = useParams(); return <Workspace programId={programId} active="Settings" />; }
 
 export function ProgramEdit() {
   const { programId } = useParams();
@@ -563,7 +514,7 @@ export function ProgramEdit() {
         <div className="notice">
           <strong>Editing restricted.</strong> {program.title} is <strong>{program.status}</strong>. After submission, editing is restricted according to
           lifecycle status — request changes through the admin queue or duplicate as a new draft.
-          <div style={{ marginTop: 10 }}><Link to={`/coordinator/programs/${program.id}`} className="button secondary small">Back to workspace</Link></div>
+          <div style={{ marginTop: 10 }}><Link to={`/admin/programs/${program.id}`} className="button secondary small">Back to workspace</Link></div>
         </div>
       )}
     </div>
@@ -571,7 +522,7 @@ export function ProgramEdit() {
 }
 
 /* ---------- Student details sheet (Supabase-backed) ---------- */
-export function CoordinatorStudents() {
+export function AdminStudents() {
   const [q, setQ] = useState('');
   const { data: profileRows, loading, error } = useSupabaseList({
     table: 'profiles',
@@ -579,9 +530,7 @@ export function CoordinatorStudents() {
     page: 1,
     pageSize: 20,
   });
-  const { data: regRows, loading: regsLoading, error: regsError, refetch: refetchRegs } 
-  = useSupabaseList({ table: 'registrations', select: '*, profiles(id, elevate_me_id, full_name)', 
-    filters: { program_id: programId }, page: 1, pageSize: 50 });
+  const { data: regRows } = useSupabaseList({ table: 'registrations', select: '*, profiles(id, elevate_me_id, full_name)', page: 1, pageSize: 100 });
   const { data: programRows } = useSupabaseList({ table: 'programs', page: 1, pageSize: 50 });
   const profiles = (profileRows || []).map(toProfile);
   const regs = (regRows || []).map(toRegistration);
@@ -612,7 +561,7 @@ export function CoordinatorStudents() {
         <DataTable headers={['No.', 'Name', 'ElevateMe ID', 'Allocation', 'Registration', 'Evaluation']}
           rows={rows.map((r, i) => [
             String(i + 1).padStart(2, '0'),
-            <Link key="n" to={`/coordinator/students/${r.elevateMeId}`} className="link-quiet"><strong>{r.name}</strong></Link>,
+            <Link key="n" to={`/admin/students/${r.elevateMeId}`} className="link-quiet"><strong>{r.name}</strong></Link>,
             r.elevateMeId, r.allocation,
             <Status key="r" value={r.registration} />, <Status key="e" value={r.evaluation} />,
           ])} caption="Registered students" />
@@ -621,7 +570,7 @@ export function CoordinatorStudents() {
   );
 }
 
-export function CoordinatorStudentDetail() {
+export function AdminStudentDetail() {
   const { studentId } = useParams();
   const { data: profileRows } = useSupabaseList({ table: 'profiles', filters: { elevate_me_id: studentId }, page: 1, pageSize: 1 });
   const { data: evalRows } = useSupabaseList({ table: 'evaluations', filters: { released: true }, page: 1, pageSize: 50 });
@@ -637,37 +586,7 @@ export function CoordinatorStudentDetail() {
   );
 }
 
-/* ---------- Evaluators (Supabase-backed, literals as fallback) ---------- */
-export function CoordinatorEvaluators() {
-  const { data, loading, error } = useSupabaseList({ table: 'program_evaluators', page: 1, pageSize: 20 });
-  const { data: profileRows } = useSupabaseList({ table: 'profiles', page: 1, pageSize: 50 });
-  const nameById = new Map((profileRows || []).map(toProfile).map((p) => [p.userId, p.name]));
-  const rows = (data || []).map((e, i) => {
-    const name = nameById.get(e.evaluator_id) || e.evaluator_id || `Evaluator ${i + 1}`;
-    return [
-      <span key={`a-${i}`}><strong>{name}</strong><br /><span className="row-meta">{e.evaluator_id || ''}</span></span>,
-      e.program_id || e.session_id || 'Assigned program',
-      '—',
-      '—',
-      <Status key={`s-${i}`} value={e.status || 'Active'} />,
-    ];
-  });
-  if (loading) return <div><PageHead kicker="Access management" title="Evaluators." desc="Assign resource people to a program or session and track submission progress." action={<Button>Invite evaluator →</Button>} /><SkeletonRows rows={3} /></div>;
-  if (error) return <div><PageHead kicker="Access management" title="Evaluators." desc="Assign resource people to a program or session and track submission progress." action={<Button>Invite evaluator →</Button>} /><div className="notice"><strong>Couldn’t load evaluators.</strong> {error.message}</div></div>;
-  return (
-    <div>
-      <PageHead kicker="Access management" title="Evaluators." desc="Assign resource people to a program or session and track submission progress."
-        action={<Button>Invite evaluator →</Button>} />
-      {rows.length > 0 ? (
-        <DataTable headers={['Resource person', 'Assignment', 'Students', 'Progress', 'Access']} rows={rows} />
-      ) : (
-        <Empty title="No evaluators assigned." body="Invite resource people to a program or session to begin." />
-      )}
-    </div>
-  );
-}
-
-export function CoordinatorSessions() {
+export function AdminSessions() {
   const { data, loading, error } = useSupabaseList({ table: 'programs', page: 1, pageSize: 20 });
   const programs = (data || []).map(toProgram);
   if (loading) return <div><PageHead kicker="Schedule" title="Sessions / Committees." desc="MUN committees, debate motions, continuous-program sessions." /><SkeletonRows rows={3} /></div>;
@@ -681,7 +600,7 @@ export function CoordinatorSessions() {
             <div key={p.id} className="list-row compact">
               <div className="row-meta">{p.date}</div>
               <div className="row-main"><h3>{p.title}</h3><p>{p.meta}</p></div>
-              <Link to={`/coordinator/programs/${p.id}/sessions`} className="button secondary small">Open</Link>
+              <Link to={`/admin/programs/${p.id}/sessions`} className="button secondary small">Open</Link>
             </div>
           ))}
           {programs.length === 0 && <p style={{ color: 'var(--muted)' }}>No programs yet.</p>}
@@ -691,8 +610,8 @@ export function CoordinatorSessions() {
   );
 }
 
-/* ---------- Coordinator performance + insights + profile ---------- */
-export function CoordinatorPerformance() {
+/* ---------- Legacy cohort views kept for data compatibility ---------- */
+export function AdminPerformance() {
   const { data: evalRows } = useSupabaseList({ table: 'evaluations', filters: { released: true }, page: 1, pageSize: 5 });
   const releasedCount = (evalRows || []).length;
   return (
@@ -727,7 +646,7 @@ export function CoordinatorPerformance() {
   );
 }
 
-export function CoordinatorInsights() {
+export function AdminInsights() {
   const { data: evalRows } = useSupabaseList({ table: 'evaluations', filters: { released: true }, page: 1, pageSize: 5 });
   const releasedCount = (evalRows || []).length;
   return (
@@ -749,7 +668,7 @@ export function CoordinatorInsights() {
   );
 }
 
-export function CoordinatorProfile() {
+export function AdminProfile() {
   const { session } = useAuth();
   const { data: profile } = useSupabaseRecord({ table: 'profiles', id: session?.userId });
   const fullName = profile?.full_name || session?.name || '';
@@ -760,7 +679,7 @@ export function CoordinatorProfile() {
     <div>
       <PageHead kicker="Account" title="Your profile." desc="Institutional profile. Approval by admin; cannot self-approve." />
       <section className="panel">
-        <div className="panel-head"><h2>Coordinator details</h2><Status value={status} /></div>
+        <div className="panel-head"><h2>Account details</h2><Status value={status} /></div>
         <div className="panel-body form-grid">
           <div className="field"><label>Full name<input defaultValue={fullName} key={fullName} /></label></div>
           <div className="field"><label>Institute<input defaultValue={profile?.institute || ''} key={profile?.institute || 'inst'} /></label></div>

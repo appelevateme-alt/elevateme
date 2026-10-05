@@ -153,7 +153,7 @@ export function RegistrationPanel({ programTitle, programId, sessions = [], clos
       <div className="notice">
         <strong>Registration pending.</strong> Your request for <strong>{programTitle}</strong>
         {doneSession && <> — <strong>{doneSession.title}</strong></>} is <strong>Pending</strong>.
-        A coordinator will confirm or waitlist it; you will be notified of the outcome.
+        Diplomatic Impact will confirm or waitlist it; you will be notified of the outcome.
       </div>
     );
   }
@@ -179,7 +179,7 @@ export function RegistrationPanel({ programTitle, programId, sessions = [], clos
           });
           if (res?.error) throw new Error(res.error.message);
           setSubmitted(true);
-          notify?.('Registration submitted — Pending coordinator confirmation');
+          notify?.('Registration submitted — Pending DI confirmation');
         } catch (err) {
           setError(`${err?.message || 'Registration failed. Please try again.'} Your selection is preserved.`);
         }
@@ -199,7 +199,7 @@ export function RegistrationPanel({ programTitle, programId, sessions = [], clos
         <div className="notice" style={{ marginBottom: 14 }}>
           <strong>Confirm your registration.</strong> {programTitle}
           {sessions.find((s) => s.id === choice) && <> — {sessions.find((s) => s.id === choice)?.title}</>}.
-          Submitting creates a <strong>Pending</strong> registration for coordinator confirmation.
+          Submitting creates a <strong>Pending</strong> registration for DI confirmation.
         </div>
       )}
       {combinedError && <p role="alert" className="field-error" style={{ marginBottom: 14 }}>{combinedError}</p>}

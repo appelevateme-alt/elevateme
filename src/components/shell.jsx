@@ -1,10 +1,11 @@
+import { ReportNotifications } from '../features/evaluator-access/ReportNotifications.jsx';
 import { useState } from 'react';
 import { Link, Navigate, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { ROLE_LABEL, ROLE_NAV } from '../lib/nav.js';
 import { roleHome, useAuth } from '../lib/auth.jsx';
 import { Button } from './ui.jsx';
 
-const ROLES = ['student', 'parent', 'coordinator', 'evaluator', 'admin'];
+const ROLES = ['student', 'parent', 'admin'];
 
 function pageTitle(path) {
   const seg = path.split('/').filter(Boolean).pop() || 'dashboard';
@@ -82,7 +83,7 @@ export function Shell({ role, children }) {
             )}
           </div>
         </header>
-        <main id="main" className="main-content" tabIndex={-1}>{children}</main>
+        <main id="main" className="main-content" tabIndex={-1}>{['admin', 'student', 'parent'].includes(role) && <ReportNotifications />}{children}</main>
       </div>
     </div>
   );
