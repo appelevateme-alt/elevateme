@@ -2,9 +2,30 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
-  "headers": [{ "source": "/evaluate/:path*", "headers": [
-    { "key": "Referrer-Policy", "value": "no-referrer" },
-    { "key": "Cache-Control", "value": "no-store" }
-  ] }]
+  "rewrites": [
+    {
+      "source": "/api/evaluation-access/:path*",
+      "destination": "https://elevateme-q23u.vercel.app/api/evaluation-access/:path*"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/evaluation-access/:path*",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, private" },
+        { "key": "Vary", "value": "Authorization, Cookie" }
+      ]
+    },
+    {
+      "source": "/evaluate/:path*",
+      "headers": [
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    }
+  ]
 }
