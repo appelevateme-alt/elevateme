@@ -15,3 +15,8 @@ access:
   publishable-key: ${SUPABASE_PUBLISHABLE_KEY:}
   mail-enabled: ${ACCESS_MAIL_ENABLED:false}
   mail-from: ${MAIL_FROM:}
+management:
+  health:
+    # Do not make readiness fail against placeholder SMTP when delivery is disabled.
+    mail:
+      enabled: ${ACCESS_MAIL_ENABLED:false}
