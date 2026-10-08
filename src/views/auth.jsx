@@ -230,7 +230,7 @@ export function SignUp() {
     if (!draft.fullName.trim()) e.fullName = 'Enter your full name.';
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(draft.email.trim())) e.email = 'Enter a valid email address.';
     if (password.length < 8) e.password = 'Password must be at least 8 characters.';
-    if ((draft.role === 'student' || draft.role === 'coordinator') && !draft.institute.trim()) e.institute = 'Enter your institute.';
+    if (draft.role === 'student' && !draft.institute.trim()) e.institute = 'Enter your institute.';
     if (draft.role === 'student' && !draft.dob) e.dob = 'Enter your date of birth.';
     return e;
   }, [draft, password]);
@@ -250,13 +250,12 @@ export function SignUp() {
       );
     }
     const cleanEmail = draft.email.trim();
-    if (!draft.role) {
+    if (!['student', 'parent'].includes(draft.role)) {
       throw new Error('Choose your role in step 1 before creating your login.');
     }
-    // The signup trigger (handle_new_user) builds the profile from metadata:
-    // `roles[]` is the role source it reads, `requested_role` drives the
-    // admin-bootstrap branch, and enrichment is persisted server-side so the
-    // row is complete even though there is no session yet (email confirm ON).
+    // The signup trigger builds the profile from metadata. Administrative and
+    // evaluator access is never self-service; only student/parent accounts can
+    // reach this flow.
     const enrichment = {};
     if (draft.institute.trim()) enrichment.institute = draft.institute.trim();
     if (draft.dob) enrichment.dob = draft.dob;
@@ -267,10 +266,6 @@ export function SignUp() {
       email: cleanEmail,
       password,
       options: {
-        // TEMPORARY-BOOTSTRAP: requested_role=admin lets the signup trigger
-        // activate the account immediately. Remove with the admin option.
-        // `roles[]` is what the trigger reads for every other role; the
-        // enrichment fields are persisted server-side by the same trigger.
         data: { full_name: draft.fullName.trim(), roles: [draft.role], requested_role: draft.role, ...enrichment },
         ...(redirectTo ? { emailRedirectTo: redirectTo } : {}),
       },
@@ -316,7 +311,7 @@ export function SignUp() {
       setSubmitErrors(list);
       return;
     }
-    if (!draft.role) {
+    if (!['student', 'parent'].includes(draft.role)) {
       setSubmitErrors(['Choose your role in step 1 before submitting.']);
       return;
     }
@@ -349,7 +344,6 @@ export function SignUp() {
           // NOTE: status/roles/active_role are intentionally NOT written here.
           // The signup trigger owns them (roles come from signup metadata);
           // writing them client-side would trip the protected-column guard.
-          // TEMPORARY-BOOTSTRAP: admin row is created Approved by the trigger.
         },
         { onConflict: 'id' },
       );
@@ -379,32 +373,24 @@ export function SignUp() {
   };
 
   if (done) {
-    // TEMPORARY-BOOTSTRAP: admin accounts activate immediately; remove branch.
-    const isAdmin = draft.role === 'admin';
     return (
       <AuthHead>
         <PageHead
-          kicker={isAdmin ? 'Account active' : 'Account created'}
-          title={isAdmin ? 'You are an administrator.' : 'Pending approval.'}
-          desc={isAdmin
-            ? 'Confirm your email, then sign in to open the admin workspace.'
-            : 'Your account is awaiting email verification and role approval.'}
+          kicker="Account created"
+          title="Pending approval."
+          desc="Your account is awaiting email verification and role approval."
         />
         <div className="notice" style={{ marginBottom: 22 }}>
           <strong>What happens next.</strong>{' '}
-          {isAdmin
-            ? 'We sent a confirmation link to your email. Confirm it, then sign in — no further approval is needed during bootstrap.'
-            : <>Verify your email, then a Diplomatic Impact administrator reviews {draft.role} access. You will be notified when your account is approved. Students receive an ElevateMe ID at that point.</>}
+          <>Verify your email, then a Diplomatic Impact administrator reviews {draft.role} access. You will be notified when your account is approved. Students receive an ElevateMe ID at that point.</>
         </div>
         <div className="notice" style={{ marginBottom: 22 }}>
           <strong>Check your inbox.</strong> We sent a confirmation link to {draft.email || 'your email'}.{' '}
-          {isAdmin ? 'Confirm it, then sign in.' : 'Confirm it, then track progress on the pending approval page.'}
+          Confirm it, then track progress on the pending approval page.
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <Link to={`/check-email?email=${encodeURIComponent(draft.email.trim())}`} className="button">Verify email steps</Link>
-          {isAdmin
-            ? <Link to="/sign-in" className="button secondary">Go to sign in</Link>
-            : <Link to="/pending-approval" className="button secondary">Continue to status</Link>}
+          <Link to="/pending-approval" className="button secondary">Continue to status</Link>
           <Button variant="secondary" onClick={() => { try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ } setDraft(EMPTY); setPassword(''); setStep(1); setDone(false); setAuthUserId(null); }}>Start over</Button>
         </div>
       </AuthHead>
@@ -430,18 +416,9 @@ export function SignUp() {
                 <select value={draft.role} onChange={(e) => set('role', e.target.value)}>
                   <option value="">Choose your role…</option>
                   <option value="student">Student</option>
-                  <option value="coordinator">Teacher / programme coordinator</option>
                   <option value="parent">Parent or guardian (via invitation)</option>
-                  {/* TEMPORARY-BOOTSTRAP: remove this option when the user says so. */}
-                  <option value="admin">Administrator (temporary bootstrap)</option>
                 </select></label>
               </div>
-              {draft.role === 'admin' && (
-                <div className="notice" style={{ marginTop: 14 }}>
-                  <strong>Temporary bootstrap.</strong> Administrator self-registration is enabled only until the first
-                  admin team is in place. Admin accounts are activated immediately — this option will be removed.
-                </div>
-              )}
             </>
           )}
           {step === 2 && (
@@ -457,7 +434,7 @@ export function SignUp() {
           )}
           {step === 3 && (
             <div className="form-grid">
-              {(draft.role === 'student' || draft.role === 'coordinator') && (
+              {draft.role === 'student' && (
                 <div className="field"><label> Institute<input value={draft.institute} onChange={(e) => set('institute', e.target.value)} onBlur={() => setTouched((t) => ({ ...t, institute: true }))} placeholder="Institute" /></label>
                   {touched.institute && errors.institute && <p role="alert" className="field-error">{errors.institute}</p>}</div>
               )}
@@ -470,7 +447,7 @@ export function SignUp() {
                     <span className="field-hint">Verification only; hidden outside authorized staff.</span></div>
                 </>
               )}
-              {draft.role === 'coordinator' && (
+              {draft.role === 'parent' && (
                 <div className="field"><label> Phone<input value={draft.phone} onChange={(e) => set('phone', e.target.value)} placeholder="Phone" autoComplete="tel" /></label></div>
               )}
               {draft.role === 'parent' && (
@@ -482,7 +459,7 @@ export function SignUp() {
             <div className="form-grid">
               <div className="field"><label> Profile photo<input type="file" accept="image/png,image/jpeg" aria-label="Profile photo" /></label>
                 <span className="field-hint">JPG or PNG, max 5 MB. Preview only for now.</span></div>
-              <div className="notice span-two"><strong>Verification.</strong> Students: referee details verify institute membership. Coordinators: institute email verifies employment. National ID is not requested.</div>
+              <div className="notice span-two"><strong>Verification.</strong> Student referee details help verify institute membership. Parent access is linked to a student invitation. National ID is not requested.</div>
             </div>
           )}
           {step === 5 && (

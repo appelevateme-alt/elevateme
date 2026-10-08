@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    # `elevateme_access` is a NOLOGIN group role created by migration 010.
+    # Deployments must create a separate LOGIN role and grant it membership.
+    username: ${JDBC_USER:elevateme_access_runtime}
+    password: ${JDBC_PASS:}
+  flyway:
+    enabled: false # public-schema migrations are reviewed/applied separately; never run app-schema seeds
+  jpa:
+    hibernate:
+      ddl-auto: none
+access:
+  public-url: ${APP_PUBLIC_URL:http://localhost:5173}
+  supabase-url: ${SUPABASE_URL:https://aivdidyfygbwuhesfhce.supabase.co}
+  publishable-key: ${SUPABASE_PUBLISHABLE_KEY:}
+  mail-enabled: ${ACCESS_MAIL_ENABLED:false}
+  mail-from: ${MAIL_FROM:}

@@ -31,10 +31,10 @@ jobs:
           java-version: 21
           cache: maven
       - run: mvn -B -DskipTests package --file backend/pom.xml
-      # Pure unit, no DB: ScoringServiceTest + JwtVerifierTest + InsightsServiceTest.
+      # Pure unit, no DB: core scoring/security/insights plus evaluator access policy.
       # failIfNoSpecifiedTests=false keeps the job green if a listed test is absent.
       - run: >-
-          mvn -B -Dtest=ScoringServiceTest,JwtVerifierTest,InsightsServiceTest
+          mvn -B -Dtest=ScoringServiceTest,JwtVerifierTest,InsightsServiceTest,AccessPolicyTest
           -Dsurefire.failIfNoSpecifiedTests=false test --file backend/pom.xml
 
   contracts:

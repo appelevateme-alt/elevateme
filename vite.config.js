@@ -1,9 +1,9 @@
-// DEPRECATED root entry: serves legacy src/main.jsx only. Revamp lives in frontend/
-// per docs/REVMAP.md migration plan. Kept building for reference — do not add features here.
+// Production domain uses this root app. The evaluator API runs in Java.
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  server: { proxy: { '/api/evaluation-access': { target: process.env.JAVA_API_URL || 'http://localhost:8080', changeOrigin: false } } },
 })

@@ -32,11 +32,11 @@ const {
   data: recentEvalRows,
   loading: recentEvalsLoading,
 } = useSupabaseList({
-  table: 'evaluations',
+  table: 'published_evaluations',
 
   // evaluations.program_id is linked to programs.id
   // so Supabase can return the program title with the evaluation.
-  select: '*, programs(id, title)',
+  select: '*',
 
   filters: {
     student_id: session?.userId || '00000000-0000-0000-0000-000000000000',
@@ -61,7 +61,7 @@ const {
   data: recentScoreRows,
   loading: recentScoresLoading,
 } = useSupabaseList({
-  table: 'evaluation_scores',
+  table: 'published_evaluation_scores',
   filters: {
     evaluation_id:
       recentEvalIds.length > 0
@@ -83,10 +83,10 @@ const recentScores = (recentEvalRows || []).map((evaluation) => {
   id: evaluation.id,
 
   programName:
-    evaluation.programs?.title ||
+    evaluation.program_title ||
     'Program',
 
-  score: scores.length > 0 ? result.scaled : null,
+  score: scores.length === 10 ? result.scaled : null,
 
   releasedAt: evaluation.released_at,
 };
@@ -305,12 +305,12 @@ export function StudentPerformance() {
   const { session } = useAuth();
   const [applied, setApplied] = useState(false);
   const { data: evalRows, loading, error } = useSupabaseList({
-    table: 'evaluations',
+    table: 'published_evaluations',
     filters: session?.userId ? { student_id: session.userId, released: true } : { released: true },
     page: 1,
     pageSize: 20,
   });
-  const { data: scoreRows } = useSupabaseList({ table: 'evaluation_scores', page: 1, pageSize: 100 });
+  const { data: scoreRows } = useSupabaseList({ table: 'published_evaluation_scores', page: 1, pageSize: 100 });
   const { data: sessionRows } = useSupabaseList({ table: 'sessions', page: 1, pageSize: 50 });
   const evals = (evalRows || []).map(toEvaluation).filter((e) => e.released);
   const evalIds = new Set(evals.map((e) => e.id));
@@ -368,9 +368,9 @@ export function StudentPerformance() {
 
 export function EvaluationDetail() {
   const { evaluationId } = useParams();
-  const { data: row, loading, error } = useSupabaseRecord({ table: 'evaluations', id: evaluationId });
+  const { data: row, loading, error } = useSupabaseRecord({ table: 'published_evaluations', id: evaluationId });
   const { data: scoreRows, loading: scoresLoading, error: scoresError } = useSupabaseList({
-    table: 'evaluation_scores',
+    table: 'published_evaluation_scores',
     filters: { evaluation_id: evaluationId },
     page: 1,
     pageSize: 50,
@@ -477,11 +477,11 @@ export function StudentAnnouncements() {
   });
   const items = (data || []).map(toAnnouncement);
 
-  if (loading) return <div><PageHead kicker="Updates" title="Announcements." desc="Important notices from Diplomatic Impact and your programme coordinators." /><SkeletonRows rows={3} /></div>;
-  if (error) return <div><PageHead kicker="Updates" title="Announcements." desc="Important notices from Diplomatic Impact and your programme coordinators." /><div className="notice"><strong>Couldn’t load announcements.</strong> {error.message}</div></div>;
+  if (loading) return <div><PageHead kicker="Updates" title="Announcements." desc="Important notices from Diplomatic Impact and your programmes." /><SkeletonRows rows={3} /></div>;
+  if (error) return <div><PageHead kicker="Updates" title="Announcements." desc="Important notices from Diplomatic Impact and your programmes." /><div className="notice"><strong>Couldn’t load announcements.</strong> {error.message}</div></div>;
   return (
     <div>
-      <PageHead kicker="Updates" title="Announcements." desc="Important notices from Diplomatic Impact and your programme coordinators." />
+      <PageHead kicker="Updates" title="Announcements." desc="Important notices from Diplomatic Impact and your programmes." />
       <div className="flat-list">
         {items.length === 0 && <Empty title="No announcements." body="Check back later for updates." />}
         {items.map((a) => (

@@ -63,14 +63,13 @@ export function AdminApprovals() {
 
   const { data: progRows, refetch: refetchProgs } = useSupabaseList({ table: 'programs', filters: { status: ['Submitted','UnderReview'] }, page: 1, pageSize: 10 });
   const { data: userRows, refetch: refetchUsers } = useSupabaseList({ table: 'profiles', filters: { status: 'PendingReview' }, page: 1, pageSize: 10 });
-  const { data: evalRows, refetch: refetchEvals } = useSupabaseList({ table: 'evaluations', filters: { released: false }, page: 1, pageSize: 10 });
 
   const programs = (progRows || []).map(toProgram);
   const users = (userRows || []).map(toProfile);
 
-  // All decisions go through the audited RPCs (approve_program,
-  // decide_profile, release_evaluations) — never direct updates — so every
-  // outcome is state-checked server-side and written to audit_log.
+  // Program and account decisions go through audited RPCs. Evaluation review
+  // and release are intentionally handled by the Java access service so the
+  // old direct Supabase release path cannot be reintroduced here.
   const decideProgram = async (id, label) => {
     if ((label === 'Request changes' || label === 'Reject') && !note.trim()) {
       setToast('A note is required for Request changes and Reject.');
@@ -105,46 +104,13 @@ export function AdminApprovals() {
     }
   };
 
-  const decideRelease = async (ids, label) => {
-    if ((label === 'Request changes' || label === 'Reject') && !note.trim()) {
-      setToast('A note is required for Request changes and Reject.');
-      return;
-    }
-    try {
-      if (label === 'Approve') {
-        // Release is per session (locks Submitted sheets, stamps released_at).
-        const wanted = new Set(ids || []);
-        const sessionIds = [...new Set((evalRows || [])
-          .filter((e) => wanted.size === 0 || wanted.has(e.id))
-          .map((e) => e.session_id)
-          .filter(Boolean))];
-        if (sessionIds.length === 0) throw new Error('No sessions to release.');
-        let total = 0;
-        for (const sid of sessionIds) {
-          const { data, error } = await supabase.rpc('release_evaluations', { p_session_id: sid });
-          if (error) throw new Error(error.message);
-          total += data || 0;
-        }
-        setDecided((d) => ({ ...d, release: 'Approved' }));
-        setToast(`Released ${total} evaluation${total === 1 ? '' : 's'} — audit entry created.`);
-      } else {
-        setDecided((d) => ({ ...d, release: 'ChangesRequested' }));
-        setToast('Request changes recorded.');
-      }
-      refetchEvals?.();
-    } catch (err) {
-      setToast(err?.message || 'Could not record decision.');
-    }
-  };
-
   const showPrograms = typeFilter === 'All request types' || typeFilter === 'Program';
   const showUsers = typeFilter === 'All request types' || typeFilter === 'User account';
-  const showReleases = typeFilter === 'All request types' || typeFilter === 'Evaluation release';
 
   const progItems = showPrograms ? programs.map((p) => ([
     p.startDate || '—',
     <span key={`t-${p.id}`}><strong>{p.title}</strong><br />{p.typeLabel}</span>,
-    'Coordinator',
+    'DI Admin',
     p.institute,
     <Status key={`s-${p.id}`} value={decided[p.id] || 'Pending review'} />,
       <span key={`a-${p.id}`} style={{ display: 'flex', gap: 6 }}>
@@ -167,28 +133,15 @@ export function AdminApprovals() {
       </span>,
     ]);
   }) : [];
-  const releaseIds = (evalRows || []).map((e) => e.id);
-  const releaseItems = showReleases && releaseIds.length > 0 ? [[
-    '—',
-    <span key="t-e"><strong>Session results</strong><br />{`${releaseIds.length} evaluations`}</span>,
-    'Evaluator',
-    '—',
-    <Status key="s-e" value={decided.release || 'Ready to release'} />,
-      <span key="a-e" style={{ display: 'flex', gap: 6 }}>
-        <Button small disabled={!!decided.release} onClick={() => decideRelease(releaseIds, 'Approve')}>Approve</Button>
-        <Button small variant="secondary" disabled={!!decided.release} onClick={() => decideRelease(releaseIds, 'Request changes')}>Changes</Button>
-      </span>,
-  ]] : [];
-
-  const liveRows = [...progItems, ...userItems, ...releaseItems];
+  const liveRows = [...progItems, ...userItems];
 
   void statusFilter;
 
   return (
     <div>
-      <PageHead kicker="Administration" title="Approval queue." desc="Review access requests, programs and result releases with a clear audit trail." />
+      <PageHead kicker="Administration" title="Approval queue." desc="Review account and program requests with a clear audit trail. Evaluation reports have a separate review workflow." />
       <div className="filter-bar">
-        <select aria-label="Request type" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}><option>All request types</option><option>Program</option><option>User account</option><option>Evaluation release</option></select>
+        <select aria-label="Request type" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}><option>All request types</option><option>Program</option><option>User account</option></select>
         <select aria-label="Status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option>Pending review</option><option>Changes requested</option><option>Approved</option></select>
       </div>
       <div className="field" style={{ marginBottom: 18 }}>
@@ -199,7 +152,7 @@ export function AdminApprovals() {
       {liveRows.length > 0 ? (
         <DataTable headers={['Submitted', 'Request', 'Submitted by', 'Institute', 'Status', '']} rows={liveRows} />
       ) : (
-        <Empty title="Queue is clear." body="New program submissions, account requests, and releases will appear here." />
+        <Empty title="Queue is clear." body="New program submissions and account requests will appear here." />
       )}
       {toast && <div role="status" className="toast show">{toast}</div>}
     </div>
@@ -220,7 +173,7 @@ export function AdminPrograms() {
   return (
     <div>
       <PageHead kicker="Administration" title="All programs." desc="Monitor every program from draft through publication and completion."
-        action={<Button variant="secondary">Export report</Button>} />
+        action={<Link className="button" to="/admin/programs/new">Create program</Link>} />
       <div className="filter-bar">
         <input type="search" placeholder="Search programs" aria-label="Search programs" value={q} onChange={(e) => setQ(e.target.value)} />
         <select aria-label="Type"><option>All program types</option></select>
@@ -235,7 +188,7 @@ export function AdminPrograms() {
             <article key={p.id} className="list-row">
               <div className="row-meta">{p.date}<br />{p.typeLabel}</div>
               <div className="row-main"><h3>{p.title}</h3><p>{p.meta} · {p.registered}/{p.capacity} registered</p></div>
-              <div className="row-action"><Status value={p.status} /><Link to={`/coordinator/programs/${p.id}`} className="button secondary small">Manage</Link></div>
+              <div className="row-action"><Status value={p.status} /><Link to={`/admin/programs/${p.id}`} className="button secondary small">Manage</Link></div>
             </article>
           ))}
         </div>
@@ -248,8 +201,6 @@ export function AdminPrograms() {
 const ROLE_FILTERS = {
   Student: { col: 'roles', values: ['student'] },
   Parent: { col: 'roles', values: ['parent'] },
-  Coordinator: { col: 'roles', values: ['coordinator'] },
-  Evaluator: { col: 'roles', values: ['evaluator'] },
 };
 export function AdminUsers() {
   const [q, setQ] = useState('');
@@ -263,11 +214,9 @@ export function AdminUsers() {
   });
   const { count: studentCount } = useSupabaseList({ table: 'profiles', contains: { col: 'roles', values: ['student'] }, page: 1, pageSize: 1 });
   const { count: parentCount } = useSupabaseList({ table: 'profiles', contains: { col: 'roles', values: ['parent'] }, page: 1, pageSize: 1 });
-  const { count: coordinatorCount } = useSupabaseList({ table: 'profiles', contains: { col: 'roles', values: ['coordinator'] }, page: 1, pageSize: 1 });
-  const { count: evaluatorCount } = useSupabaseList({ table: 'profiles', contains: { col: 'roles', values: ['evaluator'] }, page: 1, pageSize: 1 });
   const { count: pendingStudents } = useSupabaseList({ table: 'profiles', filters: { status: 'PendingReview' }, contains: { col: 'roles', values: ['student'] }, page: 1, pageSize: 1 });
   const { count: linkCount } = useSupabaseList({ table: 'parent_links', page: 1, pageSize: 1 });
-  const { count: assignmentCount } = useSupabaseList({ table: 'program_evaluators', page: 1, pageSize: 1 });
+  const { count: approvedCount } = useSupabaseList({ table: 'profiles', filters: { status: 'Approved' }, page: 1, pageSize: 1 });
   const users = (data || []).map(toProfile);
   const [roleMsg, setRoleMsg] = useState('');
   const changeRole = async (uid, newRole) => {
@@ -287,12 +236,11 @@ export function AdminUsers() {
       <Metrics items={[
         ['Students', String(studentCount).padStart(2, '0'), `${pendingStudents} pending verification`],
         ['Parents', String(parentCount).padStart(2, '0'), `${linkCount} active links`],
-        ['Coordinators', String(coordinatorCount).padStart(2, '0'), 'Manage programs'],
-        ['Evaluators', String(evaluatorCount).padStart(2, '0'), `${assignmentCount} currently assigned`],
+        ['Approved accounts', String(approvedCount).padStart(2, '0'), 'Student and parent access'],
       ]} />
       <div className="filter-bar">
         <input type="search" placeholder="Search name, email or ElevateMe ID" aria-label="Search users" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select aria-label="Role" value={role} onChange={(e) => setRole(e.target.value)}><option>All roles</option><option>Student</option><option>Parent</option><option>Coordinator</option><option>Evaluator</option></select>
+        <select aria-label="Role" value={role} onChange={(e) => setRole(e.target.value)}><option>All roles</option><option>Student</option><option>Parent</option></select>
       </div>
       {loading && <SkeletonRows rows={4} />}
       {error && <div className="notice"><strong>Couldn’t load users.</strong> {error.message}</div>}
@@ -300,18 +248,21 @@ export function AdminUsers() {
         <>
           {roleMsg && <p role="status" className="notice" style={{ marginBottom: 12 }}>{roleMsg}</p>}
           <DataTable headers={['User', 'Role', 'Institute', 'Joined', 'Status']}
-            rows={users.map((s) => [
-              <span key="u"><strong>{s.name}</strong><br /><span className="row-meta">{s.elevateMeId}</span></span>,
-              <select key={`r-${s.userId}`} aria-label={`Role for ${s.name}`} value={s.role || ''} onChange={(e) => changeRole(s.userId, e.target.value)}>
-                <option value="">—</option>
-                <option value="student">Student</option>
-                <option value="parent">Parent</option>
-                <option value="coordinator">Coordinator</option>
-                <option value="evaluator">Evaluator</option>
-                <option value="admin">Admin</option>
-              </select>,
-              s.institute || '—', s.joined || '—', <Status key="s" value={s.status || 'Approved'} />,
-            ])} />
+            rows={users.map((s) => {
+              const retired = ['coordinator', 'evaluator'].includes(s.role);
+              return [
+                <span key="u"><strong>{s.name}</strong><br /><span className="row-meta">{s.elevateMeId}</span></span>,
+                retired
+                  ? <span key={`retired-${s.userId}`} className="tag">Retired staff account</span>
+                  : <select key={`r-${s.userId}`} aria-label={`Role for ${s.name}`} value={s.role || ''} onChange={(e) => changeRole(s.userId, e.target.value)}>
+                    <option value="">—</option>
+                    <option value="student">Student</option>
+                    <option value="parent">Parent</option>
+                    <option value="admin">Admin</option>
+                  </select>,
+                s.institute || '—', s.joined || '—', <Status key="s" value={s.status || 'Approved'} />,
+              ];
+            })} />
         </>
       )}
     </div>
@@ -321,88 +272,15 @@ export function AdminUsers() {
 export function AdminInstitutes() {
   const { data, loading, error } = useSupabaseList({ table: 'institutes', page: 1, pageSize: 20 });
   const items = data || [];
-  if (loading) return <div><PageHead kicker="Administration" title="Institutes." desc="Verification state per institute. Coordinators attach at signup." /><SkeletonRows rows={3} /></div>;
-  if (error) return <div><PageHead kicker="Administration" title="Institutes." desc="Verification state per institute. Coordinators attach at signup." /><div className="notice"><strong>Couldn’t load institutes.</strong> {error.message}</div></div>;
+  if (loading) return <div><PageHead kicker="Administration" title="Institutes." desc="Verification state for student and parent accounts." /><SkeletonRows rows={3} /></div>;
+  if (error) return <div><PageHead kicker="Administration" title="Institutes." desc="Verification state for student and parent accounts." /><div className="notice"><strong>Couldn’t load institutes.</strong> {error.message}</div></div>;
   return (
     <div>
-      <PageHead kicker="Administration" title="Institutes." desc="Verification state per institute. Coordinators attach at signup." />
+      <PageHead kicker="Administration" title="Institutes." desc="Verification state for student and parent accounts." />
       <Panel title="All institutes" action={<Tag>{items.length} records</Tag>}>
         <DataTable headers={['Institute', 'Verified']}
           rows={items.map((x) => [x.name, x.verified ? 'Yes' : 'No'])} />
       </Panel>
-    </div>
-  );
-}
-
-/* ---------- Evaluations (Supabase-backed release via audited RPC) ---------- */
-export function AdminEvaluations() {
-  const { data: awaitingRows, loading, error, refetch } = useSupabaseList({ table: 'evaluations', filters: { released: false }, page: 1, pageSize: 20 });
-  const { data: releasedRows } = useSupabaseList({ table: 'evaluations', filters: { released: true }, page: 1, pageSize: 20 });
-  const { data: sessionRows } = useSupabaseList({ table: 'sessions', page: 1, pageSize: 50 });
-  const { data: programRows } = useSupabaseList({ table: 'programs', page: 1, pageSize: 50 });
-  const { data: profileRows } = useSupabaseList({ table: 'profiles', page: 1, pageSize: 100 });
-  const [released, setReleased] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [releaseError, setReleaseError] = useState('');
-  const awaiting = awaitingRows || [];
-  const releasedList = releasedRows || [];
-  const sessionById = new Map((sessionRows || []).map((s) => [s.id, s]));
-  const programById = new Map((programRows || []).map((p) => [p.id, p]));
-  const nameById = new Map((profileRows || []).map(toProfile).map((p) => [p.userId, p.name]));
-  const evalRow = (e, isReleased) => {
-    const s = sessionById.get(e.session_id);
-    const p = programById.get(e.program_id);
-    return [
-      <span key={`t-${e.id}`}><strong>{p?.title || 'Program'}</strong><br />{s?.title || 'Session'}</span>,
-      nameById.get(e.evaluator_id) || 'Evaluator',
-      e.state || (isReleased ? 'Locked' : 'Submitted'),
-      e.updated_at ? String(e.updated_at).slice(0, 10) : '—',
-      <Status key={`s-${e.id}`} value={isReleased ? 'Released' : 'Ready to release'} />,
-      !isReleased && !released
-        ? <Button key={`b-${e.id}`} small disabled={busy} onClick={releaseAll}>{busy ? 'Releasing…' : 'Release'}</Button>
-        : <Button key={`b-${e.id}`} variant="secondary" small>View</Button>,
-    ];
-  };
-  const tableRows = [...awaiting.map((e) => evalRow(e, false)), ...releasedList.map((e) => evalRow(e, true))];
-
-  const releaseAll = async () => {
-    setReleaseError('');
-    setBusy(true);
-    try {
-      // Per session: locks Submitted sheets, stamps released_at, audits.
-      const sessionIds = [...new Set(awaiting.map((e) => e.session_id).filter(Boolean))];
-      if (sessionIds.length === 0) throw new Error('No sessions to release.');
-      let total = 0;
-      for (const sid of sessionIds) {
-        const { data, error: rpcError } = await supabase.rpc('release_evaluations', { p_session_id: sid });
-        if (rpcError) throw new Error(rpcError.message);
-        total += data || 0;
-      }
-      setReleased(true);
-      refetch?.();
-    } catch (err) {
-      setReleaseError(err?.message || 'Could not release evaluations.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (loading) return <div><PageHead kicker="Administration" title="Evaluations." desc="Review submission progress and control when results become visible." /><SkeletonRows rows={3} /></div>;
-  if (error) return <div><PageHead kicker="Administration" title="Evaluations." desc="Review submission progress and control when results become visible." /><div className="notice"><strong>Couldn’t load evaluations.</strong> {error.message}</div></div>;
-  return (
-    <div>
-      <PageHead kicker="Administration" title="Evaluations." desc="Review submission progress and control when results become visible." />
-      <div className="filter-bar">
-        <select aria-label="Program"><option>All programs</option></select>
-        <select aria-label="Status"><option>Awaiting release</option><option>Submitted</option><option>Released</option></select>
-      </div>
-      {tableRows.length > 0 ? (
-        <DataTable headers={['Program / session', 'Evaluator', 'State', 'Updated', 'Status', '']} rows={tableRows} />
-      ) : (
-        <Empty title="No evaluations yet." body="Submitted sheets will appear here for release." />
-      )}
-      {releaseError && <p role="alert" className="field-error" style={{ marginTop: 12 }}>{releaseError}</p>}
-      {released && <div className="notice" style={{ marginTop: 18 }}><strong>{awaiting.length} results released.</strong> Students and linked parents can now see them. Audit entry created.</div>}
     </div>
   );
 }
@@ -602,12 +480,12 @@ export function AdminAnnouncements() {
 
   return (
     <div>
-      <PageHead kicker="Communication" title="Announcements." desc="Publish important updates to students, parents, coordinators or a specific program." action={<Button onClick={() => document.getElementById('ann-compose')?.scrollIntoView({ behavior: 'smooth' })}>New announcement →</Button>} />
+      <PageHead kicker="Communication" title="Announcements." desc="Publish important updates to students, parents or a specific program." action={<Button onClick={() => document.getElementById('ann-compose')?.scrollIntoView({ behavior: 'smooth' })}>New announcement →</Button>} />
       <section id="ann-compose" className="panel" style={{ marginBottom: 28 }}>
         <div className="panel-head"><h2>Compose</h2><span className="tag">Draft → scheduled → published</span></div>
         <div className="panel-body form-grid">
           <div className="field"><label>Audience<select value={audience} onChange={(e) => setAudience(e.target.value)}>
-            <option>All students</option><option>All parents</option><option>Specific program</option><option>Coordinators</option>
+            <option>All students</option><option>All parents</option><option>Specific program</option>
           </select></label></div>
           <div className="field"><label>Publish date<input type="date" defaultValue={today} /></label></div>
           <div className="field span-two"><label>Title<input placeholder="Announcement title" value={title} onChange={(e) => setTitle(e.target.value)} /></label></div>

@@ -4,8 +4,8 @@ import { supabase } from './supabaseClient.js';
 const ROLE_HOME = {
   student: '/student',
   parent: '/parent',
-  coordinator: '/coordinator',
-  evaluator: '/evaluator',
+  coordinator: '/evaluate/invite',
+  evaluator: '/evaluate/invite',
   admin: '/admin',
 };
 
@@ -88,10 +88,9 @@ export function AuthProvider({ children }) {
       }
     }
     init();
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-      const user = newSession?.user ?? null;
-      await loadForUser(user);
-      if (mounted) setLoading(false);
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      // Supabase auth callbacks must return before another client request.
+      setTimeout(async () => { if (!mounted) return; await loadForUser(newSession?.user ?? null); if (mounted) setLoading(false); }, 0);
     });
     return () => {
       mounted = false;

@@ -1,0 +1,16 @@
+.access-page { max-width: 1100px; margin: auto; padding: 28px 20px; }
+.access-card { padding: 20px; margin-bottom: 18px; }
+.access-grid { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(300px, 2fr); gap: 20px; align-items: start; }
+.access-field { display: grid; gap: 6px; margin: 12px 0; }
+.access-field input,.access-field select,.access-field textarea { width: 100%; min-height: 44px; }
+.access-score { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.access-score input { width: 90px; min-height: 44px; }
+.access-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.access-roster { display: grid; gap: 4px; width: 100%; text-align: left; padding: 12px; background: var(--white); border: 0; border-bottom: 1px solid var(--line); cursor: pointer; min-height: 48px; }
+.access-roster span { color: var(--muted); font-size: 13px; }
+.access-private { background: var(--paper); padding: 16px; border-left: 3px solid var(--blue); }
+.access-check { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.access-check input { width: 18px; height: 18px; }
+.access-table { width: 100%; border-collapse: collapse; }
+.access-table th,.access-table td { text-align: left; padding: 10px; border-bottom: 1px solid var(--line); }
+@media(max-width: 700px) { .access-grid { grid-template-columns: 1fr; } .access-page { padding: 16px; } }

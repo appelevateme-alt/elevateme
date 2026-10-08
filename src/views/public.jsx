@@ -95,11 +95,11 @@ export function Home() {
 
         <section className="landing-section" id="people"><div className="wrap roles-grid">
           <Reveal className="role-list stagger-group">
-            {[['01', 'Students', 'Own your growth journey', '/student'], ['02', 'Teachers & coordinators', 'Create programs and support progress', '/coordinator'], ['03', 'Parents', 'Stay informed with clarity', '/parent'], ['04', 'Resource persons', 'Evaluate with one clear framework', '/evaluator']].map(([i, h, s, to]) => (
+            {[['01', 'Students', 'Own your growth journey', '/student'], ['02', 'Diplomatic Impact admins', 'Create programs and support progress', '/sign-in'], ['03', 'Parents', 'Stay informed with clarity', '/parent'], ['04', 'Resource persons', 'Evaluate through a secure one-time link', '/evaluate/invite']].map(([i, h, s, to]) => (
               <Link key={i} className="role-row" to={to}><span className="role-index">{i}</span><div><h3>{h}</h3><span className="role-sub">{s}</span></div><span className="role-arrow" aria-hidden="true">↗</span></Link>
             ))}
           </Reveal>
-          <div className="role-copy"><div className="hero-eyebrow">Designed around people</div><h2>ONE SYSTEM.<br />EVERYONE ALIGNED.</h2><p>ElevateMe gives each person exactly what they need. Students see progress. Parents understand it. Teachers coordinate it. Evaluators record it. Diplomatic Impact guides what comes next.</p><div className="quote">Simple enough to use during a live session. Structured enough to support long-term development.</div></div>
+          <div className="role-copy"><div className="hero-eyebrow">Designed around people</div><h2>ONE SYSTEM.<br />EVERYONE ALIGNED.</h2><p>ElevateMe gives each person exactly what they need. Students see progress. Parents understand it. DI admins run programmes and release reports. Resource persons evaluate through secure, time-limited access.</p><div className="quote">Simple enough to use during a live session. Structured enough to support long-term development.</div></div>
         </div></section>
 
         <section className="landing-section dark" id="performance"><Reveal className="wrap performance-grid stagger-group">
@@ -146,11 +146,11 @@ export function Home() {
 export function About() {
   return (
     <div className="public-main" style={{ maxWidth: 1240, margin: 'auto', padding: '70px 18px 90px' }}>
-      <PageHead kicker="About ElevateMe" title="Student growth, made visible." desc="A Diplomatic Impact platform. Coordinators run programs, evaluators score ten criteria, students and parents see progress and recommendations." />
+      <PageHead kicker="About ElevateMe" title="Student growth, made visible." desc="A Diplomatic Impact platform. DI admins run programs, invited resource persons score ten criteria, and students and parents see progress and recommendations." />
       <div className="flow">
-        <article className="step"><div className="step-no">01</div><h3>Create & approve</h3><p>Coordinators draft programs; Diplomatic Impact approves and publishes.</p></article>
-        <article className="step"><div className="step-no">02</div><h3>Join & confirm</h3><p>Students join; coordinators confirm or waitlist every request.</p></article>
-        <article className="step"><div className="step-no">03</div><h3>Evaluate & release</h3><p>Evaluators score ten criteria; releases control visibility.</p></article>
+        <article className="step"><div className="step-no">01</div><h3>Create & approve</h3><p>DI admins draft, review and publish programmes.</p></article>
+        <article className="step"><div className="step-no">02</div><h3>Join & confirm</h3><p>Students join; DI admins confirm or waitlist every request.</p></article>
+        <article className="step"><div className="step-no">03</div><h3>Evaluate & release</h3><p>Invited resource persons score ten criteria; admins review and release reports.</p></article>
         <article className="step"><div className="step-no">04</div><h3>Guide growth</h3><p>Insights and recommendations turn results into next steps.</p></article>
       </div>
     </div>
@@ -288,7 +288,7 @@ export function ProgramDetail() {
             <div className="panel-body">
               <RegistrationPanel programTitle={program.title} programId={program.id} sessions={sessions} closed={program.status === 'RegistrationClosed'} />
               <div style={{ marginTop: 14 }}>
-                <p style={{ fontSize: '.82rem', color: 'var(--muted)' }}>After you join: request enters <strong>Pending</strong> → coordinator confirms → outcome under My Registrations.</p>
+                <p style={{ fontSize: '.82rem', color: 'var(--muted)' }}>After you join: request enters <strong>Pending</strong> → DI confirms → outcome under My Registrations.</p>
                 <Link to="/sign-up" className="link-quiet">New here? Create an account first →</Link>
               </div>
             </div>

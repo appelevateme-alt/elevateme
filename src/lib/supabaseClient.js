@@ -7,7 +7,7 @@ export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
 // TEMPORARY-DEPLOY-URL: force auth email links to the Vercel deployment until
 // told otherwise. Revert to window.location.origin when local dev resumes.
-export const SITE_URL = 'https://elevateme-swart.vercel.app';
+export const SITE_URL = import.meta.env.VITE_SITE_URL || window.location.origin;
 
 if (!isSupabaseConfigured) {
   console.warn(
