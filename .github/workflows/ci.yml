@@ -8,13 +8,26 @@ on:
   pull_request:
 
 jobs:
+  deployed-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: node --test tests/access/*.test.mjs
+
   frontend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --prefix frontend
@@ -31,11 +44,7 @@ jobs:
           java-version: 21
           cache: maven
       - run: mvn -B -DskipTests package --file backend/pom.xml
-      # Pure unit, no DB: core scoring/security/insights plus evaluator access policy.
-      # failIfNoSpecifiedTests=false keeps the job green if a listed test is absent.
-      - run: >-
-          mvn -B -Dtest=ScoringServiceTest,JwtVerifierTest,InsightsServiceTest,AccessPolicyTest
-          -Dsurefire.failIfNoSpecifiedTests=false test --file backend/pom.xml
+      - run: mvn -B test --file backend/pom.xml
 
   contracts:
     runs-on: ubuntu-latest

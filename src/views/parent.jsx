@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button, Empty, Metrics, PageHead, Panel, SkeletonRows, Status, Tag } from '../components/ui.jsx';
-import { ChartSummary, InsightList, LineChart, RecommendationRecord, ThreadMessage } from '../components/domain.jsx';
+import { ChartSummary, LineChart, RecommendationRecord, ThreadMessage } from '../components/domain.jsx';
 import { useSupabaseList, useSupabaseRecord, useSupabaseMutation } from '../lib/useSupabase.js';
 import { toEvaluation, toProfile, toRecommendation, toReply, toThread } from '../lib/adapters.js';
 import { formatTotal, total1000 } from '../lib/scores.js';
@@ -103,48 +103,9 @@ export function ParentOverview() {
 /* ---------- Parent performance + recommendations ---------- */
 export function ParentPerformance() {
   const linked = useLinkedStudent();
-  const perfTitle = linkedTitle(linked, 'progress');
-  const { data: evalRows, loading, error } = useSupabaseList({ table: 'published_evaluations', filters: { released: true }, page: 1, pageSize: 20 });
-  const { data: scoreRows } = useSupabaseList({ table: 'published_evaluation_scores', page: 1, pageSize: 100 });
-  const evals = (evalRows || []).map(toEvaluation).filter((e) => e.released);
-  const evalIds = new Set(evals.map((e) => e.id));
-  const myScores = (scoreRows || []).filter((s) => evalIds.has(s.evaluation_id ?? s.evaluationId));
-  const totals = evals.map((e) => {
-    const nums = myScores
-      .filter((s) => (s.evaluation_id ?? s.evaluationId) === e.id)
-      .map((s) => s.score ?? s.value);
-    return nums.length > 0 ? total1000(nums) : total1000((e.scores || []).map((s) => s.score));
-  });
-  const currentTotal = totals.length > 0 ? totals[totals.length - 1] : null;
-  const summaryValue = currentTotal != null ? formatTotal(currentTotal) : 'No released scores';
-
-  if (loading) return <div><PageHead kicker="Performance" title={perfTitle} desc="Same released scores and remarks the student sees. Scoped to your linked student." /><SkeletonRows rows={3} /></div>;
-  if (error) return <div><PageHead kicker="Performance" title={perfTitle} desc="Same released scores and remarks the student sees. Scoped to your linked student." /><div className="notice"><strong>Couldn’t load performance.</strong> {error.message}</div></div>;
-  return (
-    <div>
-      <PageHead kicker="Performance" title={perfTitle} desc="Same released scores and remarks the student sees. Scoped to your linked student." />
-      <div className="grid dashboard">
-        <section className="chart-panel">
-          <ChartSummary label="Current total" value={summaryValue} status={<Status value="Improving" />} />
-          <LineChart />
-        </section>
-        <section className="panel">
-          <div className="panel-head"><h2>Insights</h2><span className="tag">{evals.length > 0 ? '3 findings' : 'No data'}</span></div>
-          <div className="panel-body">
-            {evals.length > 0 ? (
-              <InsightList items={[
-                { label: 'Improving', text: totals.length >= 2 ? `Final score rose from ${totals[0].scaled} to ${currentTotal.scaled} across the last ${totals.length} sessions.` : `Latest final score is ${currentTotal.scaled} / 100.`, small: `Based on ${evals.length} released evaluation${evals.length === 1 ? '' : 's'}` },
-                { label: 'Strongest', text: 'Preparation remains the strongest skill, most often above 85.' },
-                { label: 'Next focus', text: 'Counter Arguments is the clearest development opportunity.' },
-              ]} />
-            ) : (
-              <Empty title="No insights yet." body="Insights appear once evaluations are released." />
-            )}
-          </div>
-        </section>
-      </div>
-    </div>
-  );
+  return <div><PageHead kicker="Performance" title={linkedTitle(linked, 'progress')} desc="Released scores for your linked student." />
+    <ReleasedPerformance studentId={linked?.id} />
+  </div>;
 }
 
 export function ParentRecommendations() {
@@ -440,3 +401,4 @@ export function ThreadDetail() {
     </div>
   );
 }
+import { ReleasedPerformance } from '../features/evaluator-access/ReleasedPerformance.jsx';

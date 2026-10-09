@@ -51,9 +51,14 @@ export function GuestWorkspace() {
     if (activationLock.current) return; activationLock.current = true;
     setBusy(true); setError('');
     try {
-      // An already activated browser resumes without trying to consume a link again.
-      try { await refresh(); } catch (e) { if (e.status !== 401) throw e; await accessApi('/activate', { method: 'POST', body: { token: token.current } }); await refresh(); }
-      token.current = null; setHasInvitation(false);
+      // An explicit invitation must never silently resume a different evaluator.
+      if (token.current) {
+        await accessApi('/activate', { method: 'POST', body: { token: token.current } });
+        token.current = null;
+        setConfirmed(false); setSheet(null); setScores({}); setFeedback(''); setDirty(false);
+      }
+      await refresh();
+      setHasInvitation(false);
     } catch (e) { fail(e); } finally { setBusy(false); activationLock.current = false; }
   }
   async function open(id) {
@@ -71,7 +76,11 @@ export function GuestWorkspace() {
     } catch (e) { fail(e); } finally { setBusy(false); }
   }
   async function logout() {
-    try { await accessApi('/logout', { method: 'POST' }); } catch { /* cookie expiry is best effort */ }
+    if (dirty && !window.confirm('End this session without saving your latest changes?')) return;
+    setBusy(true);
+    try { await accessApi('/logout', { method: 'POST' }); }
+    catch (e) { fail(e); return; }
+    finally { setBusy(false); }
     setWorkspace(null); setSheet(null); setScores({}); setFeedback(''); setDirty(false); setConfirmed(false); setHasInvitation(false); setError(''); setNotice('');
   }
   const editable = sheet && ['DRAFT', 'CHANGES_REQUESTED'].includes(sheet.state);
@@ -86,7 +95,7 @@ export function GuestWorkspace() {
       <section className="panel access-card"><h2>{workspace.identity.name}</h2><p>{workspace.identity.organisation} {workspace.identity.title}</p><p>Access ends {deadline(workspace.expiresAt)}</p>
         {remaining !== null && remaining < 15 * 60 * 1000 && <p role="status">Less than 15 minutes remain. Save your work now.</p>}
         {!confirmed && <><p>Check that these are your details. Contact DI if anything is incorrect.</p><button className="button" onClick={() => setConfirmed(true)}>These are my details</button></>}
-        <button className="button quiet small" onClick={logout}>End this session</button>
+        <button className="button quiet small" disabled={busy} onClick={logout}>End this session</button>
       </section>
       {confirmed && <div className="access-grid">
         <section className="panel access-card"><h2>Assigned students</h2>{workspace.students.length === 0 && <p>No students are assigned. Contact DI.</p>}
