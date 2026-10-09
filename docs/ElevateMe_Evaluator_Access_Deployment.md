@@ -52,11 +52,24 @@ the outbox is verified in staging.
 
 ## Vercel frontend
 
-Set `JAVA_API_URL` to the HTTPS origin of the Java service. The Vercel function
-`api/[...path].js` forwards only `/api/evaluation-access/*`, preserves the
-authorization and evaluator cookie headers, and disables caching. The React
-frontend calls the same-origin gateway, so the Java service sees the exact
-`APP_PUBLIC_URL` origin and `X-ElevateMe-Request: 1` marker.
+The root `vercel.json` explicitly rewrites `/api/evaluation-access/*` to
+`https://elevateme-q23u.vercel.app/api/evaluation-access/*`. It disables caching
+on these routes. `JAVA_API_URL` is no longer used by the deployed proxy.
+The React frontend uses this same-origin route; keep Java's `APP_PUBLIC_URL`
+set to the frontend production origin. A change of backend domain also requires
+updating the rewrite destination. Preview frontends currently target this same
+backend; do not use real records for preview testing.
+
+## Audit migration 011
+
+Apply `supabase/migrations/011_access_runtime_and_parent_consent.sql` once,
+after migration 010, using the migration owner. It adds the runtime's missing
+parent-link read and `auth.uid()` execution privileges needed during release.
+It also blocks parent self-approval and changes to link participants. It does
+not grant public session updates or access to auth tables.
+Review existing approved parent links: the earlier permissive policy allowed
+self-approval, and this migration cannot establish historical consent.
+Do not replay migration 005 (it deletes historical score rows).
 
 ## Staging acceptance checks
 

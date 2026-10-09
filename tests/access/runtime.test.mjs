@@ -60,3 +60,21 @@ test('published repository SQL runs through release under the runtime role', asy
     assert.equal((await db.query('SELECT score FROM public.evaluation_scores WHERE evaluation_id=$1',[id])).rows.length, 1);
   } finally { await db.close(); }
 });
+
+test('logout expires the stored session even if an old cookie is replayed', async () => {
+  const db = await database();
+  try {
+    await seed(db);
+    const invite = '70000000-0000-0000-0000-000000000001';
+    await db.exec(`INSERT INTO evaluator_private.invitations(id,session_id,evaluator_name,evaluator_email,token_hash,created_by)
+      VALUES ('${invite}','${ids.session}','Test','test@example.test','invite-hash','${ids.admin}');
+      INSERT INTO evaluator_private.sessions(id,invitation_id,token_hash,expires_at)
+      VALUES (gen_random_uuid(),'${invite}','cookie-hash',clock_timestamp()+interval '1 hour');
+      SET ROLE elevateme_access;`);
+    const code = await readFile('backend/src/main/java/com/diplomaticimpact/access/AccessRepository.java', 'utf8');
+    const sql = code.match(/void endSession[^\n]+db\.update\("([^"]+)"/)[1].replace('?', '$1');
+    await db.query(sql, ['cookie-hash']);
+    const result = await db.query("SELECT count(*) AS n FROM evaluator_private.sessions WHERE token_hash='cookie-hash' AND expires_at>clock_timestamp()");
+    assert.equal(Number(result.rows[0].n), 0);
+  } finally { await db.close(); }
+});
