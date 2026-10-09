@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ReleasedPerformance } from '../features/evaluator-access/ReleasedPerformance.jsx';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button, Empty, Metrics, PageHead, Panel, SkeletonRows, Status, Tag } from '../components/ui.jsx';
 import { ChartSummary, LineChart, RecommendationRecord, ThreadMessage } from '../components/domain.jsx';
@@ -401,4 +402,3 @@ export function ThreadDetail() {
     </div>
   );
 }
-import { ReleasedPerformance } from '../features/evaluator-access/ReleasedPerformance.jsx';

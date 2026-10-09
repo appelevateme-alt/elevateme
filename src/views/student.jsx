@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ReleasedPerformance } from '../features/evaluator-access/ReleasedPerformance.jsx';
 import { Link, useParams } from 'react-router-dom';
 import { Button, Empty, Metrics, PageHead, Panel, SkeletonRows, Status, Tag } from '../components/ui.jsx';
 import { ProgramListRow, RecommendationRecord } from '../components/domain.jsx';
@@ -522,4 +523,3 @@ export function StudentParentAccess() {
     </div>
   );
 }
-import { ReleasedPerformance } from '../features/evaluator-access/ReleasedPerformance.jsx';
