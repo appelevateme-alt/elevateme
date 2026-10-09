@@ -28,7 +28,13 @@ public class AccessRepository {
   }
   boolean admin(UUID id) { return Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM public.profiles WHERE id=? AND status='Approved' AND 'admin'=ANY(roles))",Boolean.class,id)); }
   boolean activeUser(UUID id) { return Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM public.profiles WHERE id=? AND status='Approved' AND (roles && ARRAY['admin','student','parent']))",Boolean.class,id)); }
-  void lockSession(UUID id) { one("SELECT id FROM public.sessions WHERE id=? FOR UPDATE",id); }
+  void lockSession(UUID id) {
+    // Serialize invitation/release work without requiring UPDATE rights on the
+    // public sessions table. The transaction-scoped lock is released on commit
+    // or rollback; the regular SELECT also verifies that the session exists.
+    rows("SELECT pg_advisory_xact_lock(hashtextextended(?::text, 0))",id.toString());
+    one("SELECT id FROM public.sessions WHERE id=?",id);
+  }
   List<Map<String,Object>> catalog() { return rows("SELECT s.id,s.title,s.program_id,p.title AS program_title,s.date FROM public.sessions s JOIN public.programs p ON p.id=s.program_id ORDER BY s.date DESC NULLS LAST,s.id"); }
   List<Map<String,Object>> students(UUID session) {
     return rows("SELECT DISTINCT p.id,p.full_name,p.elevate_me_id,sh.id AS sheet_id,sh.state,sh.excluded_reason FROM public.registrations r JOIN public.profiles p ON p.id=r.student_id JOIN public.sessions s ON s.program_id=r.program_id LEFT JOIN evaluator_private.sheets sh ON sh.session_id=s.id AND sh.student_id=p.id WHERE s.id=? AND r.status='Confirmed' AND (r.session_id IS NULL OR r.session_id=s.id) ORDER BY p.full_name,p.id",session);
