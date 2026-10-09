@@ -56,11 +56,12 @@ public class AccessRepository {
     if(result.isEmpty()) throw AccessPolicy.error(401,"This link has been used, revoked or expired. Ask DI for a replacement."); return result.getFirst();
   }
   void session(UUID invitation,String hash,Object expires) {db.update("INSERT INTO evaluator_private.sessions(id,invitation_id,token_hash,expires_at) VALUES (?,?,?,?)",AccessPolicy.id(),invitation,hash,expires);}
+  void endSession(String hash) {db.update("UPDATE evaluator_private.sessions SET expires_at=LEAST(expires_at,clock_timestamp()) WHERE token_hash=?",hash);}
   Map<String,Object> guest(String hash) {
     var result=rows("SELECT i.* FROM evaluator_private.sessions gs JOIN evaluator_private.invitations i ON i.id=gs.invitation_id WHERE gs.token_hash=? FOR UPDATE OF i",hash);
     if(result.isEmpty()) throw AccessPolicy.error(401,"Access expired or unavailable. Ask DI for a replacement.");
     Map<String,Object> i=result.getFirst();
-    if(!Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM evaluator_private.invitations i JOIN evaluator_private.sessions gs ON gs.invitation_id=i.id WHERE i.id=? AND i.revoked_at IS NULL AND i.expires_at>clock_timestamp() AND gs.expires_at>clock_timestamp())",Boolean.class,i.get("id"))))
+    if(!Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM evaluator_private.invitations i JOIN evaluator_private.sessions gs ON gs.invitation_id=i.id WHERE i.id=? AND gs.token_hash=? AND i.revoked_at IS NULL AND i.expires_at>clock_timestamp() AND gs.expires_at>clock_timestamp())",Boolean.class,i.get("id"),hash)))
       throw AccessPolicy.error(401,"Access expired or revoked. Your saved work remains with DI.");
     return i;
   }

@@ -18,7 +18,7 @@ public class AccessController {
     var cookie=ResponseCookie.from("em_evaluator",s.token()).httpOnly(true).secure(secure).sameSite("Strict").path("/api/evaluation-access").maxAge(Math.max(0,Duration.between(Instant.now(),s.expiresAt()).toSeconds())).build();
     return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE,cookie.toString()).body(Map.of("expiresAt",s.expiresAt()));
   }
-  @PostMapping("/logout") ResponseEntity<?> logout(){return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE,ResponseCookie.from("em_evaluator","").httpOnly(true).secure(secure).sameSite("Strict").path("/api/evaluation-access").maxAge(0).build().toString()).build();}
+  @PostMapping("/logout") ResponseEntity<?> logout(@CookieValue(value="em_evaluator",required=false) String token){service.logout(token);return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE,ResponseCookie.from("em_evaluator","").httpOnly(true).secure(secure).sameSite("Strict").path("/api/evaluation-access").maxAge(0).build().toString()).build();}
   @GetMapping("/workspace") Object workspace(@CookieValue(value="em_evaluator",required=false) String token){return service.workspace(token);}
   @GetMapping("/sheets/{id}") Object sheet(@CookieValue(value="em_evaluator",required=false) String token,@PathVariable UUID id){return service.guestSheet(token,id);}
   @PutMapping("/sheets/{id}") Object save(@CookieValue(value="em_evaluator",required=false) String token,@PathVariable UUID id,@Valid @RequestBody AccessRequests.Save input){return service.save(token,id,input,false);}

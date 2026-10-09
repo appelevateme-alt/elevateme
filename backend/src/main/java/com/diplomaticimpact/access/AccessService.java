@@ -14,6 +14,9 @@ public class AccessService {
   private final AccessRepository repo; private final String publicUrl;
   public AccessService(AccessRepository repo,@Value("${access.public-url}") String publicUrl) {this.repo=repo;this.publicUrl=publicUrl.replaceAll("/$","");}
   public record Activation(String token,Instant expiresAt) {}
+  @Transactional public void logout(String token) {
+    if (token != null && token.matches("[A-Za-z0-9_-]{43}")) repo.endSession(hash(token));
+  }
   @Transactional public Map<String,Object> invite(UUID admin,AccessRequests.Invite input) {
     repo.lockSession(input.sessionId());
     Set<UUID> allowed=new HashSet<>(); repo.students(input.sessionId()).forEach(s->allowed.add(uuid(s,"id")));

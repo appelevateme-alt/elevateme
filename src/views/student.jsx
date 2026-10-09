@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { ReleasedPerformance } from '../features/evaluator-access/ReleasedPerformance.jsx';
 import { Link, useParams } from 'react-router-dom';
 import { Button, Empty, Metrics, PageHead, Panel, SkeletonRows, Status, Tag } from '../components/ui.jsx';
-import { ChartSummary, InsightList, LineChart, ProgramListRow, RecommendationRecord } from '../components/domain.jsx';
-import { formatTotal, total1000 } from '../lib/scores.js';
+import { ProgramListRow, RecommendationRecord } from '../components/domain.jsx';
+import { total1000 } from '../lib/scores.js';
 import { useSupabaseList, useSupabaseRecord, useSupabaseMutation } from '../lib/useSupabase.js';
 import { toAnnouncement, toEvaluation, toProgram, toRecommendation, toRegistration } from '../lib/adapters.js';
 import { useAuth } from '../lib/auth.jsx';
@@ -303,67 +304,9 @@ export function StudentRegistrations() {
 /* ---------- Performance (prototype performancePage, two sections) ---------- */
 export function StudentPerformance() {
   const { session } = useAuth();
-  const [applied, setApplied] = useState(false);
-  const { data: evalRows, loading, error } = useSupabaseList({
-    table: 'published_evaluations',
-    filters: session?.userId ? { student_id: session.userId, released: true } : { released: true },
-    page: 1,
-    pageSize: 20,
-  });
-  const { data: scoreRows } = useSupabaseList({ table: 'published_evaluation_scores', page: 1, pageSize: 100 });
-  const { data: sessionRows } = useSupabaseList({ table: 'sessions', page: 1, pageSize: 50 });
-  const evals = (evalRows || []).map(toEvaluation).filter((e) => e.released);
-  const evalIds = new Set(evals.map((e) => e.id));
-  const myScores = (scoreRows || []).filter((s) => evalIds.has(s.evaluation_id ?? s.evaluationId));
-  const totals = evals.map((e) => {
-    const nums = myScores
-      .filter((s) => (s.evaluation_id ?? s.evaluationId) === e.id)
-      .map((s) => s.score ?? s.value);
-    const calc = nums.length > 0 ? total1000(nums) : total1000((e.scores || []).map((s) => s.score));
-    return calc;
-  });
-  const currentTotal = totals.length > 0 ? totals[totals.length - 1] : null;
-  const firstTotal = totals.length > 0 ? totals[0] : null;
-  const latestId = evals.length > 0 ? evals[evals.length - 1].id : null;
-  const summaryValue = currentTotal != null ? formatTotal(currentTotal) : 'No released scores';
-  const insightItems = [
-    { label: 'Improving', text: totals.length >= 2 ? `Final score ${firstTotal.scaled} → ${currentTotal.scaled} across the last ${totals.length} sessions.` : currentTotal != null ? `Latest released final score is ${currentTotal.scaled} / 100.` : 'No released evaluations yet.', small: `Based on ${evals.length} released evaluation${evals.length === 1 ? '' : 's'}` },
-    { label: 'Strongest', text: 'Preparation remains the strongest skill, most often above 85.', small: 'Across all programs' },
-    { label: 'Next focus', text: 'Counter Arguments is the clearest development opportunity.', small: 'See recommendations' },
-  ];
-
-  return (
-    <div>
-      <PageHead kicker="Performance" title="Your progress." desc="Filter the evidence by skill, period and session. Insights below are based only on released evaluations." />
-      <div className="filter-bar">
-        <select aria-label="Select skill"><option>Confidence</option><option>Clarity</option><option>Critical Analysis</option><option>Counter Arguments</option></select>
-        <select aria-label="Select time period"><option>Last 6 months</option><option>Last 3 months</option><option>All time</option></select>
-        <select aria-label="Select sessions"><option>All sessions</option>{(sessionRows || []).map(toSession).map((s) => <option key={s.id}>{s.title}</option>)}</select>
-        <Button small onClick={() => setApplied(true)}>{applied ? 'Filters applied' : 'Apply filters'}</Button>
-      </div>
-      {loading && <SkeletonRows rows={4} />}
-      {error && <div className="notice"><strong>Couldn’t load performance.</strong> {error.message}</div>}
-      {!loading && !error && (
-        <div className="grid dashboard">
-          <section className="chart-panel">
-            <ChartSummary label="Current total" value={summaryValue} status={<Status value="Improving" />} />
-            <LineChart />
-          </section>
-          <section className="panel">
-            <div className="panel-head"><h2>Your Insights</h2><span className="tag">{evals.length > 0 ? '3 findings' : 'No data'}</span></div>
-            <div className="panel-body">
-              <InsightList items={insightItems} />
-              {latestId && (
-                <p style={{ fontSize: '.82rem', color: 'var(--muted)', marginTop: 12 }}>
-                  Detail per sheet: <Link to={`/student/performance/${latestId}`} className="link-quiet">Open latest released evaluation</Link>
-                </p>
-              )}
-            </div>
-          </section>
-        </div>
-      )}
-    </div>
-  );
+  return <div><PageHead kicker="Performance" title="Your progress." desc="Scores and automated insights from released evaluations." />
+    <ReleasedPerformance studentId={session?.userId} studentLinks />
+  </div>;
 }
 
 export function EvaluationDetail() {

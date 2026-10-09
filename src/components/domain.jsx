@@ -19,24 +19,22 @@ export function ProgramListRow({ date, type, title, meta, status, linkTo, action
 }
 
 /* ---------- Prototype line chart (blue on grid) ---------- */
-export function LineChart() {
-  return (
-    <>
-      <div className="chart">
-        <svg viewBox="0 0 700 260" preserveAspectRatio="none" role="img" aria-label="Performance total rising across six sessions">
-          <path d="M8 220 C90 210,105 181,145 187 S236 208,284 145 S372 120,418 130 S505 92,552 65 S635 52,692 22" fill="none" stroke="#1a49e7" strokeWidth="5" vectorEffect="non-scaling-stroke" />
-          <g fill="#fff" stroke="#111216" strokeWidth="3">
-            <circle cx="8" cy="220" r="7" /><circle cx="145" cy="187" r="7" /><circle cx="284" cy="145" r="7" />
-            <circle cx="418" cy="130" r="7" /><circle cx="552" cy="65" r="7" /><circle cx="692" cy="22" r="8" fill="#c8ff65" />
-          </g>
-        </svg>
-      </div>
-      <div className="chart-axis">
-        <span>Session 01</span><span>Session 02</span><span>Session 03</span>
-        <span>Session 04</span><span>Session 05</span><span>Session 06</span>
-      </div>
-    </>
-  );
+export function LineChart({ points = [], type = 'line' }) {
+  const valid = points.filter(p => Number.isFinite(p.value) && p.value >= 0 && p.value <= 100);
+  if (!valid.length) return <p>No released scores available for this chart.</p>;
+  const x = i => valid.length === 1 ? 350 : 35 + i * 630 / (valid.length - 1);
+  const y = value => 225 - value * 2;
+  return <div className="chart">
+    <svg viewBox="0 0 700 260" role="img" aria-label="Released performance scores, oldest to newest, on a zero to 100 scale">
+      {[0, 50, 100].map(value => <g key={value}><line x1="30" y1={y(value)} x2="690" y2={y(value)} stroke="#ddd" /><text x="0" y={y(value) + 4} fontSize="12">{value}</text></g>)}
+      {type === 'line' && <polyline points={valid.map((p, i) => `${x(i)},${y(p.value)}`).join(' ')} fill="none" stroke="#1a49e7" strokeWidth="3" />}
+      {valid.map((p, i) => <g key={p.id || i}>
+        {type === 'bar' ? <rect x={x(i) - 10} y={y(p.value)} width="20" height={225 - y(p.value)} fill="#1a49e7"><title>{p.label}: {p.value} / 100</title></rect>
+          : <circle cx={x(i)} cy={y(p.value)} r="5" fill="#1a49e7"><title>{p.label}: {p.value} / 100</title></circle>}
+        <text x={x(i)} y="247" textAnchor="middle" fontSize="12">{i + 1}</text>
+      </g>)}
+    </svg>
+  </div>;
 }
 
 export function ChartSummary({ label, value, status }) {
