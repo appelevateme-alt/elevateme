@@ -51,7 +51,7 @@ useEffect(() => {
     <>
       <div className="landing-topbar"><div className="wrap"><span>A student growth platform</span><span>Built for measurable progress</span></div></div>
       <header className="landing-nav"><div className="wrap">
-        <Link className="brand" to="/" aria-label="ElevateMe home">Elevate<span>Me</span></Link>
+        <Link className="brand" to="/" aria-label="ElevateMe home"><img src="/images/logo.png" alt="ElevateMe logo" style={{ height: '32px', width: 'auto' }} /></Link>
         <nav className="landing-links" aria-label="Primary navigation" style={menu ? { display: 'flex' } : undefined}>
   <a href="#how">How it works</a><a href="#people">For everyone</a><a href="#performance">Performance</a>
   <Link to="/programs">Programs</Link>
@@ -93,11 +93,11 @@ useEffect(() => {
           </div>
         </div></section>
 
-        <section className="metrics-band" aria-label="Platform highlights"><Reveal className="wrap stagger-group">
+        {/* <section className="metrics-band" aria-label="Platform highlights"><Reveal className="wrap stagger-group">
           <div className="metric-band"><b>1 profile</b><span>One continuous record of student growth</span></div>
           <div className="metric-band"><b>Your skills</b><span>A consistent, structured evaluation</span></div>
           <div className="metric-band"><b>Clear next steps</b><span>Recommendations backed by performance</span></div>
-        </Reveal></section>
+        </Reveal></section> */}
 
         <section className="landing-section" id="how"><div className="wrap">
   <div className="section-head-grid" style={{ gridTemplateColumns: '1fr' }}>
