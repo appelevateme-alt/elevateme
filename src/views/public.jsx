@@ -35,26 +35,20 @@ function Reveal({ as: Tag = 'div', className = '', delay = 0, children, ...rest 
 /* ---------- Landing (prototype index.html) ---------- */
 export function Home() {
   const [menu, setMenu] = useState(false);
-const [dark, setDark] = useState(() => {
-  try { return localStorage.getItem('em-theme') === 'dark'; } catch { return false; }
-});
 
-useEffect(() => {
-  const root = document.documentElement;
-  if (dark) root.setAttribute('data-theme', 'dark');
-  else root.removeAttribute('data-theme');
-  try { localStorage.setItem('em-theme', dark ? 'dark' : 'light'); } catch { /* ignore */ }
-  // leaving the landing page puts the rest of the app back to light
-  return () => root.removeAttribute('data-theme');
-}, [dark]);
+  // the landing page is always dark; leaving it puts the rest of the app back to light
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('data-theme', 'dark');
+    return () => root.removeAttribute('data-theme');
+  }, []);
   return (
     <>
       <div className="landing-topbar"><div className="wrap"><span>A student growth platform</span><span>Built for measurable progress</span></div></div>
       <header className="landing-nav"><div className="wrap">
         <Link className="brand" to="/" aria-label="ElevateMe home"><img src="/images/logo.png" alt="ElevateMe logo" style={{ height: '32px', width: 'auto' }} /></Link>
         <nav className="landing-links" aria-label="Primary navigation" style={menu ? { display: 'flex' } : undefined}>
-  <a href="#how">How it works</a><a href="#people">For everyone</a><a href="#performance">Performance</a>
-  <Link to="/programs">Programs</Link>
+  <a href="#how">How it works</a><a href="#people">For everyone</a>
   <Link className="button" to="/student">Open app <span aria-hidden="true">↗</span></Link>
   {/* <button type="button" role="switch" aria-checked={dark} aria-label="Dark mode" className="theme-toggle" onClick={() => setDark((d) => !d)}>
     <span className="theme-toggle-knob" aria-hidden="true">{dark ? '☾' : '☀'}</span>
@@ -72,8 +66,8 @@ useEffect(() => {
               <div className="hero-actions hero-enter" style={{ '--d': '240ms' }}>
                 {/* <Link className="button" to="/programs">Explore programs <span aria-hidden="true">→</span></Link> */}
                 {/* <Link className="button secondary" to="/student">Preview the app</Link> */}
-                <Link className="button secondary" to="/sign-up">Create account</Link>
-                <Link className="button secondary" to="/sign-in">Log In to account</Link>
+                <Link className="button secondary pill" to="/sign-up">Create account <span className="pill-arrow" aria-hidden="true">→</span></Link>
+<Link className="button secondary pill" to="/sign-in">Log In to account <span className="pill-arrow" aria-hidden="true">→</span></Link>
               </div>
             </div>
             <aside className="mini-panel hero-enter" style={{ '--d': '200ms' }} aria-label="Example performance insight">
@@ -98,13 +92,38 @@ useEffect(() => {
           <div className="metric-band"><b>Your skills</b><span>A consistent, structured evaluation</span></div>
           <div className="metric-band"><b>Clear next steps</b><span>Recommendations backed by performance</span></div>
         </Reveal></section> */}
+                <section className="landing-section" id="people"><div className="wrap">
+  <div className="role-copy" style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto' }}>
+    <h2>OUR FOCUS:<br />TRAITS OF MODERN DIPLOMACY.</h2>
+  </div>
+  <Reveal className="focus-grid stagger-group">
+  {[
+    ['Public Speaking', 'Express your thoughts with clarity and articulate them with confidence.',
+      <svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" x2="12" y1="19" y2="22" /></svg>],
+    ['Communication', 'Make yourself clear and convincing to your audience.',
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><path d="M13 8H7" /><path d="M17 12H7" /></svg>],
+    ['Negotiation Skills', 'Achieve your desired outcomes through strategy, persuasion, and respect.',
+      <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>],
+    ['Leadership', 'Become a leader others trust, respect, and willingly follow.',
+      <svg viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>],
+  ].map(([title, sub, icon]) => (
+    <article key={title} className="focus-card">
+      <span className="focus-icon" aria-hidden="true">{icon}</span>
+      <h3>{title}</h3>
+      <p>{sub}</p>
+    </article>
+  ))}
+</Reveal>
+  {/* <div className="quote" style={{ textAlign: 'center', maxWidth: 720, margin: '34px auto 0' }}>Simple enough to use during a live session. Structured enough to support long-term development.</div> */}
+</div>
+</section>
 
         <section className="landing-section" id="how"><div className="wrap">
   <div className="section-head-grid" style={{ gridTemplateColumns: '1fr' }}>
-    <div><h2>MEASURING PROGRESS WITH<br />INDIVIDUAL TALENT OPTIMIZATION (ITO).</h2></div>
+    <div><h2>METHODOLOGY OF PROGRESS VIA<br />INDIVIDUAL TALENT OPTIMIZATION (ITO).</h2></div>
   </div>
   <Reveal className="flow stagger-group">
-    <article className="step"><div className="step-no">01 / DISCOVER</div><h3>Join a Skill Development Programme (SDP)</h3><p>Explore approved events and special development opportunities.</p></article>
+    <article className="step"><div className="step-no">01 / DISCOVER</div><h3>Join a SDP</h3><p>Skill Development Programme</p></article>
     <article className="step"><div className="step-no">02 / PARTICIPATE</div><h3>Tracking and Recognition</h3><p>Identification of Individual Talents
 and Areas of Weaknesses 
 Through Professional Evaluation.</p></article>
@@ -113,26 +132,7 @@ Through Professional Evaluation.</p></article>
   </Reveal>
 </div></section>
 
-        <section className="landing-section" id="people"><div className="wrap">
-  <div className="role-copy" style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto' }}>
-    <h2>OUR FOCUS:<br />TRAITS OF MODERN DIPLOMACY.</h2>
-  </div>
-  <Reveal className="focus-grid stagger-group">
-    {[
-      ['Public Speaking', 'Express your thoughts with clarity and articulate them with confidence.'],
-      ['Communication', 'Make yourself clear and convincing to your audience.'],
-      ['Negotiation Skills', 'Achieve your desired outcomes through strategy, persuasion, and respect.'],
-      ['Leadership', 'Become a leader others trust, respect, and willingly follow.'],
-    ].map(([title, sub]) => (
-      <article key={title} className="focus-card">
-        <h3>{title}</h3>
-        <p>{sub}</p>
-      </article>
-    ))}
-  </Reveal>
-  {/* <div className="quote" style={{ textAlign: 'center', maxWidth: 720, margin: '34px auto 0' }}>Simple enough to use during a live session. Structured enough to support long-term development.</div> */}
-</div>
-</section>
+
 
         {/* <section className="landing-section dark" id="performance"><Reveal className="wrap performance-grid stagger-group">
           <div><div className="hero-eyebrow">Performance, explained</div><h2>NOT JUST<br />A SCORE.</h2><p>Track performance by skill, period and session. Then turn the numbers into straightforward, evidence-based insights a student can act on.</p><Link className="button" style={{ marginTop: 26, background: 'var(--lime)', color: 'var(--ink)', borderColor: 'var(--lime)' }} to="/student/performance">Preview performance →</Link></div>
@@ -160,69 +160,49 @@ Through Professional Evaluation.</p></article>
       <p style={{ marginLeft: 'auto' }}>Build communication, leadership and critical-thinking skills through structured experiences—each one connected to your long-term growth record.</p>
     </div>
   </div>
-  <Reveal className="program-grid stagger-group">
-    {[
-      ['SINGLE EVENT', 'Model United Nations', 'Committees, country representation and performance feedback in one connected experience.'],
-      ['SINGLE EVENT', 'Friendly debates', 'Practice structured argument, counter-arguments, clarity and confident delivery.'],
-      ['CONTINUOUS', 'Academic speaking', 'Follow improvement across multiple sessions with longitudinal performance insights.'],
-      ['SPECIAL', 'Development programs', 'Focused experiences created around the skills students need most.'],
-    ].map(([tag, title, sub]) => (
-      <article key={title} className="program-card">
-        <span className="program-tag">{tag}</span>
-        <div>
-          <h3>{title}</h3>
-          <p>{sub}</p>
-        </div>
-        <span className="program-arrow" aria-hidden="true">↗</span>
-      </article>
-    ))}
-  </Reveal>
+  <Reveal className="program-single stagger-group">
+  <article className="program-card program-card-wide">
+    <div>
+      <h3>Model Diplomacy</h3>
+      <p>A 5-Level pathway aiming to mould a real-world Diplomat</p>
+    </div>
+    <span className="program-arrow" aria-hidden="true">↗</span>
+  </article>
+</Reveal>
 </div></section>
 
 <section className="landing-section" id="pathway"><div className="wrap">
   <div className="role-copy" style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto' }}>
     <h2>AMBITIOUS<br />PATHWAY.</h2>
   </div>
-  <Reveal className="pathway">
-    {(() => {
-      const steps = [
-        'A Confident Communicator',
-        'A Persuasive Speaker',
-        'A Skilled Negotiator',
-        'A Critical Thinker',
-        'An Effective Leader',
-        'A Creative Problem Solver',
-        'An Independent Decision Maker',
-        'A Model Diplomat',
-      ];
-      // evenly spaced left to right, alternating high and low
-      const pts = steps.map((_, i) => [6.25 + i * 12.5, i % 2 === 0 ? 30 : 70]);
-      // smooth S-curve between each pair of points
-      const d = pts.reduce((acc, [x, y], i) => {
-        if (i === 0) return `M ${x} ${y}`;
-        const [px, py] = pts[i - 1];
-        const mx = (px + x) / 2;
-        return `${acc} C ${mx} ${py}, ${mx} ${y}, ${x} ${y}`;
-      }, '');
-      return (
-        <>
-          <svg className="pathway-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            <path d={d} />
-          </svg>
-          {steps.map((label, i) => (
-            <div
-              key={label}
-              className={`pathway-step ${i % 2 === 0 ? 'high' : 'low'}${i === steps.length - 1 ? ' final' : ''}`}
-              style={{ '--x': `${pts[i][0]}%`, '--y': `${pts[i][1]}%`, '--delay': `${0.2 + i * 0.3}s` }}
-            >
-              <span className="pathway-node">{String(i + 1).padStart(2, '0')}</span>
-              <div className="pathway-card">{label}</div>
-            </div>
-          ))}
-        </>
-      );
-    })()}
-  </Reveal>
+<Reveal className="pathway-grid">
+  {[
+    { label: 'A Confident Communicator',      img: '/images/pathway/confident-communicator.jpg' },
+    { label: 'A Persuasive Speaker',          img: '/images/pathway/persuasive-speaker.jpg' },
+    { label: 'A Skilled Negotiator',          img: '/images/pathway/skilled-negotiator.jpg' },
+    { label: 'A Critical Thinker',            img: '/images/pathway/critical-thinker.jpg' },
+    { label: 'An Effective Leader',           img: '/images/pathway/effective-leader.jpg' },
+    { label: 'A Creative Problem Solver',     img: '/images/pathway/creative problem solver.jpg' },
+    { label: 'An Independent Decision Maker', img: '/images/pathway/independant decision maker.jpg' },
+    { label: 'A Model Diplomat',              img: '/images/pathway/model diplomat.jpg' },
+  ].map(({ label, img }, i, all) => (
+    <article
+      key={label}
+      className={`pathway-box${i === all.length - 1 ? ' final' : ''}`}
+      style={{ '--delay': `${0.1 + i * 0.12}s` }}
+    >
+      <div className="pathway-img">
+        <span className="pathway-num">{String(i + 1).padStart(2, '0')}</span>
+        {img ? (
+          <img src={img} alt={label} loading="lazy" />
+        ) : (
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></svg>
+        )}
+      </div>
+      <h3>{label}</h3>
+    </article>
+  ))}
+</Reveal>
 </div></section>
 
         <section className="cta-band" id="join"><Reveal className="wrap cta-grid stagger-group"><h2>YOUR NEXT LEVEL<br />STARTS HERE.</h2><div>
@@ -240,13 +220,10 @@ Through Professional Evaluation.</p></article>
 </div></Reveal></section>
       </main>
       <footer className="landing-footer"><div className="wrap footer-grid">
-        <Link className="brand" to="/">Elevate<span>Me</span></Link>
-        <nav className="footer-links" aria-label="Footer navigation"><a href="#how">How it works</a><Link to="/programs">Programs</Link><a href="#performance">Performance</a><Link to="/student">Open app</Link></nav>
+        <Link className="brand" to="/"><img src="/images/logo.png" alt="ElevateMe logo" style={{ height: '32px', width: 'auto' }} /></Link>
+        <nav className="footer-links" aria-label="Footer navigation"><a href="#how">How it works</a><Link to="/student">Open app</Link></nav>
         <div className="copyright"><span>© 2026 ElevateMe by Diplomatic Impact</span><span>Student growth, made visible.</span></div>
       </div></footer>
-      <button type="button" role="switch" aria-checked={dark} aria-label="Dark mode" className="theme-toggle" onClick={() => setDark((d) => !d)}>
-    <span className="theme-toggle-knob" aria-hidden="true">{dark ? '☾' : '☀'}</span>
-  </button>
     </>
   );
 }
