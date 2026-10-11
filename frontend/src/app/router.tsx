@@ -25,6 +25,7 @@ import { SignUpPage } from '../pages/auth/SignUpPage';
 import { ForgotPasswordPage } from '../pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from '../pages/auth/ResetPasswordPage';
 
+
 // Phase 6 perf: route-level code splitting for staff/admin (heavy sheets,
 // rosters, admin queues load on demand; student core stays eager).
 const ProgramBuilderPage = lazy(() =>
