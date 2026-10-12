@@ -528,7 +528,7 @@ html{scroll-behavior:smooth}
 .hero{padding:78px 0 66px;border-bottom:1px solid var(--line);overflow:hidden;background:var(--paper)}
 .hero-eyebrow{display:flex;align-items:center;gap:10px;color:var(--em_pink);font-size:.78rem;font-weight:700;letter-spacing:.11em;text-transform:uppercase}
 .hero-eyebrow:before{content:"";width:28px;height:2px;background:currentColor}
-.hero-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:88px;align-items:end;margin-top:26px}
+.hero-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:88px;align-items:stretch;margin-top:26px}
 .hero h1{font:800 clamp(3.7rem,7.6vw,7.4rem)/.91 "Manrope",sans-serif;letter-spacing:-.075em;margin:0;max-width:850px}
 .hero h1 em{font-style:normal;color:var(--blue)}
 .hero-copy{max-width:500px;margin:32px 0 0;font-size:1.15rem;color:var(--muted)}
@@ -1140,35 +1140,57 @@ html[data-theme="dark"] .landing-nav {
   max-width: 360px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 10px;
-  padding: 34px 28px 30px;
-  background: linear-gradient(180deg, #14171c, #0e1013);
+  align-items: flex-start;
+  text-align: left;
+  gap: 12px;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 24px 24px 28px;
+  background: linear-gradient(180deg, #fff, #fff 60%, #f9f9f9);
   border: 1px solid rgba(255, 255, 255, .09);
   border-radius: 32px;
   box-shadow: 0 30px 60px -30px rgba(0, 0, 0, .8), inset 0 1px 0 rgba(255, 255, 255, .05);
 }
+
 .me-avatar {
-  width: 96px;
-  height: 96px;
-  margin-bottom: 10px;
-  display: grid;
-  place-items: center;
-  border-radius: 26px;
+  width: 100%; 
+  flex-grow: 1; 
+  min-height: 160px; 
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;       /* Stack content vertically */
+  justify-content: flex-end;    /* Push content to the bottom */
+  align-items: flex-start;      /* Align content to the left */
+  padding: 24px;                /* Padding acts as space from bottom and left edges */
+  border-radius: 22px;
   background:
     radial-gradient(circle at 1.5px 1.5px, rgba(8, 9, 10, .28) 1.5px, transparent 2px) 0 0 / 12px 12px,
-    linear-gradient(135deg, #c8ff65 0%, #5ee09a 100%);
+    linear-gradient(135deg, #0073ec 0%, #0c0cf9 100%);
   box-shadow: 0 14px 30px -12px rgba(94, 224, 154, .55);
 }
-.me-avatar span { font: 800 1.9rem "Manrope", sans-serif; letter-spacing: -.02em; color: #08170f; }
-.me-name { font: 700 1.35rem/1.2 "Manrope", sans-serif; letter-spacing: -.03em; color: #fff; word-break: break-word; }
+
+.me-avatar span { 
+  font: 800 4rem "Manrope", sans-serif; /* Significantly larger initials */
+  line-height: 1;                     /* Keeps them tight and bold */
+  letter-spacing: -.03em; 
+  color: #fff; 
+  text-align: left;
+}
+
+.me-name { 
+  font: 700 1.4rem/1.2 "Manrope", sans-serif; 
+  letter-spacing: -.03em; 
+  color: #000; 
+  word-break: break-word; 
+  margin-top: auto; /* Pushes the name and ID down to anchor the bottom */
+}
+
 .me-id {
   padding: 6px 14px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, .14);
   background: rgba(255, 255, 255, .05);
-  color: #c7cbd6;
+  color: #000;
   font: 600 .8rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: .06em;
 }
