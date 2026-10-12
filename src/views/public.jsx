@@ -32,9 +32,27 @@ function Reveal({ as: Tag = 'div', className = '', delay = 0, children, ...rest 
   );
 }
 
+function initialsFor(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'EM';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+const NAV_ITEMS = [
+  { href: '#people', label: 'Focus', icon: <><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></> },
+  { href: '#how', label: 'Method', icon: <><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z" /><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65" /><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65" /></> },
+  { href: '#programs', label: 'Programs', icon: <><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z" /><path d="M22 10v6" /><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5" /></> },
+  { href: '#pathway', label: 'Pathway', icon: <><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><line x1="4" x2="4" y1="22" y2="15" /></> },
+  { href: '#join', label: 'Pricing', icon: <><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></> },
+];
+
 /* ---------- Landing (prototype index.html) ---------- */
 export function Home() {
-  const [menu, setMenu] = useState(false);
+  const { session } = useAuth();
+  const [active, setActive] = useState('');
+const lockUntil = useRef(0);
+  // const [menu, setMenu] = useState(false);
 
   // the landing page is always dark; leaving it puts the rest of the app back to light
   useEffect(() => {
@@ -42,50 +60,71 @@ export function Home() {
     root.setAttribute('data-theme', 'dark');
     return () => root.removeAttribute('data-theme');
   }, []);
+  // highlight the nav item for the section currently in view
+useEffect(() => {
+  if (typeof IntersectionObserver === 'undefined') return;
+  const targets = [
+    document.querySelector('.hero'), // no nav item: clears the highlight at the top
+    ...NAV_ITEMS.map(({ href }) => document.getElementById(href.slice(1))),
+  ].filter(Boolean);
+
+  const io = new IntersectionObserver(
+    (entries) => {
+      if (Date.now() < lockUntil.current) return; // ignore sections passed while a click is scrolling
+      entries.forEach((e) => { if (e.isIntersecting) setActive(e.target.id || ''); });
+    },
+    { rootMargin: '-40% 0px -55% 0px' }, // a thin band near the middle of the screen
+  );
+  targets.forEach((el) => io.observe(el));
+  return () => io.disconnect();
+}, []);
   return (
     <>
-      <div className="landing-topbar"><div className="wrap"><span>A student growth platform</span><span>Built for measurable progress</span></div></div>
       <header className="landing-nav"><div className="wrap">
-        <Link className="brand" to="/" aria-label="ElevateMe home"><img src="/images/logo.png" alt="ElevateMe logo" style={{ height: '32px', width: 'auto' }} /></Link>
-        <nav className="landing-links" aria-label="Primary navigation" style={menu ? { display: 'flex' } : undefined}>
-  <a href="#how">How it works</a><a href="#people">For everyone</a>
-  <Link className="button" to="/student">Open app <span aria-hidden="true">↗</span></Link>
-  {/* <button type="button" role="switch" aria-checked={dark} aria-label="Dark mode" className="theme-toggle" onClick={() => setDark((d) => !d)}>
-    <span className="theme-toggle-knob" aria-hidden="true">{dark ? '☾' : '☀'}</span>
-  </button> */}
-</nav>
-        <button className="menu-button" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>{menu ? 'Close' : 'Menu'}</button>
-      </div></header>
+  <Link className="brand" to="/" aria-label="ElevateMe home"><img src="/images/logo.png" alt="ElevateMe logo" /></Link>
+  <nav className="landing-links" aria-label="Primary navigation">
+    {NAV_ITEMS.map(({ href, label, icon }) => {
+  const id = href.slice(1);
+  return (
+    <a
+      key={href}
+      href={href}
+      className={`nav-item${active === id ? ' active' : ''}`}
+      aria-label={label}
+      aria-current={active === id ? 'location' : undefined}
+      title={label}
+      onClick={() => { lockUntil.current = Date.now() + 1100; setActive(id); }}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">{icon}</svg>
+      <span>{label}</span>
+    </a>
+  );
+})}
+    <Link className="button nav-open" to="/student" aria-label="Open app" title="Open app">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10" /><path d="M7 17 17 7" /></svg>
+    </Link>
+  </nav>
+</div></header>
       <main>
         <section className="hero"><div className="wrap">
-          {/* <div className="hero-eyebrow hero-enter">Every session becomes progress</div> */}
-          <div className="hero-grid">
-            <div>
-              <h1 className="hero-enter" style={{ '--d': '80ms' }}>A TOOL<br />FOR <em>VISIBLE GROWTH</em></h1>
-              <p className="hero-copy hero-enter" style={{ '--d': '160ms' }}>A clear path from each session to a stronger Public Speaking, Communication, Negotiation and Leadership skills: with professional evaluation, honest progress and human guidance.</p>
-              <div className="hero-actions hero-enter" style={{ '--d': '240ms' }}>
-                {/* <Link className="button" to="/programs">Explore programs <span aria-hidden="true">→</span></Link> */}
-                {/* <Link className="button secondary" to="/student">Preview the app</Link> */}
-                <Link className="button secondary pill" to="/sign-up">Create account <span className="pill-arrow" aria-hidden="true">→</span></Link>
-<Link className="button secondary pill" to="/sign-in">Log In to account <span className="pill-arrow" aria-hidden="true">→</span></Link>
-              </div>
-            </div>
-            <aside className="mini-panel hero-enter" style={{ '--d': '200ms' }} aria-label="Example performance insight">
-              <div className="panel-top"><span className="panel-title">Your performance</span><span className="status">Improving</span></div>
-              <div className="mini-chart">
-                <svg viewBox="0 0 420 130" role="img" aria-label="Confidence score increasing across five sessions">
-                  <polyline className="draw-line" points="8,108 106,92 205,98 304,58 412,27" fill="none" stroke="#16834b" strokeWidth="5" strokeLinecap="square" />
-                  <g className="fade-late" fill="#fff" stroke="#101114" strokeWidth="3">
-                    <circle cx="8" cy="108" r="6" /><circle cx="106" cy="92" r="6" /><circle cx="205" cy="98" r="6" />
-                    <circle cx="304" cy="58" r="6" /><circle cx="412" cy="27" r="7" fill="#c8ff65" />
-                  </g>
-                </svg>
-              </div>
-              <div className="chart-labels"><span>Session 01</span><span>Session 05</span></div>
-              <div className="hero-insight"><div className="hero-insight-num">+18%</div><p><strong>Confidence is your fastest-growing skill.</strong><br />You improved across four of your last five evaluated sessions.</p></div>
-            </aside>
-          </div>
-        </div></section>
+  <div className={`hero-grid${session ? '' : ' hero-solo'}`}>
+    <div>
+      <h1 className="hero-enter" style={{ '--d': '80ms' }}>A TOOL<br />FOR <em>VISIBLE GROWTH</em></h1>
+      <p className="hero-copy hero-enter" style={{ '--d': '160ms' }}>A clear path from each session to a stronger Public Speaking, Communication, Negotiation and Leadership skills: with professional evaluation, honest progress and human guidance.</p>
+      <div className="hero-actions hero-enter" style={{ '--d': '240ms' }}>
+        <Link className="button secondary pill" to="/sign-up">Create account <span className="pill-arrow" aria-hidden="true">↗</span></Link>
+        <Link className="button secondary pill" to="/sign-in">Log In to account <span className="pill-arrow" aria-hidden="true">↗</span></Link>
+      </div>
+    </div>
+    {session && (
+      <aside className="me-card hero-enter" style={{ '--d': '200ms' }} aria-label="Your account">
+        <div className="me-avatar" aria-hidden="true"><span>{initialsFor(session.name)}</span></div>
+        <strong className="me-name">{session.name}</strong>
+        {session.elevateMeId && <span className="me-id">{session.elevateMeId}</span>}
+      </aside>
+    )}
+  </div>
+</div></section>
 
         {/* <section className="metrics-band" aria-label="Platform highlights"><Reveal className="wrap stagger-group">
           <div className="metric-band"><b>1 profile</b><span>One continuous record of student growth</span></div>
@@ -106,9 +145,10 @@ export function Home() {
       <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>],
     ['Leadership', 'Become a leader others trust, respect, and willingly follow.',
       <svg viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>],
-  ].map(([title, sub, icon]) => (
+    ].map(([title, sub, icon], i) => (
     <article key={title} className="focus-card">
       <span className="focus-icon" aria-hidden="true">{icon}</span>
+      <span className="focus-num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
       <h3>{title}</h3>
       <p>{sub}</p>
     </article>
@@ -120,7 +160,13 @@ export function Home() {
 
         <section className="landing-section" id="how"><div className="wrap">
   <div className="section-head-grid" style={{ gridTemplateColumns: '1fr' }}>
-    <div><h2>METHODOLOGY OF PROGRESS VIA<br />INDIVIDUAL TALENT OPTIMIZATION (ITO).</h2></div>
+    <div>
+  <h2 className="ito-title">
+    <span className="ito-mid">Methodology of Progress</span>
+    <span className="ito-small">Via</span>
+    <span className="ito-big">Individual Talent Optimization (ITO)</span>
+  </h2>
+</div>
   </div>
   <Reveal className="flow stagger-group">
     <article className="step"><div className="step-no">01 / DISCOVER</div><h3>Join a SDP</h3><p>Skill Development Programme</p></article>
@@ -206,7 +252,7 @@ Through Professional Evaluation.</p></article>
 </div></section>
 
         <section className="cta-band" id="join"><Reveal className="wrap cta-grid stagger-group"><h2>YOUR NEXT LEVEL<br />STARTS HERE.</h2><div>
-  <p>Explore the complete application preview and see how every role connects.</p>
+  {/* <p>Explore the complete application preview and see how every role connects.</p> */}
   <div className="cta-price">
     <span className="cta-price-badge">Limited-time offer · 50% off</span>
     <div className="cta-price-row">
