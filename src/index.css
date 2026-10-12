@@ -1397,7 +1397,7 @@ html[data-theme="dark"] body * {
   padding: 48px 56px 48px clamp(40px, 8vw, 110px);
 }
 .program-card-wide > div { text-align: left; }
-@media (max-width: 640px) { .program-card-wide { padding: 36px 28px; } },
+@media (max-width: 640px) { .program-card-wide { padding: 36px 28px; } }
 /* Logo top-left, nav aligned to content's right edge, taller Model Diplomacy card */
 .landing-logo {
   position: absolute;
