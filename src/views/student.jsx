@@ -14,6 +14,7 @@ export function StudentDashboard() {
   const { session } = useAuth();
   const firstName = session?.name ? session.name.split(' ')[0] : 'Student';
   const elevateMeId = session?.elevateMeId || 'Pending approval';
+  const avatarUrl = session?.avatarUrl || session?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=faces";
 
   const { data: regRows, count: regCount, loading: regsLoading } = useSupabaseList({
     table: 'registrations',
@@ -28,70 +29,87 @@ export function StudentDashboard() {
     pageSize: 20,
   });
   const { data: annRows } = useSupabaseList({ table: 'announcements', filters: { status: 'Published' }, page: 1, pageSize: 3 });
+  
   // Latest 3 evaluations that have actually been released to this student.
-const {
-  data: recentEvalRows,
-  loading: recentEvalsLoading,
-} = useSupabaseList({
-  table: 'published_evaluations',
+  const {
+    data: recentEvalRows,
+    loading: recentEvalsLoading,
+  } = useSupabaseList({
+    table: 'published_evaluations',
+    select: '*',
+    filters: {
+      student_id: session?.userId || '00000000-0000-0000-0000-000000000000',
+      released: true,
+    },
+    order: {
+      col: 'released_at',
+      ascending: false,
+    },
+    page: 1,
+    pageSize: 3,
+  });
 
-  // evaluations.program_id is linked to programs.id
-  // so Supabase can return the program title with the evaluation.
-  select: '*',
+  const recentEvalIds = (recentEvalRows || [])
+    .map((evaluation) => evaluation.id)
+    .filter(Boolean);
 
-  filters: {
-    student_id: session?.userId || '00000000-0000-0000-0000-000000000000',
-    released: true,
-  },
+  const {
+    data: recentScoreRows,
+    loading: recentScoresLoading,
+  } = useSupabaseList({
+    table: 'published_evaluation_scores',
+    filters: {
+      evaluation_id:
+        recentEvalIds.length > 0
+          ? recentEvalIds
+          : ['00000000-0000-0000-0000-000000000000'],
+    },
+    page: 1,
+    pageSize: 30,
+  });
 
-  order: {
-    col: 'released_at',
-    ascending: false,
-  },
+  const recentScores = (recentEvalRows || []).map((evaluation) => {
+    const scores = (recentScoreRows || [])
+      .filter((score) => score.evaluation_id === evaluation.id)
+      .map((score) => score.score ?? score.value);
 
-  page: 1,
-  pageSize: 3,
-});
+    const result = total1000(scores);
 
-const recentEvalIds = (recentEvalRows || [])
-  .map((evaluation) => evaluation.id)
-  .filter(Boolean);
+    return {
+      id: evaluation.id,
+      programName: evaluation.program_title || 'Program',
+      score: scores.length === 10 ? result.scaled : null,
+      releasedAt: evaluation.released_at,
+    };
+  });
 
-// 3 evaluations × 10 criteria = maximum 30 rows.
-const {
-  data: recentScoreRows,
-  loading: recentScoresLoading,
-} = useSupabaseList({
-  table: 'published_evaluation_scores',
-  filters: {
-    evaluation_id:
-      recentEvalIds.length > 0
-        ? recentEvalIds
-        : ['00000000-0000-0000-0000-000000000000'],
-  },
-  page: 1,
-  pageSize: 30,
-});
+  // Calculate grade averages from score rows if available
+  const criterionScoresMap = {};
+  (recentScoreRows || []).forEach(s => {
+    const key = (s.criterion_key ?? s.criterion ?? s.criterionKey ?? '').toLowerCase();
+    const val = s.score ?? s.value;
+    if (key && typeof val === 'number') {
+      if (!criterionScoresMap[key]) criterionScoresMap[key] = [];
+      criterionScoresMap[key].push(val);
+    }
+  });
 
-const recentScores = (recentEvalRows || []).map((evaluation) => {
-  const scores = (recentScoreRows || [])
-    .filter((score) => score.evaluation_id === evaluation.id)
-    .map((score) => score.score ?? score.value);
+  const getAvgCriterion = (keywords) => {
+    let matchingScores = [];
+    Object.keys(criterionScoresMap).forEach(k => {
+      if (keywords.some(kw => k.includes(kw))) {
+        matchingScores.push(...criterionScoresMap[k]);
+      }
+    });
+    if (matchingScores.length === 0) return '—';
+    const avg = Math.round(matchingScores.reduce((a, b) => a + b, 0) / matchingScores.length);
+    return `${avg}%`;
+  };
 
-  const result = total1000(scores);
-
-  return {
-  id: evaluation.id,
-
-  programName:
-    evaluation.program_title ||
-    'Program',
-
-  score: scores.length === 10 ? result.scaled : null,
-
-  releasedAt: evaluation.released_at,
-};
-});
+  const avgPreparation = getAvgCriterion(['prep', 'preparation']);
+  const avgClarity = getAvgCriterion(['clarity', 'clear']);
+  const avgConsistency = getAvgCriterion(['consistency', 'consistent']);
+  const avgEngagement = getAvgCriterion(['engagement', 'engage', 'participation']);
 
   const regs = (regRows || []).map(toRegistration);
   const recs = (recRows || []).map(toRecommendation);
@@ -102,125 +120,210 @@ const recentScores = (recentEvalRows || []).map((evaluation) => {
   const topRec = recs[0];
   const topAnn = anns[0];
 
+  const validScores = recentScores.map(s => s.score).filter(s => s !== null);
+  const overallTotalDisplay = validScores.length > 0 ? `${Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length)}%` : 'See performance';
+
+  // Landing page dark theme shared styling tokens
+  const cardStyle = {
+    background: 'var(--surface-card, #0f172a)',
+    border: '1px solid var(--border, #1e293b)',
+    borderRadius: '20px',
+    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
+    padding: '24px',
+    marginBottom: '20px',
+  };
+
+  const subCardStyle = {
+    background: 'var(--surface-card-subtle, #1e293b)',
+    border: '1px solid var(--border-subtle, #334155)',
+    borderRadius: '16px',
+    padding: '18px',
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+  };
+
   return (
-    <div>
-      <PageHead kicker="Student overview" title={`Good evening, ${firstName}.`} desc="Here is what is happening across your programs, performance and next steps."
-        action={<Link to="/student/programs" className="button">Find a program →</Link>} />
-      <Metrics items={[
-        ['ElevateMe ID', elevateMeId, 'Your permanent student ID'],
-        ['Overall total', 'See performance', 'Released scores only'],
-        ['Active programs', activePrograms, regs.length > 0 ? 'Across your registrations' : 'None yet'],
-        ['Recommendations', recLabel, highPriority > 0 ? `${highPriority} marked high priority` : 'None yet'],
-      ]} />
-      <Panel
-  title="Recent scores"
-  // action={
-  //   <Link to="/student/performance" className="link-quiet">
-  //     View performance →
-  //   </Link>
-  // }
->
-  {recentEvalsLoading || recentScoresLoading ? (
-    <SkeletonRows rows={3} />
-  ) : recentScores.length === 0 ? (
-    <Empty
-      title="No released scores yet."
-      body="Your recent scores will appear here once an evaluation is released."
-    />
-  ) : (
-    <div className="flat-list">
-      {recentScores.map((evaluation, index) => (
-  <div
-    key={evaluation.id}
-    className="list-row compact"
-    style={{
-      marginBottom:
-        index === 0 && recentScores.length > 1
-          ? '16px'
-          : 0,
-    }}
-  >
-    <div className="row-meta">
-      {evaluation.releasedAt
-        ? new Date(evaluation.releasedAt).toLocaleDateString('en-GB', {
-            day: 'numeric',
-            month: 'short',
-          })
-        : 'Released'}
-    </div>
+    <div style={{ color: 'var(--text-main, #f8fafc)' }}>
+      {/* 1. Greeting & Avatar Card Header */}
+      <div style={cardStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+          <div>
+            <h1 style={{ font: '700 1.85rem/1.1 Manrope', margin: '0 0 6px', color: '#ffffff' }}>Good evening, {firstName}.</h1>
+            <p style={{ color: '#94a3b8', margin: 0, fontSize: '0.95rem' }}>Here is what is happening across your programs, performance and next steps.</p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#090d16', padding: '10px 16px', borderRadius: '14px', border: '1px solid #334155' }}>
+            <img 
+              src={avatarUrl} 
+              alt="Student Avatar" 
+              style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} 
+            />
+            <div>
+              <span style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', fontWeight: 500 }}>Student Profile</span>
+              <span style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#ffffff' }}>{elevateMeId}</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
-    <div className="row-main">
-      <h3>{evaluation.programName}</h3>
+      {/* 2. Separated Core Metric Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+        <div style={subCardStyle}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ElevateMe ID</span>
+          <p style={{ fontSize: '1.2rem', fontWeight: 700, margin: '8px 0 4px', color: '#ffffff' }}>{elevateMeId}</p>
+          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Your permanent student ID</span>
+        </div>
 
-      <p>
-        {index === 0
-          ? 'Most recent evaluation'
-          : 'Released evaluation'}
-      </p>
-    </div>
+        <div style={subCardStyle}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Overall Total</span>
+          <p style={{ fontSize: '1.2rem', fontWeight: 700, color: '#34d399', margin: '8px 0 4px' }}>{overallTotalDisplay}</p>
+          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Released scores only</span>
+        </div>
 
-    <div className="row-action">
-      <strong
-        style={{
-          font: '700 1.15rem Manrope',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {evaluation.score == null
-          ? '—'
-          : `${evaluation.score} / 100`}
-      </strong>
+        <div style={subCardStyle}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active Programs</span>
+          <p style={{ fontSize: '1.2rem', fontWeight: 700, color: '#818cf8', margin: '8px 0 4px' }}>{activePrograms}</p>
+          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{regs.length > 0 ? 'Across your registrations' : 'None yet'}</span>
+        </div>
 
-      <Link
-        to={`/student/performance/${evaluation.id}`}
-        className="button secondary small"
-      >
-        Open
-      </Link>
-    </div>
-  </div>
-))}
-    </div>
-  )}
-</Panel>
-      <div className="grid dashboard">
+        <div style={subCardStyle}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recommendations</span>
+          <p style={{ fontSize: '1.2rem', fontWeight: 700, color: '#fbbf24', margin: '8px 0 4px' }}>{recLabel}</p>
+          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{highPriority > 0 ? `${highPriority} marked high priority` : 'None yet'}</span>
+        </div>
+      </div>
+
+      {/* 3. Grade Averages Cards Section */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+        <div style={subCardStyle}>
+          <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Avg Preparation</div>
+          <div style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '6px', color: '#ffffff' }}>{avgPreparation}</div>
+        </div>
+
+        <div style={subCardStyle}>
+          <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Avg Clarity</div>
+          <div style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '6px', color: '#ffffff' }}>{avgClarity}</div>
+        </div>
+
+        <div style={subCardStyle}>
+          <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Avg Consistency</div>
+          <div style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '6px', color: '#ffffff' }}>{avgConsistency}</div>
+        </div>
+
+        <div style={subCardStyle}>
+          <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Avg Engagement</div>
+          <div style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '6px', color: '#ffffff' }}>{avgEngagement}</div>
+        </div>
+      </div>
+
+      {/* 4. Recent Scores Panel */}
+      <div style={cardStyle}>
+        <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#ffffff', marginBottom: '16px' }}>Recent scores</h3>
+        {recentEvalsLoading || recentScoresLoading ? (
+          <SkeletonRows rows={3} />
+        ) : recentScores.length === 0 ? (
+          <Empty
+            title="No released scores yet."
+            body="Your recent scores will appear here once an evaluation is released."
+          />
+        ) : (
+          <div className="flat-list">
+            {recentScores.map((evaluation, index) => (
+              <div
+                key={evaluation.id}
+                className="list-row compact"
+                style={{
+                  marginBottom:
+                    index === 0 && recentScores.length > 1
+                      ? '16px'
+                      : 0,
+                  borderRadius: '14px',
+                  background: '#090d16',
+                  border: '1px solid #334155',
+                  padding: '12px 16px',
+                }}
+              >
+                <div className="row-meta" style={{ color: '#94a3b8' }}>
+                  {evaluation.releasedAt
+                    ? new Date(evaluation.releasedAt).toLocaleDateString('en-GB', {
+                        day: 'numeric',
+                        month: 'short',
+                      })
+                    : 'Released'}
+                </div>
+
+                <div className="row-main">
+                  <h3 style={{ color: '#ffffff' }}>{evaluation.programName}</h3>
+                  <p style={{ color: '#94a3b8' }}>
+                    {index === 0
+                      ? 'Most recent evaluation'
+                      : 'Released evaluation'}
+                  </p>
+                </div>
+
+                <div className="row-action">
+                  <strong
+                    style={{
+                      font: '700 1.15rem Manrope',
+                      whiteSpace: 'nowrap',
+                      color: '#ffffff',
+                    }}
+                  >
+                    {evaluation.score == null
+                      ? '—'
+                      : `${evaluation.score} / 100`}
+                  </strong>
+
+                  <Link
+                    to={`/student/performance/${evaluation.id}`}
+                    className="button secondary small"
+                  >
+                    Open
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="grid dashboard" style={{ gap: '20px', marginBottom: '20px' }}>
         {regs.length > 0 ? (
-          <section className="program-feature">
-            <div><span className="tag">Next session</span><h2>Your registration</h2><p>{regs[0].allocation || ''}<br />Registration {regs[0].status}</p></div>
+          <section className="program-feature" style={{ ...subCardStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div><span className="tag">Next session</span><h2 style={{ color: '#ffffff' }}>Your registration</h2><p style={{ color: '#94a3b8' }}>{regs[0].allocation || ''}<br />Registration {regs[0].status}</p></div>
             <Link to="/student/registrations" className="button">View event details →</Link>
           </section>
         ) : (
-          <section className="panel">
-            <div className="panel-head"><h2>Next session</h2></div>
+          <section style={subCardStyle}>
+            <div className="panel-head"><h2 style={{ color: '#ffffff' }}>Next session</h2></div>
             <div className="panel-body"><Empty title="No registrations yet." body="Browse programs and register to see your next session here." /></div>
           </section>
         )}
-        <section className="panel">
-          <div className="panel-head"><h2>Latest insight</h2><Status value="Improving" /></div>
+        <section style={subCardStyle}>
+          <div className="panel-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><h2 style={{ color: '#ffffff' }}>Latest insight</h2><Status value="Improving" /></div>
           <div className="panel-body">
-            <h3 style={{ font: '700 1.65rem/1.1 Manrope', margin: '0 0 13px' }}>Confidence is moving in the right direction.</h3>
-            <p style={{ color: 'var(--muted)' }}>Your score rose in four consecutive evaluated sessions.</p>
+            <h3 style={{ font: '700 1.45rem/1.1 Manrope', margin: '0 0 13px', color: '#ffffff' }}>Confidence is moving in the right direction.</h3>
+            <p style={{ color: '#94a3b8' }}>Your score rose in four consecutive evaluated sessions.</p>
             <Link to="/student/performance" className="button quiet">See performance →</Link>
           </div>
         </section>
       </div>
-      <h2 className="section-title">What needs your attention</h2>
-      <div className="flat-list">
-        <div className="list-row compact">
-          <div className="row-meta">Recommendation</div>
+
+      <h2 className="section-title" style={{ color: '#ffffff', marginBottom: '16px' }}>What needs your attention</h2>
+      <div className="flat-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div className="list-row compact" style={{ ...subCardStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="row-meta" style={{ color: '#94a3b8' }}>Recommendation</div>
           {topRec ? (
-            <div className="row-main"><h3>{topRec.title}</h3><p>{`Suggested by Diplomatic Impact · ${topRec.priority}`}</p></div>
+            <div className="row-main"><h3 style={{ color: '#ffffff' }}>{topRec.title}</h3><p style={{ color: '#94a3b8' }}>{`Suggested by Diplomatic Impact · ${topRec.priority}`}</p></div>
           ) : (
-            <div className="row-main"><h3>No recommendations yet</h3><p>Evaluator feedback will appear here.</p></div>
+            <div className="row-main"><h3 style={{ color: '#ffffff' }}>No recommendations yet</h3><p style={{ color: '#94a3b8' }}>Evaluator feedback will appear here.</p></div>
           )}
           <Link to="/student/recommendations" className="button secondary small">Review</Link>
         </div>
-        <div className="list-row compact">
-          <div className="row-meta">Announcement</div>
+        <div className="list-row compact" style={{ ...subCardStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="row-meta" style={{ color: '#94a3b8' }}>Announcement</div>
           {topAnn ? (
-            <div className="row-main"><h3>{topAnn.title}</h3><p>{`${topAnn.title} · Published`}</p></div>
+            <div className="row-main"><h3 style={{ color: '#ffffff' }}>{topAnn.title}</h3><p style={{ color: '#94a3b8' }}>{`${topAnn.title} · Published`}</p></div>
           ) : (
-            <div className="row-main"><h3>No announcements</h3><p>Published updates will appear here.</p></div>
+            <div className="row-main"><h3 style={{ color: '#ffffff' }}>No announcements</h3><p style={{ color: '#94a3b8' }}>Published updates will appear here.</p></div>
           )}
           <Link to="/student/announcements" className="button secondary small">Read</Link>
         </div>
