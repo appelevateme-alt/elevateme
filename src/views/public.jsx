@@ -110,7 +110,7 @@ useEffect(() => {
      <section className="hero"><div className="wrap">
   <div className={`hero-grid${session ? '' : ' hero-solo'}`}>
     <div>
-      <h1 className="hero-enter" style={{ '--d': '80ms' }}>A Tool For <br />Visible Growth</h1>
+      <h1 className="hero-enter" style={{ '--d': '80ms' }}>A Tool for <br />Visible Growth</h1>
       <p className="hero-copy hero-enter" style={{ '--d': '160ms' }}>A clear path to stronger Public Speaking, Communication, Negotiation and Leadership skills with professional evaluation and human guidance.</p>
       <div className="hero-actions hero-enter" style={{ '--d': '240ms' }}>
         <Link className="button secondary pill" to="/sign-up">Create account <span className="pill-arrow" aria-hidden="true">↗</span></Link>
