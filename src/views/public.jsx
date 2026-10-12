@@ -106,11 +106,11 @@ useEffect(() => {
   </nav>
 </div></header>
       <main>
-        <section className="hero"><div className="wrap">
+     <section className="hero"><div className="wrap">
   <div className={`hero-grid${session ? '' : ' hero-solo'}`}>
     <div>
-      <h1 className="hero-enter" style={{ '--d': '80ms' }}>A TOOL<br />FOR <em>VISIBLE GROWTH</em></h1>
-      <p className="hero-copy hero-enter" style={{ '--d': '160ms' }}>A clear path from each session to a stronger Public Speaking, Communication, Negotiation and Leadership skills: with professional evaluation, honest progress and human guidance.</p>
+      <h1 className="hero-enter" style={{ '--d': '80ms' }}>A TOOL<br />FOR VISIBLE GROWTH</h1>
+      <p className="hero-copy hero-enter" style={{ '--d': '160ms' }}>A clear path to stronger Public Speaking, Communication, Negotiation and Leadership skills with professional evaluation and human guidance.</p>
       <div className="hero-actions hero-enter" style={{ '--d': '240ms' }}>
         <Link className="button secondary pill" to="/sign-up">Create account <span className="pill-arrow" aria-hidden="true">↗</span></Link>
         <Link className="button secondary pill" to="/sign-in">Log In to account <span className="pill-arrow" aria-hidden="true">↗</span></Link>
@@ -202,8 +202,7 @@ Through Professional Evaluation.</p></article>
 <section className="landing-section" id="programs"><div className="wrap">
   <div className="section-head-grid" style={{ gridTemplateColumns: '1fr', textAlign: 'right' }}>
     <div>
-      <h2>SKILL DEVELOPMENT<br />PROGRAMS.</h2>
-      <p style={{ marginLeft: 'auto' }}>Build communication, leadership and critical-thinking skills through structured experiences—each one connected to your long-term growth record.</p>
+      <h2>Skill Development<br />Programs.</h2>
     </div>
   </div>
   <Reveal className="program-single stagger-group">
