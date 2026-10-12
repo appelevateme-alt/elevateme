@@ -80,8 +80,9 @@ useEffect(() => {
 }, []);
   return (
     <>
+    <Link className="landing-logo" to="/" aria-label="ElevateMe home"><img src="/images/logo.png" alt="ElevateMe logo" /></Link>
       <header className="landing-nav"><div className="wrap">
-  <Link className="brand" to="/" aria-label="ElevateMe home"><img src="/images/logo.png" alt="ElevateMe logo" /></Link>
+  
   <nav className="landing-links" aria-label="Primary navigation">
     {NAV_ITEMS.map(({ href, label, icon }) => {
   const id = href.slice(1);
@@ -109,7 +110,7 @@ useEffect(() => {
      <section className="hero"><div className="wrap">
   <div className={`hero-grid${session ? '' : ' hero-solo'}`}>
     <div>
-      <h1 className="hero-enter" style={{ '--d': '80ms' }}>A TOOL<br />FOR VISIBLE GROWTH</h1>
+      <h1 className="hero-enter" style={{ '--d': '80ms' }}>A Tool For <br />Visible Growth</h1>
       <p className="hero-copy hero-enter" style={{ '--d': '160ms' }}>A clear path to stronger Public Speaking, Communication, Negotiation and Leadership skills with professional evaluation and human guidance.</p>
       <div className="hero-actions hero-enter" style={{ '--d': '240ms' }}>
         <Link className="button secondary pill" to="/sign-up">Create account <span className="pill-arrow" aria-hidden="true">↗</span></Link>
@@ -132,9 +133,9 @@ useEffect(() => {
           <div className="metric-band"><b>Clear next steps</b><span>Recommendations backed by performance</span></div>
         </Reveal></section> */}
                 <section className="landing-section" id="people"><div className="wrap">
-  <div className="role-copy" style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto' }}>
-    <h2>OUR FOCUS:<br />TRAITS OF MODERN DIPLOMACY.</h2>
-  </div>
+  <div className="role-copy focus-heading" style={{ textAlign: 'center', maxWidth: 'none', margin: '0 auto' }}>
+  <h2>Our Focus: Traits Of Modern Diplomacy.</h2>
+</div>
   <Reveal className="focus-grid stagger-group">
   {[
     ['Public Speaking', 'Express your thoughts with clarity and articulate them with confidence.',
@@ -218,7 +219,7 @@ Through Professional Evaluation.</p></article>
 
 <section className="landing-section" id="pathway"><div className="wrap">
   <div className="role-copy" style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto' }}>
-    <h2>AMBITIOUS<br />PATHWAY.</h2>
+    <h2>Ambitious<br />Pathway.</h2>
   </div>
 <Reveal className="pathway-grid">
   {[
@@ -234,10 +235,10 @@ Through Professional Evaluation.</p></article>
     <article
       key={label}
       className={`pathway-box${i === all.length - 1 ? ' final' : ''}`}
-      style={{ '--delay': `${0.1 + i * 0.12}s` }}
+      style={{ '--delay': `${0.1 + i * 0.12}s`, '--i': i }}
     >
       <div className="pathway-img">
-        <span className="pathway-num">{String(i + 1).padStart(2, '0')}</span>
+        {/* <span className="pathway-num">{String(i + 1).padStart(2, '0')}</span> */}
         {img ? (
           <img src={img} alt={label} loading="lazy" />
         ) : (
@@ -250,7 +251,7 @@ Through Professional Evaluation.</p></article>
 </Reveal>
 </div></section>
 
-        <section className="cta-band" id="join"><Reveal className="wrap cta-grid stagger-group"><h2>YOUR NEXT LEVEL<br />STARTS HERE.</h2><div>
+        <section className="cta-band" id="join"><Reveal className="wrap cta-grid stagger-group"><h2>A Clear Pathway To Become a<  br />Model Diplomat.</h2><div>
   {/* <p>Explore the complete application preview and see how every role connects.</p> */}
   <div className="cta-price">
     <span className="cta-price-badge">Limited-time offer · 50% off</span>

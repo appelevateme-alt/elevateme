@@ -1373,3 +1373,236 @@ html[data-theme="dark"] body,
 html[data-theme="dark"] body * {
   font-family: var(--font-ui);
 }
+/* ---------- Landing tweaks ---------- */
+.landing-nav {
+  --nav-shift: clamp(0px, 4vw, 64px); /* raise to push the navbar further right */
+  margin: 14px auto 0;
+  position: sticky;
+  left: auto;
+  transform: translateX(var(--nav-shift));
+}
+@media (max-width: 900px) { .landing-nav { --nav-shift: 0px; } }
+
+.focus-heading h2 {
+  white-space: nowrap;
+  font-size: clamp(1.3rem, 3.6vw, 3.6rem);
+}
+@media (max-width: 640px) { .focus-heading h2 { white-space: normal; } }
+
+.program-card-wide {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  padding: 48px 56px 48px clamp(40px, 8vw, 110px);
+}
+.program-card-wide > div { text-align: left; }
+@media (max-width: 640px) { .program-card-wide { padding: 36px 28px; } },
+/* Logo top-left, nav aligned to content's right edge, taller Model Diplomacy card */
+.landing-logo {
+  position: absolute;
+  top: 18px;
+  left: max(20px, calc((100% - 1240px) / 2));
+  z-index: 60;
+  display: block;
+  line-height: 0;
+}
+.landing-logo img { height: 72px; width: auto; display: block; } /* change this to resize the logo */
+
+.landing-nav {
+  --nav-shift: 0px;
+  transform: none;
+  margin: 14px max(20px, calc((100% - 1240px) / 2)) 0 auto; /* right edge lines up with the profile card */
+}
+.landing-nav .wrap { padding-left: 8px; }
+
+.program-card-wide { min-height: 380px; }
+
+@media (max-width: 900px) {
+  .landing-logo { position: static; margin: 14px auto 0; width: fit-content; }
+  .landing-logo img { height: 52px; }
+  .landing-nav { margin: 8px auto 0; }
+}
+
+/* Ambitious pathway: no numbers, no overlay, cards fade green -> blue */
+.pathway-num { display: none; }
+.pathway-img::after,
+.pathway-box:hover .pathway-img::after { content: none; display: none; }
+
+.pathway-box,
+.pathway-box:nth-child(even),
+.pathway-box.final {
+  /* hue runs from green (150) at card 1 to blue (220) at card 8 */
+  --hue: calc(150 + var(--i, 0) * 10);
+  background: hsl(var(--hue) 52% 30%);
+  border-color: hsl(var(--hue) 55% 42%);
+  box-shadow: 0 14px 34px -14px hsl(var(--hue) 70% 35% / .7);
+}
+.pathway-box:hover { box-shadow: 0 20px 40px -14px hsl(var(--hue) 75% 45% / .85); }
+.pathway-box h3,
+.pathway-box.final h3 { color: #fff; }
+.pathway-box .pathway-img,
+.pathway-box.final .pathway-img {
+  background: hsl(var(--hue) 45% 22%);
+  border-bottom: 1px solid hsl(var(--hue) 55% 42%);
+  color: hsl(var(--hue) 70% 80%);
+}
+/* Pathway: cards 1,3,5,7 solid rich green; 2,4,6,8 solid blue */
+.pathway-box:nth-child(odd) {
+  --hue: 150;
+  background: #00b500;
+  border-color: #00b500;
+  box-shadow: 0 14px 34px -14px rgba(31, 122, 77, .75);
+}
+.pathway-box:nth-child(even),
+.pathway-box.final {
+  --hue: 220;
+  background: #2f5fd8;
+  border-color: #4f7df0;
+  box-shadow: 0 14px 34px -14px rgba(47, 95, 216, .75);
+}
+.pathway-box:nth-child(odd) .pathway-img { background: #00b500; border-bottom-color: #00b500; color: #b8f0d2; }
+.pathway-box:nth-child(even) .pathway-img,
+.pathway-box.final .pathway-img { background: #264db0; border-bottom-color: #4f7df0; color: #c4d6ff; }
+.pathway-box:nth-child(odd):hover { box-shadow: 0 20px 40px -14px rgba(42, 148, 97, .9); }
+.pathway-box:nth-child(even):hover { box-shadow: 0 20px 40px -14px rgba(79, 125, 240, .9); }
+
+/* Model Diplomacy: text closer to the left edge */
+.program-card-wide { padding-left: clamp(28px, 4vw, 56px); }
+@media (max-width: 640px) { .program-card-wide { padding-left: 28px; } }
+
+/* Bottom CTA: floating rounded card, centered stack */
+.cta-band,
+html[data-theme="dark"] .cta-band { background: transparent; padding: 40px 0 80px; }
+.cta-band .cta-grid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 36px;
+  text-align: center;
+  padding: clamp(40px, 6vw, 72px) clamp(20px, 5vw, 64px);
+  border-radius: 44px;
+  background: var(--hero-insight-num-color);
+}
+.cta-band .cta-grid h3 { text-align: center; }
+.cta-band .cta-grid > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  width: 100%;
+}
+.cta-band .cta-price { margin: 0; text-align: center; }
+.cta-band .cta-price-row { justify-content: center; }
+.cta-band .cta-grid > div > div:last-child { justify-content: center; }
+
+/* Hero buttons: white with black text */
+html[data-theme="dark"] .hero-actions .button.secondary,
+html[data-theme="dark"] .hero-actions .button.secondary:hover {
+  background: #fff;
+  color: #000;
+  border-color: #fff;
+}
+
+/* Bottom CTA heading: smaller */
+.cta-band .cta-grid h2 { font-size: clamp(2rem, 4vw, 4rem); line-height: 1; letter-spacing: -.05em; }
+/* Hero heading: "Visible Growth" always stays on one line */
+.hero h1 {
+  white-space: nowrap;
+  font-size: clamp(2.4rem, 8.2vw, 6.4rem);
+}
+.hero-grid:not(.hero-solo) h1 { font-size: clamp(2.2rem, 4.6vw, 4.8rem); } /* narrower column when the profile card shows */
+@media (max-width: 900px) {
+  .hero h1,
+  .hero-grid:not(.hero-solo) h1 { font-size: clamp(2rem, 10vw, 3.4rem); }
+}
+
+/* Profile card: longer, top lines up with the subtitle */
+.hero-grid { --h1-size: clamp(2.4rem, 6.2vw, 6.4rem); }
+.hero-grid:not(.hero-solo) { --h1-size: clamp(2.2rem, 4.6vw, 4.8rem); }
+.hero h1 { font-size: var(--h1-size); }
+@media (max-width: 900px) {
+  .hero-grid,
+  .hero-grid:not(.hero-solo) { --h1-size: clamp(2rem, 10vw, 3.4rem); }
+}
+
+.me-card {
+  height: auto;
+  align-self: stretch;
+  margin-top: calc(var(--h1-size) * 2 * .91 + 18px); /* two heading lines + gap = where the subtitle starts */
+  min-height: 420px;                                 /* make it longer */
+}
+@media (max-width: 900px) {
+  .me-card { margin-top: 0; justify-self: stretch; max-width: none; min-height: 300px; }
+}
+
+/* Profile card: top aligns with the 2nd line of the subtitle, even longer */
+.hero-copy { line-height: 1.6; }
+.me-card {
+  /* heading (2 lines) + subtitle's top margin (32px) + one subtitle line (1.15rem * 1.6) */
+  margin-top: calc(var(--h1-size) * 2 * .91 + 32px + 1.15rem * 1.6);
+  min-height: 560px; /* longer */
+}
+@media (max-width: 900px) {
+  .me-card { margin-top: 0; min-height: 340px; }
+}
+
+/* Avatar: green circle top-left, larger light-blue circle bottom-right (no dots) */
+.me-avatar {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0073ec 0%, #0c049f 100%); /* base, dots removed */
+}
+.me-avatar::before,
+.me-avatar::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.me-avatar::before { /* green, top-left */
+  width: 110px;
+  height: 110px;
+  top: -34px;
+  left: -34px;
+  background: #2fcf84;
+}
+.me-avatar::after { /* lighter blue, larger, bottom-right */
+  width: 220px;
+  height: 220px;
+  right: -70px;
+  bottom: -70px;
+  background: #7fb2ff;
+  opacity: .85;
+}
+.me-avatar span { position: relative; z-index: 1; }
+
+/* Profile card: centered name + ID in a white pill with black border */
+.me-card { align-items: center; text-align: center; }
+.me-name { text-align: center; }
+.me-id,
+html[data-theme="dark"] .me-id {
+  background: #fff;
+  border: 1px solid #000;
+  color: #000;
+}
+
+/* Our Focus cards: text pushed down, space under the icons */
+.focus-card {
+  justify-content: flex-end; /* text sits at the bottom, icon/number stay at the top */
+  min-height: 340px;
+  padding: 90px 26px 34px;   /* top padding keeps the text clear of the icon row */
+}
+
+/* Our Focus cards: headings line up across all four */
+.focus-card {
+  justify-content: flex-start; /* every heading starts at the same height */
+  padding-top: 110px;          /* gap under the icon row; change to move all text up/down */
+}
+
+/* Our Focus cards: headings aligned AND pushed down */
+.focus-card {
+  justify-content: flex-start;
+  min-height: 380px;
+  padding-top: 230px; /* raise/lower to move all four headings together */
+}
