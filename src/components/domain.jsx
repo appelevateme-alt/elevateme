@@ -26,12 +26,12 @@ export function LineChart({ points = [], type = 'line' }) {
   const y = value => 225 - value * 2;
   return <div className="chart">
     <svg viewBox="0 0 700 260" role="img" aria-label="Released performance scores, oldest to newest, on a zero to 100 scale">
-      {[0, 50, 100].map(value => <g key={value}><line x1="30" y1={y(value)} x2="690" y2={y(value)} stroke="#ddd" /><text x="0" y={y(value) + 4} fontSize="12">{value}</text></g>)}
-      {type === 'line' && <polyline points={valid.map((p, i) => `${x(i)},${y(p.value)}`).join(' ')} fill="none" stroke="#1a49e7" strokeWidth="3" />}
+      {[0, 50, 100].map(value => <g key={value}><line className="chart-grid" x1="30" y1={y(value)} x2="690" y2={y(value)} stroke="#ddd" /><text className="chart-text" x="0" y={y(value) + 4} fontSize="12">{value}</text></g>)}
+      {type === 'line' && <polyline className="chart-line" points={valid.map((p, i) => `${x(i)},${y(p.value)}`).join(' ')} fill="none" stroke="#1a49e7" strokeWidth="3" />}
       {valid.map((p, i) => <g key={p.id || i}>
-        {type === 'bar' ? <rect x={x(i) - 10} y={y(p.value)} width="20" height={225 - y(p.value)} fill="#1a49e7"><title>{p.label}: {p.value} / 100</title></rect>
-          : <circle cx={x(i)} cy={y(p.value)} r="5" fill="#1a49e7"><title>{p.label}: {p.value} / 100</title></circle>}
-        <text x={x(i)} y="247" textAnchor="middle" fontSize="12">{i + 1}</text>
+        {type === 'bar' ? <rect className="chart-bar" x={x(i) - 10} y={y(p.value)} width="20" height={225 - y(p.value)} fill="#1a49e7"><title>{p.label}: {p.value} / 100</title></rect>
+          : <circle className="chart-dot" cx={x(i)} cy={y(p.value)} r="5" fill="#1a49e7"><title>{p.label}: {p.value} / 100</title></circle>}
+        <text className="chart-text" x={x(i)} y="247" textAnchor="middle" fontSize="12">{i + 1}</text>
       </g>)}
     </svg>
   </div>;
@@ -53,7 +53,9 @@ export function InsightList({ items }) {
       {items.map((it, i) => (
         <div className="insight-item" key={i}>
           <label>{it.label}</label>
-          <p>{it.text}{it.small && <small>{it.small}</small>}</p>
+          {it.value != null
+            ? <p className="insight-has-value"><b className="insight-value">{it.value}</b><span>{it.short ?? it.text}</span></p>
+            : <p>{it.short ?? it.text}{it.small && <small>{it.small}</small>}</p>}
         </div>
       ))}
     </div>

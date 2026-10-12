@@ -1606,3 +1606,490 @@ html[data-theme="dark"] .me-id {
   min-height: 380px;
   padding-top: 230px; /* raise/lower to move all four headings together */
 }
+
+/*Student dashboard*/
+/* =====================================================================
+   Student workspace: dark theme, rounded cards (matches the landing page)
+   ===================================================================== */
+html[data-theme="dark"] .app-shell {
+  --card-bg: #121418;
+  --card-line: #23262d;
+  --card-radius: 28px;
+  --blue: #6f90ff;
+  --blue-soft: #14203f;
+}
+html[data-theme="dark"] .app-shell .sidebar { background: #0c0d10; border-right: 1px solid var(--card-line); }
+html[data-theme="dark"] .app-shell .app-topbar { background: rgba(8, 9, 10, .88); border-bottom: 1px solid var(--card-line); }
+html[data-theme="dark"] .app-shell .nav-link:hover { background: #17191e; }
+html[data-theme="dark"] .app-shell .nav-link.active { background: #1a1d23; }
+
+/* every card-like surface: dark, bordered, rounded */
+html[data-theme="dark"] .app-shell .panel,
+html[data-theme="dark"] .app-shell .table-wrap,
+html[data-theme="dark"] .app-shell .filter-bar,
+html[data-theme="dark"] .app-shell .empty,
+html[data-theme="dark"] .app-shell .notice {
+  background: var(--card-bg);
+  border: 1px solid var(--card-line);
+  border-radius: var(--card-radius);
+  color: var(--ink);
+  overflow: hidden;
+}
+html[data-theme="dark"] .app-shell .empty { border-style: dashed; }
+html[data-theme="dark"] .app-shell .panel-head { border-bottom: 1px solid var(--card-line); }
+html[data-theme="dark"] .app-shell .program-feature {
+  background: linear-gradient(135deg, #0f2145, #0a1730);
+  border: 1px solid #23407a;
+  border-radius: var(--card-radius);
+}
+html[data-theme="dark"] .app-shell .program-feature .button { background: #fff; border-color: #fff; color: #000; border-radius: 999px; }
+
+/* tables */
+html[data-theme="dark"] .app-shell .data-table th { background: #0e1013; border-bottom-color: var(--card-line); }
+html[data-theme="dark"] .app-shell .data-table td { border-bottom-color: var(--card-line); }
+html[data-theme="dark"] .app-shell .data-table tbody tr:hover { background: #171a1f; }
+
+/* lists: each row becomes its own rounded card */
+html[data-theme="dark"] .app-shell .flat-list { border-top: 0; display: grid; gap: 12px; }
+html[data-theme="dark"] .app-shell .list-row,
+html[data-theme="dark"] .app-shell .list-row.compact {
+  background: var(--card-bg);
+  border: 1px solid var(--card-line);
+  border-radius: 22px;
+  padding: 16px 22px;
+  margin-bottom: 0 !important;
+}
+
+/* form fields + buttons */
+html[data-theme="dark"] .app-shell input,
+html[data-theme="dark"] .app-shell select,
+html[data-theme="dark"] .app-shell textarea {
+  background: #0e1013;
+  color: var(--ink);
+  border: 1px solid var(--line-dark);
+  border-radius: 14px;
+}
+html[data-theme="dark"] .app-shell .button.secondary { background: #1a1d23; color: var(--ink); border-color: var(--line-dark); border-radius: 999px; }
+html[data-theme="dark"] .app-shell .button.secondary:hover { background: #22262d; border-color: var(--ink); color: var(--ink); }
+html[data-theme="dark"] .app-shell .button.danger { background: #2a1517; border-color: #5a2a2d; border-radius: 999px; }
+html[data-theme="dark"] .app-shell .page-kicker,
+html[data-theme="dark"] .app-shell .tag { color: #8fb0ff; }
+
+/* ---------- Green welcome card with initials box on the left ---------- */
+.welcome-card {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 28px 32px;
+  margin-bottom: 20px;
+  border-radius: 32px;
+  background: linear-gradient(120deg, #1f7a4d 0%, #27a266 100%);
+  color: #fff;
+  box-shadow: 0 24px 50px -26px rgba(39, 162, 102, .7);
+}
+.welcome-avatar {
+  flex: 0 0 auto;
+  width: 112px;
+  height: 112px;
+  border-radius: 26px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, .16);
+  border: 1px solid rgba(255, 255, 255, .35);
+}
+.welcome-avatar span { font: 800 2.6rem/1 "Manrope", sans-serif; letter-spacing: -.03em; color: #fff; }
+.welcome-text { flex: 1 1 auto; min-width: 0; }
+.welcome-card .page-kicker { color: #d4f7e3; margin-bottom: 6px; }
+.welcome-card .page-title { font-size: clamp(1.9rem, 3.4vw, 3rem); color: #fff; }
+.welcome-card .page-description { color: #e3f8ec; margin: 8px 0 0; max-width: 560px; }
+.welcome-card .button {
+  flex: 0 0 auto;
+  background: #fff;
+  color: #000;
+  border-color: #fff;
+  border-radius: 999px;
+}
+.welcome-card .button:hover { background: #fff; color: #000; }
+
+/* ---------- Four separate stat cards ---------- */
+.metric-strip.metric-cards {
+  border: 0;
+  background: transparent;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.metric-strip.metric-cards .metric {
+  background: var(--card-bg, #121418);
+  border: 1px solid var(--card-line, #23262d);
+  border-right: 1px solid var(--card-line, #23262d);
+  border-radius: 28px;
+  padding: 24px 24px 22px;
+}
+.metric-strip.metric-cards .metric:nth-child(1) { box-shadow: inset 0 3px 0 #c8ff65; }
+.metric-strip.metric-cards .metric:nth-child(2) { box-shadow: inset 0 3px 0 #6f90ff; }
+.metric-strip.metric-cards .metric:nth-child(3) { box-shadow: inset 0 3px 0 #2fcf84; }
+.metric-strip.metric-cards .metric:nth-child(4) { box-shadow: inset 0 3px 0 #ff8a7a; }
+
+/* ---------- Average score cards ---------- */
+.avg-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  margin-bottom: 28px;
+}
+.avg-card {
+  --accent: #6f90ff;
+  background: var(--card-bg, #121418);
+  border: 1px solid var(--card-line, #23262d);
+  border-radius: 28px;
+  padding: 22px 24px;
+}
+.avg-card:nth-child(1) { --accent: #a78bfa; }
+.avg-card:nth-child(2) { --accent: #6f90ff; }
+.avg-card:nth-child(3) { --accent: #2fcf84; }
+.avg-card:nth-child(4) { --accent: #f5b942; }
+.avg-label { display: block; color: var(--muted); font-size: .73rem; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 10px; }
+.avg-value { font: 800 2.3rem/1 "Manrope", sans-serif; letter-spacing: -.04em; color: var(--accent); }
+.avg-value small { font-size: .95rem; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+.avg-bar { height: 8px; border-radius: 999px; background: rgba(255, 255, 255, .08); margin: 16px 0 10px; overflow: hidden; }
+.avg-bar span { display: block; height: 100%; border-radius: 999px; background: var(--accent); transition: width .6s ease; }
+.avg-note { color: var(--muted); font-size: .76rem; }
+
+@media (max-width: 1050px) {
+  .metric-strip.metric-cards,
+  .avg-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 720px) {
+  .welcome-card { flex-direction: column; align-items: flex-start; }
+}
+@media (max-width: 560px) {
+  .metric-strip.metric-cards,
+  .avg-grid { grid-template-columns: 1fr; }
+}
+
+/* Student workspace: navy theme (#010522) instead of black */
+html[data-theme="dark"]:has(.app-shell) {
+  --paper: #010522;
+  --line: #1a2150;
+  --line-dark: #2b3475;
+}
+html[data-theme="dark"] .app-shell {
+  --card-bg: #0a0f35;
+  --card-line: #1a2150;
+  --blue-soft: #0f1850;
+  background: #010522;
+}
+html[data-theme="dark"] .app-shell .sidebar { background: #01041a; }
+html[data-theme="dark"] .app-shell .app-topbar { background: rgba(1, 5, 34, .88); }
+html[data-theme="dark"] .app-shell .nav-link:hover { background: #0d1342; }
+html[data-theme="dark"] .app-shell .nav-link.active { background: #121a55; }
+html[data-theme="dark"] .app-shell .data-table th { background: #060b2e; }
+html[data-theme="dark"] .app-shell .data-table tbody tr:hover { background: #0f1545; }
+html[data-theme="dark"] .app-shell input,
+html[data-theme="dark"] .app-shell select,
+html[data-theme="dark"] .app-shell textarea { background: #060b2e; }
+html[data-theme="dark"] .app-shell .button.secondary { background: #121a55; }
+html[data-theme="dark"] .app-shell .button.secondary:hover { background: #1a2470; }
+html[data-theme="dark"] .app-shell .program-feature { background: linear-gradient(135deg, #12206b, #0a1245); border-color: #2b3475; }
+/* ---------- Stat card icons (top right) ---------- */
+.metric-strip.metric-cards .metric { position: relative; }
+.metric-icon {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .07);
+  color: var(--icon, #c8ff65);
+}
+.metric-icon svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.metric-strip.metric-cards .metric:nth-child(1) { --icon: #c8ff65; }
+.metric-strip.metric-cards .metric:nth-child(2) { --icon: #8fb0ff; }
+.metric-strip.metric-cards .metric:nth-child(3) { --icon: #2fcf84; }
+.metric-strip.metric-cards .metric:nth-child(4) { --icon: #ff8a7a; }
+
+/* Stat cards: smoke icons, no colored borders; average cards: white numbers, green bars */
+.metric-strip.metric-cards .metric:nth-child(n) { box-shadow: none; }
+.metric-strip.metric-cards .metric:nth-child(n) .metric-icon { color: #e3e5ea; } /* smoke */
+.avg-card:nth-child(n) .avg-value { color: #fff; }
+.avg-card:nth-child(n) .avg-bar span { background: #2fcf84; } /* green */
+
+/* =====================================================================
+   Student round 3: welcome colors, spacing, card grids, performance page
+   ===================================================================== */
+
+/* ---------- Welcome card: lighter green, black initials box ---------- */
+.welcome-card {
+  background: linear-gradient(120deg, #52c98f 0%, #8fe6b8 100%);
+  box-shadow: 0 24px 50px -26px rgba(82, 201, 143, .6);
+}
+.welcome-avatar { background: #000; border: 1px solid #000; }
+.welcome-avatar span { color: #fff; }
+.welcome-card .page-kicker { color: #0b4a2a; }
+.welcome-card .page-title { color: #04230f; }
+.welcome-card .page-description { color: #0b4a2a; }
+.welcome-card .button { background: #000; border-color: #000; color: #fff; }
+.welcome-card .button:hover { background: #000; color: #fff; }
+
+/* ---------- More room under Recent scores ---------- */
+html[data-theme="dark"] .app-shell .panel + .grid.dashboard { margin-top: 44px; }
+html[data-theme="dark"] .app-shell .section-title { margin-top: 56px; }
+
+/* ---------- Programs + My registrations: cards instead of rows ---------- */
+html[data-theme="dark"] .app-shell .flat-list.card-grid {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 18px;
+}
+html[data-theme="dark"] .app-shell .card-grid .empty { grid-column: 1 / -1; }
+html[data-theme="dark"] .app-shell .card-grid .list-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  min-height: 250px;
+  padding: 26px;
+  border-radius: 28px;
+}
+.card-grid .list-row .row-meta {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .07);
+  color: #c9d4ff;
+  font-size: .72rem;
+  line-height: 1.35;
+}
+.card-grid .list-row .row-main { flex: 1 1 auto; }
+.card-grid .list-row .row-main h3 { font-size: 1.35rem; line-height: 1.2; margin-bottom: 8px; letter-spacing: -.02em; }
+.card-grid .list-row .row-action { width: 100%; justify-content: space-between; flex-wrap: wrap; margin-top: auto; }
+.card-grid .list-row .row-action .button { border-radius: 999px; }
+
+/* ---------- Performance: dark blue graph ---------- */
+html[data-theme="dark"] .app-shell .chart-panel {
+  background: linear-gradient(160deg, #10206e 0%, #08124a 100%);
+  border: 1px solid #2b3475;
+  border-radius: 28px;
+  padding: 28px;
+  color: #fff;
+}
+html[data-theme="dark"] .app-shell .chart-summary span { color: #b8c6ff; }
+html[data-theme="dark"] .app-shell .chart { background: none; border-bottom: 0; }
+html[data-theme="dark"] .app-shell .chart .chart-grid { stroke: rgba(255, 255, 255, .16); }
+html[data-theme="dark"] .app-shell .chart .chart-text { fill: #c9d4ff; }
+html[data-theme="dark"] .app-shell .chart .chart-line { stroke: #8fb0ff; stroke-width: 3.5; }
+html[data-theme="dark"] .app-shell .chart .chart-dot { fill: #fff; stroke: #8fb0ff; stroke-width: 3; }
+html[data-theme="dark"] .app-shell .chart .chart-bar { fill: #8fb0ff; }
+html[data-theme="dark"] .app-shell .chart-panel ol { color: #b8c6ff; font-size: .85rem; padding-left: 20px; }
+
+/* ---------- Performance: right column (best card + insights) ---------- */
+.perf-side { display: grid; gap: 22px; align-content: start; }
+
+.best-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 24px 26px;
+  border-radius: 28px;
+  background: linear-gradient(135deg, #8fe6b8 0%, #c6f5dc 100%);
+  color: #04230f;
+}
+.best-label { font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #0b4a2a; }
+.best-grade { font: 800 4.2rem/1 "Manrope", sans-serif; letter-spacing: -.05em; }
+.best-score { font: 700 1.2rem "Manrope", sans-serif; }
+.best-card small { color: #0b4a2a; font-size: .8rem; }
+
+/* ---------- Insights: bigger numbers ---------- */
+html[data-theme="dark"] .app-shell .insight-list { border-top: 0; }
+html[data-theme="dark"] .app-shell .insight-item { border-bottom-color: var(--card-line); grid-template-columns: 1fr; gap: 6px; }
+html[data-theme="dark"] .app-shell .insight-item label { color: #8fb0ff; }
+.insight-item p { margin: 0; }
+.insight-has-value { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.insight-value { font: 800 2.6rem/1 "Manrope", sans-serif; letter-spacing: -.04em; color: #fff; }
+.insight-has-value span { color: var(--muted); font-size: .95rem; }
+
+/* ---------- What changed ---------- */
+.changed-panel, .session-panel { margin-top: 28px; }
+.changed-range { color: var(--muted); font-size: .8rem; }
+.changed-empty { margin: 0; color: var(--muted); }
+.changed-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.changed-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px 22px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid var(--card-line, #1a2150);
+}
+.changed-label { color: var(--muted); font-size: .74rem; text-transform: uppercase; letter-spacing: .07em; }
+.changed-delta { font: 800 2rem/1 "Manrope", sans-serif; letter-spacing: -.03em; }
+.changed-card.up .changed-delta { color: #2fcf84; }
+.changed-card.down .changed-delta { color: #ff8a7a; }
+.changed-card small { color: var(--muted); }
+
+/* ---------- Per session results ---------- */
+html[data-theme="dark"] .app-shell .session-table { border: 0; border-radius: 0; background: transparent; }
+.chg { display: inline-block; padding: 3px 10px; border-radius: 999px; font-weight: 700; font-size: .8rem; background: rgba(255, 255, 255, .06); }
+.chg.up { color: #2fcf84; background: rgba(47, 207, 132, .12); }
+.chg.down { color: #ff8a7a; background: rgba(255, 138, 122, .12); }
+.chg.flat { color: var(--muted); }
+
+@media (max-width: 900px) {
+  .changed-grid { grid-template-columns: 1fr; }
+}
+
+/* Welcome card: #36c904, black "Student overview" */
+.welcome-card {
+  background: #36c904;
+  box-shadow: 0 24px 50px -26px rgba(54, 201, 4, .6);
+}
+.welcome-card .page-kicker { color: #000; }
+.welcome-card .page-description { color: #04230f; }
+
+/* beat the dark-theme kicker rule so the welcome label is really black */
+html[data-theme="dark"] .app-shell .welcome-card .page-kicker { color: #000; }
+
+/* Personal best card: same green as the welcome card */
+.best-card { background: #36c904; box-shadow: 0 24px 50px -26px rgba(54, 201, 4, .6); }
+.best-label { color: #000; }
+.best-card small { color: #04230f; }
+
+/* =====================================================================
+   Admin workspace: same dark theme + logo
+   ===================================================================== */
+.app-brand { display: block; line-height: 0; }
+.app-brand img { height: 44px; width: auto; display: block; }
+.metric-strip.metric-cards.three { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 1050px) { .metric-strip.metric-cards.three { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .metric-strip.metric-cards.three { grid-template-columns: 1fr; } }
+
+/* ---------- Sidebar link icons ---------- */
+.nav-label { display: inline-flex; align-items: center; gap: 12px; }
+.nav-icon {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .75;
+  transition: opacity .15s ease;
+}
+.nav-link:hover .nav-icon,
+.nav-link.active .nav-icon { opacity: 1; }
+
+/* Navy theme (#010522) for the landing page + profile avatar, shorter Our Focus cards, "Get started" button */
+html[data-theme="dark"] {
+  --paper: #010522;
+  --line: #1a2150;
+  --line-dark: #2b3475;
+}
+html[data-theme="dark"] .landing-nav {
+  background: rgba(8, 14, 58, .78);
+  border-color: rgba(143, 176, 255, .18);
+}
+html[data-theme="dark"] .landing-footer { background: #01041a; border-top: 1px solid var(--line); }
+
+/* profile card avatar: same navy as the page */
+.me-avatar { background: #010522; }
+
+/* Our Focus cards: slightly less tall */
+.focus-card {
+  min-height: 320px;
+  padding-top: 125px;
+}
+
+/* bottom CTA: single "Get started" button that grows on hover */
+.cta-band .cta-grid .cta-start {
+  min-height: 56px;
+  padding: 0 38px;
+  border-radius: 999px;
+  font-size: 1.08rem;
+  font-weight: 700;
+  background: #fff;
+  border-color: #fff;
+  color: #000;
+  transition: transform .22s ease, box-shadow .22s ease;
+}
+.cta-band .cta-grid .cta-start:hover:not(:disabled) {
+  transform: scale(1.14);
+  background: #fff;
+  color: #000;
+  box-shadow: 0 16px 36px -12px rgba(0, 0, 0, .55);
+}
+
+/* Hero: heading = "Methodology of Progress" size, subtitle on 3 lines */
+/* Methodology line = 0.6 x clamp(2rem, 4.2vw, 4.2rem) */
+.hero-grid,
+.hero-grid:not(.hero-solo) { --h1-size: clamp(1.2rem, 2.52vw, 2.52rem); }
+@media (max-width: 900px) {
+  .hero-grid,
+  .hero-grid:not(.hero-solo) { --h1-size: clamp(1.2rem, 2.52vw, 2.52rem); }
+}
+.hero h1 { font-size: var(--h1-size); }
+
+.hero-copy { max-width: 640px; } /* wide enough for 3 lines instead of 4 */
+
+/* Clear Pathway card = Model Diplomacy card = Communication card colour */
+html[data-theme="dark"] .program-card-wide,
+.program-card-wide {
+  background: var(--focus-card-2);
+  border-color: var(--focus-card-2);
+  color: #fff;
+  box-shadow: 0 20px 50px -20px rgba(5, 115, 236, .6);
+}
+html[data-theme="dark"] .program-card-wide:hover { box-shadow: 0 28px 60px -20px rgba(5, 115, 236, .8); }
+html[data-theme="dark"] .program-card-wide h3 { color: #fff; }
+html[data-theme="dark"] .program-card-wide p { color: rgba(255,255,255,.88); }
+html[data-theme="dark"] .program-card-wide .program-arrow { border-color: #fff; color: #fff; }
+html[data-theme="dark"] .program-card-wide:hover .program-arrow { background: #fff; color: var(--focus-card-2); }
+.cta-band .cta-grid { background: var(--focus-card-2); }
+
+/* Our Focus: equal height, headings aligned, text lower */
+.focus-card { min-height: 320px; padding-top: 165px; justify-content: flex-start; }
+
+/* Login / sign-up: logo + navy theme */
+.public-brand img { height: 48px; width: auto; display: block; }
+html[data-theme="dark"] .public-nav { background: transparent; border-bottom-color: var(--line); }
+html[data-theme="dark"] body { background: #010522; color: #fff; }
+html[data-theme="dark"] .public-main { color: #fff; }
+html[data-theme="dark"] .public-links a:not(.button) { color: #fff; }
+html[data-theme="dark"] .public-main h1,
+html[data-theme="dark"] .public-main h2,
+html[data-theme="dark"] .public-main h3,
+html[data-theme="dark"] .public-main label,
+html[data-theme="dark"] .public-main .field>span:first-child { color: #fff; }
+html[data-theme="dark"] .public-main p,
+html[data-theme="dark"] .public-main .field-hint { color: #b8c0e6; }
+html[data-theme="dark"] .public-main .card,
+html[data-theme="dark"] .public-main form { background: #0a1040; border-color: #1a2150; border-radius: 24px; }
+html[data-theme="dark"] .public-main .field input,
+html[data-theme="dark"] .public-main .field select,
+html[data-theme="dark"] .public-main .field textarea { background: #010522; border-color: #2b3475; color: #fff; border-radius: 10px; }
+html[data-theme="dark"] .public-main a { color: #8fb0ff; }
+
+/* Auth pages: dark panels */
+html[data-theme="dark"] .public-main .panel {
+  background: #0a1040;
+  border: 1px solid #1a2150;
+  border-radius: 24px;
+  overflow: hidden;
+  color: #fff;
+}
+html[data-theme="dark"] .public-main .panel-head { border-bottom-color: #1a2150; }
+html[data-theme="dark"] .public-main .panel-head h2,
+html[data-theme="dark"] .public-main .panel-head h3 { color: #fff; }
+html[data-theme="dark"] .public-main .tag { background: #010522; border-color: #2b3475; color: #b8c0e6; }
+html[data-theme="dark"] .public-main .panel-body { color: #fff; }

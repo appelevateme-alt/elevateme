@@ -6,10 +6,16 @@ import { SITE_URL, isSupabaseConfigured, supabase } from '../lib/supabaseClient.
 
 // Shared public header for auth pages.
 function AuthHead({ children }) {
+  useEffect(() => {
+  const root = document.documentElement;
+  const prev = root.getAttribute('data-theme');
+  root.setAttribute('data-theme', 'dark');
+  return () => { if (prev) root.setAttribute('data-theme', prev); else root.removeAttribute('data-theme'); };
+}, []);
   return (
     <>
       <header className="public-nav"><div className="inner">
-        <Link className="public-brand" to="/">Elevate<span>Me</span></Link>
+        <Link className="public-brand" to="/" aria-label="ElevateMe home"><img src="/images/logo.png" alt="ElevateMe" /></Link>
         <nav className="public-links"><Link to="/programs">Programs</Link><Link className="button" to="/sign-up">Create account →</Link></nav>
       </div></header>
       <main className="public-main" style={{ maxWidth: 720 }}>{children}</main>

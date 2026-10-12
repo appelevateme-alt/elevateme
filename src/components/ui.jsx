@@ -52,11 +52,12 @@ export function PageHead({ kicker, title, desc, action }) {
 }
 
 /* ---------- Metric strip ---------- */
-export function Metrics({ items }) {
+export function Metrics({ items, className = '' }) {
   return (
-    <div className="metric-strip">
+    <div className={`metric-strip${className ? ` ${className}` : ''}`}>
       {items.map((m, i) => (
         <div className="metric" key={i}>
+          {m[3] && <span className="metric-icon" aria-hidden="true">{m[3]}</span>}
           <label>{m[0]}</label>
           <b>{m[1]}</b>
           <small>{m[2]}</small>

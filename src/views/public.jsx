@@ -111,7 +111,7 @@ useEffect(() => {
   <div className={`hero-grid${session ? '' : ' hero-solo'}`}>
     <div>
       <h1 className="hero-enter" style={{ '--d': '80ms' }}>A Tool for <br />Visible Growth</h1>
-      <p className="hero-copy hero-enter" style={{ '--d': '160ms' }}>A clear path to stronger Public Speaking, Communication, Negotiation and Leadership skills with professional evaluation and human guidance.</p>
+      <p className="hero-copy hero-enter" style={{ '--d': '160ms' }}>A clear path from every session to stronger Public Speaking, Communication, Negotiation and Leadership skills - with professional evaluation, honest progress and human guidance.</p>
       <div className="hero-actions hero-enter" style={{ '--d': '240ms' }}>
         <Link className="button secondary pill" to="/sign-up">Create account <span className="pill-arrow" aria-hidden="true">↗</span></Link>
         <Link className="button secondary pill" to="/sign-in">Log In to account <span className="pill-arrow" aria-hidden="true">↗</span></Link>
@@ -134,7 +134,7 @@ useEffect(() => {
         </Reveal></section> */}
                 <section className="landing-section" id="people"><div className="wrap">
   <div className="role-copy focus-heading" style={{ textAlign: 'center', maxWidth: 'none', margin: '0 auto' }}>
-  <h2>Our Focus: Traits Of Modern Diplomacy.</h2>
+  <h2>Our Focus: Traits Of Modern Diplomacy</h2>
 </div>
   <Reveal className="focus-grid stagger-group">
   {[
@@ -203,7 +203,7 @@ Through Professional Evaluation.</p></article>
 <section className="landing-section" id="programs"><div className="wrap">
   <div className="section-head-grid" style={{ gridTemplateColumns: '1fr', textAlign: 'right' }}>
     <div>
-      <h2>Skill Development<br />Programs.</h2>
+      <h2>Skill Development<br />Programs</h2>
     </div>
   </div>
   <Reveal className="program-single stagger-group">
@@ -219,22 +219,22 @@ Through Professional Evaluation.</p></article>
 
 <section className="landing-section" id="pathway"><div className="wrap">
   <div className="role-copy" style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto' }}>
-    <h2>Ambitious<br />Pathway.</h2>
+    <h2>Ambitious<br />Pathway</h2>
   </div>
 <Reveal className="pathway-grid">
   {[
-    { label: 'A Confident Communicator',      img: '/images/pathway/confident-communicator.jpg' },
-    { label: 'A Persuasive Speaker',          img: '/images/pathway/persuasive-speaker.jpg' },
-    { label: 'A Skilled Negotiator',          img: '/images/pathway/skilled-negotiator.jpg' },
+    { label: 'A Confident Communicator',      img: '/images/communicator.png' },
+    { label: 'A Persuasive Speaker',          img: '/images/persuasive speaker.png' },
+    { label: 'A Skilled Negotiator',          img: '/images/skilled negotiator.png' },
     { label: 'A Critical Thinker',            img: '/images/pathway/critical-thinker.jpg' },
-    { label: 'An Effective Leader',           img: '/images/pathway/effective-leader.jpg' },
+    { label: 'An Effective Leader',           img: '/images/effective leader.png' },
     { label: 'A Creative Problem Solver',     img: '/images/pathway/creative problem solver.jpg' },
-    { label: 'An Independent Decision Maker', img: '/images/pathway/independant decision maker.jpg' },
+    { label: 'An Independent Decision Maker', img: '/images/decision maker.png' },
     { label: 'A Model Diplomat',              img: '/images/pathway/model diplomat.jpg' },
   ].map(({ label, img }, i, all) => (
     <article
       key={label}
-      className={`pathway-box${i === all.length - 1 ? ' final' : ''}`}
+      className={`pathway-box${i === all.length - 1 ? ' final' : ''}`}  
       style={{ '--delay': `${0.1 + i * 0.12}s`, '--i': i }}
     >
       <div className="pathway-img">
@@ -251,7 +251,7 @@ Through Professional Evaluation.</p></article>
 </Reveal>
 </div></section>
 
-        <section className="cta-band" id="join"><Reveal className="wrap cta-grid stagger-group"><h2>A Clear Pathway To Become a<  br />Model Diplomat.</h2><div>
+        <section className="cta-band" id="join"><Reveal className="wrap cta-grid stagger-group"><h2>A Clear Pathway To Become a<  br />Model Diplomat</h2><div>
   {/* <p>Explore the complete application preview and see how every role connects.</p> */}
   <div className="cta-price">
     <span className="cta-price-badge">Limited-time offer · 50% off</span>
@@ -262,7 +262,7 @@ Through Professional Evaluation.</p></article>
     </div>
     <span className="cta-price-note">ElevateMe is an annual plan at LKR 10,000 per year. Get 50% off for a limited time.</span>
   </div>
-  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}><Link className="button" to="/student">Open the app <span aria-hidden="true">↗</span></Link><Link className="button" to="/sign-up">Create account</Link></div>
+  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}><Link className="button cta-start" to="/sign-up">Get started</Link></div>
 </div></Reveal></section>
       </main>
       <footer className="landing-footer"><div className="wrap footer-grid">

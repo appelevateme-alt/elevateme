@@ -10,6 +10,22 @@ import { useAuth } from '../lib/auth.jsx';
 import { NotFound } from './public.jsx';
 
 /* ---------- Student overview (prototype studentDashboard) ---------- */
+const AVERAGE_CRITERIA = [
+  { key: 'clarity', label: 'Clarity' },
+  { key: 'confidence', label: 'Confidence' },
+  { key: 'focus', label: 'Focus' },
+  { key: 'critical-analysis', label: 'Critical Analysis' },
+];
+
+const normKey = (k) => String(k || '').toLowerCase().replace(/_/g, '-');
+
+function initialsFor(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'EM';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 export function StudentDashboard() {
   const { session } = useAuth();
   const firstName = session?.name ? session.name.split(' ')[0] : 'Student';
@@ -93,6 +109,33 @@ const recentScores = (recentEvalRows || []).map((evaluation) => {
 };
 });
 
+// Averages across EVERY released evaluation (all sessions), not just the recent three.
+const NO_ID = ['00000000-0000-0000-0000-000000000000'];
+const { data: allEvalRows, loading: allEvalsLoading } = useSupabaseList({
+  table: 'published_evaluations',
+  select: '*',
+  filters: { student_id: session?.userId || NO_ID[0], released: true },
+  order: { col: 'released_at', ascending: false },
+  page: 1,
+  pageSize: 200,
+});
+const allEvalIds = (allEvalRows || []).map((e) => e.id).filter(Boolean);
+const { data: allScoreRows, loading: allScoresLoading } = useSupabaseList({
+  table: 'published_evaluation_scores',
+  filters: { evaluation_id: allEvalIds.length > 0 ? allEvalIds : NO_ID },
+  page: 1,
+  pageSize: 2000,
+});
+const averagesLoading = allEvalsLoading || allScoresLoading;
+const averages = AVERAGE_CRITERIA.map((c) => {
+  const vals = (allScoreRows || [])
+    .filter((row) => normKey(row.criterion_key ?? row.criterion) === c.key)
+    .map((row) => Number(row.score ?? row.value))
+    .filter((n) => Number.isFinite(n));
+  const avg = vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : null;
+  return { ...c, avg, count: vals.length };
+});
+
   const regs = (regRows || []).map(toRegistration);
   const recs = (recRows || []).map(toRecommendation);
   const anns = (annRows || []).map(toAnnouncement);
@@ -104,14 +147,36 @@ const recentScores = (recentEvalRows || []).map((evaluation) => {
 
   return (
     <div>
-      <PageHead kicker="Student overview" title={`Good evening, ${firstName}.`} desc="Here is what is happening across your programs, performance and next steps."
-        action={<Link to="/student/programs" className="button">Find a program →</Link>} />
-      <Metrics items={[
-        ['ElevateMe ID', elevateMeId, 'Your permanent student ID'],
-        ['Overall total', 'See performance', 'Released scores only'],
-        ['Active programs', activePrograms, regs.length > 0 ? 'Across your registrations' : 'None yet'],
-        ['Recommendations', recLabel, highPriority > 0 ? `${highPriority} marked high priority` : 'None yet'],
+      <section className="welcome-card">
+        <div className="welcome-avatar" aria-hidden="true"><span>{initialsFor(session?.name)}</span></div>
+        <div className="welcome-text">
+          <div className="page-kicker">Student overview</div>
+          <h1 className="page-title">Good evening, {firstName}.</h1>
+          <p className="page-description">Here is what is happening across your programs, performance and next steps.</p>
+        </div>
+        <Link to="/student/programs" className="button pill">Find a program <span className="pill-arrow" aria-hidden="true">↗</span></Link>
+      </section>
+      <Metrics className="metric-cards" items={[
+        ['ElevateMe ID', elevateMeId, 'Your permanent student ID', <svg viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="5" rx="2" /><circle cx="8.5" cy="11" r="2" /><path d="M5.5 16c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4" /><path d="M14.5 10h4" /><path d="M14.5 14h3" /></svg>],
+        ['Overall total', 'See performance', 'Released scores only', <svg viewBox="0 0 24 24"><path d="M3 3v18h18" /><path d="M7 15v3" /><path d="M12 10v8" /><path d="M17 6v12" /></svg>],
+        ['Active programs', activePrograms, regs.length > 0 ? 'Across your registrations' : 'None yet', <svg viewBox="0 0 24 24"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z" /><path d="M22 10v6" /><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5" /></svg>],
+        ['Recommendations', recLabel, highPriority > 0 ? `${highPriority} marked high priority` : 'None yet', <svg viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" /><path d="M9 18h6" /><path d="M10 22h4" /></svg>],
       ]} />
+      <div className="avg-grid">
+        {averages.map((a) => (
+          <div className="avg-card" key={a.key}>
+            <span className="avg-label">Average {a.label.toLowerCase()}</span>
+            <div className="avg-value">
+              {averagesLoading ? '…' : a.avg == null ? '—' : a.avg}
+              {a.avg != null && !averagesLoading && <small> / 100</small>}
+            </div>
+            <div className="avg-bar" aria-hidden="true"><span style={{ width: `${a.avg ?? 0}%` }} /></div>
+            <small className="avg-note">
+              {averagesLoading ? 'Loading…' : a.count > 0 ? `Across ${a.count} released session${a.count === 1 ? '' : 's'}` : 'No released scores yet'}
+            </small>
+          </div>
+        ))}
+      </div>
       <Panel
   title="Recent scores"
   // action={
@@ -253,7 +318,7 @@ export function StudentPrograms() {
       {loading && <SkeletonRows rows={4} />}
       {error && <div className="notice"><strong>Couldn’t load programs.</strong> {error.message}</div>}
       {!loading && !error && (
-        <div className="flat-list">
+        <div className="flat-list card-grid">
           {programs.length === 0 && <Empty title="No programs found." body="Try another search." action={<Button variant="secondary" small onClick={() => setQ('')}>Clear search</Button>} />}
           {programs.map((p) => (
             <ProgramListRow key={p.id} date={p.date} type={p.typeLabel} title={p.title} meta={p.meta}
@@ -284,7 +349,7 @@ export function StudentRegistrations() {
   return (
     <div>
       <PageHead kicker="My registrations" title="Programs you have joined." desc="Track confirmations, allocations and upcoming sessions in one place." />
-      <div className="flat-list">
+      <div className="flat-list card-grid">
         {regs.length === 0 && <Empty title="No registrations yet." body="Browse programs and join your first experience." action={<Link to="/student/programs" className="button secondary small">Find a program</Link>} />}
         {regs.map((r) => {
           const p = programs.get(r.programId);

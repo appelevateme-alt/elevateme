@@ -5,10 +5,28 @@ import { ChartSummary, InsightList } from '../components/domain.jsx';
 import { useSupabaseList, useSupabaseMutation } from '../lib/useSupabase.js';
 import { TEN_CRITERIA } from '../lib/scores.js';
 import { supabase } from '../lib/supabaseClient.js';
+import { useAuth } from '../lib/auth.jsx';
 import { toAnnouncement, toProfile, toProgram, toRecommendation, toThread } from '../lib/adapters.js';
+
+function initialsFor(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'EM';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+const ICON = {
+  clipboard: <svg viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="m9 14 2 2 4-4" /></svg>,
+  cap: <svg viewBox="0 0 24 24"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z" /><path d="M22 10v6" /><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5" /></svg>,
+  users: <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>,
+  fileCheck: <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="m9 15 2 2 4-4" /></svg>,
+  heart: <svg viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" /></svg>,
+  shield: <svg viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /><path d="m9 12 2 2 4-4" /></svg>,
+};
 
 /* ---------- Platform overview (Supabase-backed counts) ---------- */
 export function AdminOverview() {
+  const { session } = useAuth();
   const { count: pendingPrograms } = useSupabaseList({ table: 'programs', filters: { status: ['Submitted','UnderReview'] }, page: 1, pageSize: 1 });
   const { count: pendingUsers } = useSupabaseList({ table: 'profiles', filters: { status: 'PendingReview' }, page: 1, pageSize: 1 });
   const { count: activePrograms } = useSupabaseList({ table: 'programs', filters: { status: 'Published' }, page: 1, pageSize: 1 });
@@ -19,13 +37,20 @@ export function AdminOverview() {
 
   return (
     <div>
-      <PageHead kicker="Diplomatic Impact" title="Platform overview." desc="Approvals, evaluations and development actions that need attention."
-        action={<Link to="/admin/approvals" className="button">Open approval queue →</Link>} />
-      <Metrics items={[
-        ['Pending approvals', String(pendingTotal).padStart(2, '0'), `${pendingUsers} user · ${pendingPrograms} program`],
-        ['Active programs', String(activePrograms).padStart(2, '0'), 'Published in directory'],
-        ['Students', String(studentCount).padStart(2, '0'), 'Across all roles'],
-        ['Evaluations', String(awaitingRelease).padStart(2, '0'), `${releasedCount} released`],
+      <section className="welcome-card">
+        <div className="welcome-avatar" aria-hidden="true"><span>{initialsFor(session?.name)}</span></div>
+        <div className="welcome-text">
+          <div className="page-kicker">Diplomatic Impact</div>
+          <h1 className="page-title">Platform overview.</h1>
+          <p className="page-description">Approvals, evaluations and development actions that need attention.</p>
+        </div>
+        <Link to="/admin/approvals" className="button pill">Open approval queue <span className="pill-arrow" aria-hidden="true">↗</span></Link>
+      </section>
+      <Metrics className="metric-cards" items={[
+        ['Pending approvals', String(pendingTotal).padStart(2, '0'), `${pendingUsers} user · ${pendingPrograms} program`, ICON.clipboard],
+        ['Active programs', String(activePrograms).padStart(2, '0'), 'Published in directory', ICON.cap],
+        ['Students', String(studentCount).padStart(2, '0'), 'Across all roles', ICON.users],
+        ['Evaluations', String(awaitingRelease).padStart(2, '0'), `${releasedCount} released`, ICON.fileCheck],
       ]} />
       <div className="grid dashboard">
         <section className="panel">
@@ -182,7 +207,7 @@ export function AdminPrograms() {
       {loading && <SkeletonRows rows={4} />}
       {error && <div className="notice"><strong>Couldn’t load programs.</strong> {error.message}</div>}
       {!loading && !error && (
-        <div className="flat-list">
+        <div className="flat-list card-grid">
           {programs.length === 0 && <Empty title="No programs found." body="Try another search." />}
           {programs.map((p) => (
             <article key={p.id} className="list-row">
@@ -233,10 +258,10 @@ export function AdminUsers() {
   return (
     <div>
       <PageHead kicker="Administration" title="Users & institutes." desc="Manage approved access while protecting student and institutional data." />
-      <Metrics items={[
-        ['Students', String(studentCount).padStart(2, '0'), `${pendingStudents} pending verification`],
-        ['Parents', String(parentCount).padStart(2, '0'), `${linkCount} active links`],
-        ['Approved accounts', String(approvedCount).padStart(2, '0'), 'Student and parent access'],
+      <Metrics className="metric-cards three" items={[
+        ['Students', String(studentCount).padStart(2, '0'), `${pendingStudents} pending verification`, ICON.users],
+        ['Parents', String(parentCount).padStart(2, '0'), `${linkCount} active links`, ICON.heart],
+        ['Approved accounts', String(approvedCount).padStart(2, '0'), 'Student and parent access', ICON.shield],
       ]} />
       <div className="filter-bar">
         <input type="search" placeholder="Search name, email or ElevateMe ID" aria-label="Search users" value={q} onChange={(e) => setQ(e.target.value)} />

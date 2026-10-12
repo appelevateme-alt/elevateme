@@ -15,18 +15,22 @@ export function performanceInsights(reports) {
   const last = complete.at(-1), previous = complete.at(-2);
   const ranked = [...TEN_CRITERIA].sort((a, b) => last.values[b.key] - last.values[a.key]);
   const items = [
-    { label: 'Strongest', text: `${ranked[0].label}: ${last.values[ranked[0].key]} / 100 in the latest report.` },
-    { label: 'Next focus', text: `${ranked.at(-1).label}: ${last.values[ranked.at(-1).key]} / 100 in the latest report.` },
-    { label: 'Best in view', text: `${Math.max(...complete.map(r => r.scaled))} / 100 across the displayed reports.` },
+    { label: 'Strongest', text: `${ranked[0].label}: ${last.values[ranked[0].key]} / 100 in the latest report.`,
+      value: last.values[ranked[0].key], short: ranked[0].label },
+    { label: 'Next focus', text: `${ranked.at(-1).label}: ${last.values[ranked.at(-1).key]} / 100 in the latest report.`,
+      value: last.values[ranked.at(-1).key], short: ranked.at(-1).label },
+    { label: 'Best in view', text: `${Math.max(...complete.map(r => r.scaled))} / 100 across the displayed reports.`,
+      value: Math.max(...complete.map(r => r.scaled)), short: 'Best overall score' },
   ];
   if (previous) {
     const change = Math.round((last.scaled - previous.scaled) * 10) / 10;
     items.unshift({ label: change > 0 ? 'Improving' : change < 0 ? 'Declined' : 'Unchanged',
-      text: `Overall score ${previous.scaled} → ${last.scaled} since the previous report.` });
+      text: `Overall score ${previous.scaled} → ${last.scaled} since the previous report.`,
+      value: `${change > 0 ? '+' : ''}${change}`, short: `Overall score ${previous.scaled} → ${last.scaled}` });
     const declined = TEN_CRITERIA.filter(c => last.values[c.key] < previous.values[c.key]);
-    if (declined.length) items.push({ label: 'Recent declines', text: declined.map(c => c.label).join(', ') + '.' });
+    if (declined.length) items.push({ label: 'Recent declines', text: declined.map(c => c.label).join(', ') + '.', short: declined.map(c => c.label).join(', ') });
   }
   const low = TEN_CRITERIA.filter(c => last.values[c.key] < 30);
-  if (low.length) items.push({ label: 'Needs attention', text: `${low.map(c => c.label).join(', ')} scored below 30 in the latest report.` });
+  if (low.length) items.push({ label: 'Needs attention', text: `${low.map(c => c.label).join(', ')} scored below 30 in the latest report.`, short: `${low.map(c => c.label).join(', ')} (below 30)` });
   return items;
 }

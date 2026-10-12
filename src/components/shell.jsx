@@ -1,5 +1,5 @@
 import { ReportNotifications } from '../features/evaluator-access/ReportNotifications.jsx';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { ROLE_LABEL, ROLE_NAV } from '../lib/nav.js';
 import { roleHome, useAuth } from '../lib/auth.jsx';
@@ -20,6 +20,38 @@ function initialsFor(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+
+/* ---------- Sidebar icons (24x24 line icons) ---------- */
+const I = {
+  home: <><path d="m3 10 9-7 9 7" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></>,
+  cap: <><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z" /><path d="M22 10v6" /><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5" /></>,
+  ticket: <><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" /><path d="M13 5v2" /><path d="M13 17v2" /><path d="M13 11v2" /></>,
+  chart: <><path d="M3 3v18h18" /><path d="m7 15 4-4 3 3 5-6" /></>,
+  bulb: <><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" /><path d="M9 18h6" /><path d="M10 22h4" /></>,
+  megaphone: <><path d="m3 11 18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" /></>,
+  user: <><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" /></>,
+  users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>,
+  message: <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></>,
+  clipboard: <><rect width="8" height="4" x="8" y="2" rx="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="m9 14 2 2 4-4" /></>,
+  fileCheck: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="m9 15 2 2 4-4" /></>,
+  key: <><circle cx="7.5" cy="15.5" r="4.5" /><path d="m10.7 12.3 9.8-9.8" /><path d="m15 7 3 3" /></>,
+  send: <><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></>,
+  globe: <><circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></>,
+  userPlus: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6" /><path d="M22 11h-6" /></>,
+  dot: <><circle cx="12" cy="12" r="3" /></>,
+};
+const NAV_ICON = {
+  'Overview': I.home, 'Student overview': I.home,
+  'Programs': I.cap, 'My registrations': I.ticket, 'Performance': I.chart,
+  'Recommendations': I.bulb, 'Announcements': I.megaphone, 'Profile': I.user,
+  'Messages': I.message, 'Approval queue': I.clipboard, 'Users': I.users,
+  'Evaluations': I.fileCheck, 'Evaluator access': I.key, 'Report delivery': I.send,
+  'Public website': I.globe, 'Create account': I.userPlus,
+};
+function NavIcon({ label }) {
+  return <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true">{NAV_ICON[label] || I.dot}</svg>;
+}
+
 const ROLE_PREVIEW_ENABLED = import.meta.env.DEV && import.meta.env.VITE_ENABLE_ROLE_PREVIEW === 'true';
 
 export function Shell({ role, children }) {
@@ -27,6 +59,14 @@ export function Shell({ role, children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
+
+  // student and admin workspaces use the dark theme (same look as the landing page)
+  useEffect(() => {
+    if (role !== 'student' && role !== 'admin') return undefined;
+    const root = document.documentElement;
+    root.setAttribute('data-theme', 'dark');
+    return () => root.removeAttribute('data-theme');
+  }, [role]);
   const [previewRole, setPreviewRole] = useState(null);
   const nav = ROLE_NAV[role] || [];
 
@@ -46,17 +86,17 @@ export function Shell({ role, children }) {
     <div className="app-shell">
       <a className="skip-link" href="#main">Skip to content</a>
       <aside className={`sidebar${open ? ' open' : ''}`} id="sidebar">
-        <Link className="app-brand" to="/">Elevate<span>Me</span></Link>
+        <Link className="app-brand" to="/" aria-label="ElevateMe home"><img src="/images/logo.png" alt="ElevateMe" /></Link>
         <nav className="side-nav" aria-label="Application navigation">
           <div className="nav-group">{ROLE_LABEL[role]} workspace</div>
           {nav.map((n) => (
             <NavLink key={n.href} to={n.href} end={n.href === `/${role}`} className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-              <span>{n.label}</span>
+              <span className="nav-label"><NavIcon label={n.label} />{n.label}</span>
             </NavLink>
           ))}
           <div className="nav-group">Website</div>
-          <Link className="nav-link" to="/"><span>Public website</span><span>↗</span></Link>
-          <Link className="nav-link" to="/sign-up"><span>Create account</span><span>↗</span></Link>
+          <Link className="nav-link" to="/"><span className="nav-label"><NavIcon label="Public website" />Public website</span><span>↗</span></Link>
+          <Link className="nav-link" to="/sign-up"><span className="nav-label"><NavIcon label="Create account" />Create account</span><span>↗</span></Link>
         </nav>
         <div className="sidebar-foot">
           <div className="avatar">{initialsFor(displayName)}</div>
