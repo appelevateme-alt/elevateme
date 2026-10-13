@@ -219,18 +219,18 @@ Through Professional Evaluation.</p></article>
 
 <section className="landing-section" id="pathway"><div className="wrap">
   <div className="role-copy" style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto' }}>
-    <h2>Ambitious<br />Pathway</h2>
+    <h2>Ambitious Pathway</h2>
   </div>
 <Reveal className="pathway-grid">
   {[
     { label: 'A Confident Communicator',      img: '/images/communicator.png' },
     { label: 'A Persuasive Speaker',          img: '/images/persuasive speaker.png' },
     { label: 'A Skilled Negotiator',          img: '/images/skilled negotiator.png' },
-    { label: 'A Critical Thinker',            img: '/images/pathway/critical-thinker.jpg' },
+    { label: 'A Critical Thinker',            img: '/images/critical thinker.png' },
     { label: 'An Effective Leader',           img: '/images/effective leader.png' },
-    { label: 'A Creative Problem Solver',     img: '/images/pathway/creative problem solver.jpg' },
+    { label: 'A Creative Problem Solver',     img: '/images/creativity.png' },
     { label: 'An Independent Decision Maker', img: '/images/decision maker.png' },
-    { label: 'A Model Diplomat',              img: '/images/pathway/model diplomat.jpg' },
+    { label: 'A Model Diplomat',              img: '/images/model diplomat.png' },
   ].map(({ label, img }, i, all) => (
     <article
       key={label}

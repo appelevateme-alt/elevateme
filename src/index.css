@@ -2093,3 +2093,69 @@ html[data-theme="dark"] .public-main .panel-head h2,
 html[data-theme="dark"] .public-main .panel-head h3 { color: #fff; }
 html[data-theme="dark"] .public-main .tag { background: #010522; border-color: #2b3475; color: #b8c0e6; }
 html[data-theme="dark"] .public-main .panel-body { color: #fff; }
+
+/* ---------- Hero: roomier, 3-line subtitle, card aligned to 2nd subtitle line ---------- */
+.hero { padding: 120px 0 110px; }
+.hero-grid, .hero-grid:not(.hero-solo) {
+  --copy-size: 1.3rem;
+  gap: 72px;
+  min-height: 64vh;
+  align-items: stretch;
+}
+.hero-copy {
+  font-size: var(--copy-size);
+  line-height: 1.6;
+  max-width: 700px;
+  margin-top: 36px;
+  text-wrap: balance;            /* spreads the sentence evenly over 3 lines */
+}
+.hero-actions { margin-top: 44px; }
+.me-card {
+  /* heading (2 lines) + subtitle margin (36px) + one subtitle line */
+  margin-top: calc(var(--h1-size) * 2 * .91 + 36px + var(--copy-size) * 1.6);
+  min-height: 0;
+  height: auto;
+  align-self: stretch;
+}
+@media (max-width: 900px) {
+  .hero { padding: 72px 0 64px; }
+  .hero-grid, .hero-grid:not(.hero-solo) { min-height: 0; gap: 40px; }
+  .hero-copy { max-width: none; font-size: 1.05rem; text-wrap: wrap; }
+  .me-card { margin-top: 0; min-height: 340px; }
+}
+
+/* Our Focus heading: left-aligned (beats the inline center style) */
+.focus-heading { text-align: left !important; margin: 0 0 8px !important; max-width: none !important; }
+
+/* Ambitious Pathway: one line, left-aligned */
+#pathway .role-copy { text-align: left !important; margin: 0 0 8px !important; max-width: none !important; }
+#pathway .role-copy h2 { white-space: nowrap; font-size: clamp(1.3rem, 3.6vw, 3.6rem); }
+#pathway .role-copy h2 br { display: none; }
+@media (max-width: 640px) { #pathway .role-copy h2 { white-space: normal; } }
+
+/* Get started: larger */
+.cta-band .cta-grid .cta-start { min-height: 68px; padding: 0 56px; font-size: 1.3rem; }
+
+/* Hero heading: the :not(.hero-solo) rule above was out-ranking --h1-size, which threw off the card alignment */
+.hero-grid h1,
+.hero-grid:not(.hero-solo) h1 { font-size: var(--h1-size); line-height: .91; }
+
+/* Login / sign-up: outlined green buttons that fill on hover */
+html[data-theme="dark"] .public-main .button,
+html[data-theme="dark"] .public-main .button.secondary,
+html[data-theme="dark"] .public-nav .button {
+  background: transparent;
+  color: #36c904;
+  border: 1px solid #36c904;
+  border-radius: 999px;
+  transition: background .2s ease, color .2s ease, box-shadow .2s ease;
+}
+html[data-theme="dark"] .public-main .button:hover:not(:disabled),
+html[data-theme="dark"] .public-main .button.secondary:hover:not(:disabled),
+html[data-theme="dark"] .public-nav .button:hover:not(:disabled) {
+  background: #36c904;
+  border-color: #36c904;
+  color: #010522;
+  box-shadow: 0 12px 28px -12px rgba(54, 201, 4, .6);
+}
+
