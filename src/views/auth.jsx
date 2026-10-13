@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, ErrorSummary, PageHead, Progress } from '../components/ui.jsx';
+import { Button, ErrorSummary, PageHead } from '../components/ui.jsx';
 import { roleHome, useAuth } from '../lib/auth.jsx';
 import { SITE_URL, isSupabaseConfigured, supabase } from '../lib/supabaseClient.js';
 
@@ -210,6 +210,18 @@ function loadDraft() {
   return EMPTY;
 }
 
+// Sign-up journey: one big question per step, with a wavy path of circles underneath
+const SU_TITLES = ['Who are you joining as?', "Let's set up your login.", 'Tell us about you.', 'Add a photo.', 'Almost there.'];
+const SU_ICONS = ['👋', '🔐', '🎓', '📸', '🚀'];
+const SU_GAP = 520;                       // horizontal distance between circles
+const SU_YS = [170, 115, 175, 112, 165];  // vertical position of each circle on the wave
+const SU_W = (SU_YS.length + 1) * SU_GAP;
+const SU_PATH = (() => {
+  const pts = [{ x: 0, y: 205 }, ...SU_YS.map((y, i) => ({ x: (i + 1) * SU_GAP, y })), { x: SU_W, y: 190 }];
+  const d = SU_GAP * 0.45;
+  return pts.reduce((acc, pt, i) => (i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} C ${pts[i - 1].x + d} ${pts[i - 1].y}, ${pt.x - d} ${pt.y}, ${pt.x} ${pt.y}`), '');
+})();
+
 export function SignUp() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -222,6 +234,24 @@ export function SignUp() {
   const [busy, setBusy] = useState(false);
   const [authUserId, setAuthUserId] = useState(null);
   const [done, setDone] = useState(false);
+    // welcome screen first, then the journey starts at step 1
+  const [intro, setIntro] = useState(!fixMode);
+  const [leaving, setLeaving] = useState(false);
+  const startJourney = () => {
+    if (leaving) return;
+    setLeaving(true);
+    setTimeout(() => setIntro(false), 600);
+  };
+  useEffect(() => {
+    if (!intro) return undefined;
+    const t = setTimeout(startJourney, 3600);
+    return () => clearTimeout(t);
+  }, [intro]);
+  const pos = intro && !leaving ? 0 : step; // where the path is (0 = before the first circle)
+    // direction of the last step change, so the card opens the right way
+  const prevStep = useRef(step);
+  const dirRef = useRef('fwd');
+  if (prevStep.current !== step) { dirRef.current = step > prevStep.current ? 'fwd' : 'back'; prevStep.current = step; }
 
   useEffect(() => {
     try {
@@ -403,107 +433,141 @@ export function SignUp() {
     );
   }
 
-  return (
+    return (
     <AuthHead>
-      <PageHead kicker="Create your account" title="Join ElevateMe." desc="Short steps instead of one long form. Drafts stay on this device during the session." />
-      <Progress value={step} max={STEPS.length} label={STEPS[step - 1]} />
-      {fixMode && step === 1 && (
-        <div className="notice" style={{ marginBottom: 18 }}>
-          <strong>Changes requested.</strong> An administrator asked for corrections. Review each step and resubmit — your updated details return to the approval queue.
-        </div>
-      )}
-      <ErrorSummary items={submitErrors} />
-      <section className="panel">
-        <div className="panel-head"><h2>{STEPS[step - 1]}</h2><span className="tag">Step {step} of {STEPS.length}</span></div>
-        <div className="panel-body">
-          {step === 1 && (
-            <>
-              <div className="field"><label> Choose your role
-                <select value={draft.role} onChange={(e) => set('role', e.target.value)}>
-                  <option value="">Choose your role…</option>
-                  <option value="student">Student</option>
-                  <option value="parent">Parent or guardian (via invitation)</option>
-                </select></label>
-              </div>
-            </>
-          )}
-          {step === 2 && (
-            <div className="form-grid">
-              <div className="field"><label> Full name<input value={draft.fullName} onChange={(e) => set('fullName', e.target.value)} onBlur={() => setTouched((t) => ({ ...t, fullName: true }))} placeholder="Full name" autoComplete="name" /></label>
-                {touched.fullName && errors.fullName && <p role="alert" className="field-error">{errors.fullName}</p>}</div>
-              <div className="field"><label> Email<input type="email" value={draft.email} onChange={(e) => set('email', e.target.value)} onBlur={() => setTouched((t) => ({ ...t, email: true }))} placeholder="you@example.edu" autoComplete="email" /></label>
-                {touched.email && errors.email && <p role="alert" className="field-error">{errors.email}</p>}</div>
-              <div className="field span-two"><label> Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onBlur={() => setTouched((t) => ({ ...t, password: true }))} placeholder="Choose a password" autoComplete="new-password" /></label>
-                <span className="field-hint">At least 8 characters. Never stored on this device.</span>
-                {touched.password && errors.password && <p role="alert" className="field-error">{errors.password}</p>}</div>
-            </div>
-          )}
-          {step === 3 && (
-            <div className="form-grid">
-              {draft.role === 'student' && (
-                <div className="field"><label> Institute<input value={draft.institute} onChange={(e) => set('institute', e.target.value)} onBlur={() => setTouched((t) => ({ ...t, institute: true }))} placeholder="Institute" /></label>
-                  {touched.institute && errors.institute && <p role="alert" className="field-error">{errors.institute}</p>}</div>
-              )}
-              {draft.role === 'student' && (
-                <>
-                  <div className="field"><label> Date of birth<input type="date" value={draft.dob} onChange={(e) => set('dob', e.target.value)} onBlur={() => setTouched((t) => ({ ...t, dob: true }))} /></label>
-                    <span className="field-hint">Private. Never exposed via ElevateMe ID.</span>
-                    {touched.dob && errors.dob && <p role="alert" className="field-error">{errors.dob}</p>}</div>
-                  <div className="field span-two"><label> Referee name / contact<input value={draft.referee} onChange={(e) => set('referee', e.target.value)} placeholder="Referee (optional for draft)" /></label>
-                    <span className="field-hint">Verification only; hidden outside authorized staff.</span></div>
-                </>
-              )}
-              {draft.role === 'parent' && (
-                <div className="field"><label> Phone<input value={draft.phone} onChange={(e) => set('phone', e.target.value)} placeholder="Phone" autoComplete="tel" /></label></div>
-              )}
-              {draft.role === 'parent' && (
-                <div className="notice span-two"><strong>Invitation required.</strong> Parent accounts link through a time-limited student-issued or admin-issued invitation — never open ID lookup.</div>
-              )}
-            </div>
-          )}
-          {step === 4 && (
-            <div className="form-grid">
-              <div className="field"><label> Profile photo<input type="file" accept="image/png,image/jpeg" aria-label="Profile photo" /></label>
-                <span className="field-hint">JPG or PNG, max 5 MB. Preview only for now.</span></div>
-              <div className="notice span-two"><strong>Verification.</strong> Student referee details help verify institute membership. Parent access is linked to a student invitation. National ID is not requested.</div>
-            </div>
-          )}
-          {step === 5 && (
-            <div>
-              <div className="form-grid" style={{ fontSize: '.9rem', marginBottom: 18 }}>
-                <div><span style={{ fontSize: '.75rem', color: 'var(--muted)' }}>Role</span><br />{draft.role}</div>
-                <div><span style={{ fontSize: '.75rem', color: 'var(--muted)' }}>Name</span><br />{draft.fullName || '—'}</div>
-                <div><span style={{ fontSize: '.75rem', color: 'var(--muted)' }}>Email</span><br />{draft.email || '—'}</div>
-                <div><span style={{ fontSize: '.75rem', color: 'var(--muted)' }}>Institute</span><br />{draft.institute || '—'}</div>
-              </div>
-              <label className="checkbox-row">
-                <input type="checkbox" checked={draft.consent} onChange={(e) => set('consent', e.target.checked)} />
-                <span>I accept the consent and privacy policy. I understand student records are sensitive and approvals are required.</span>
-              </label>
-            </div>
-          )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 22 }}>
-            <Button variant="secondary" disabled={step === 1 || busy} onClick={() => { setStep((s) => Math.max(1, s - 1)); setSubmitErrors([]); }}>Back</Button>
-            {step < STEPS.length ? (
-              step === 2 ? (
-                <Button disabled={busy} onClick={handleStep2Continue}>{busy ? 'Creating login…' : 'Continue'}</Button>
-              ) : (
-                <Button onClick={() => {
-                  const list = stepErrorList(step);
-                  if (list.length > 0) { setSubmitErrors(list); setTouched({ fullName: true, email: true, password: true, institute: true, dob: true }); return; }
-                  setSubmitErrors([]); setStep((s) => Math.min(STEPS.length, s + 1));
-                }}>Continue</Button>
-              )
-            ) : (
-              <Button disabled={busy} onClick={handleFinalSubmit}>{busy ? 'Submitting…' : 'Submit for approval'}</Button>
-            )}
+      <div className="su-screen">
+        <header className="su-top">
+          <Link className="su-logo" to="/" aria-label="ElevateMe home"><img src="/images/logo.png" alt="ElevateMe" /></Link>
+          <div className="su-pips" role="progressbar" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={step} aria-label={`Step ${step} of ${STEPS.length}: ${STEPS[step - 1]}`}>
+            {STEPS.map((label, i) => <span key={label} className={i + 1 === step ? 'on' : i + 1 < step ? 'done' : ''} />)}
           </div>
-          <p style={{ fontSize: '.78rem', color: 'var(--muted)', marginTop: 14 }}>
-            Already have an account? <Link to="/sign-in" className="link-quiet">Sign in</Link>
-            <span> · </span><button type="button" className="link-quiet" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }} onClick={() => navigate('/pending-approval')}>View pending approval</button>
-          </p>
+        </header>
+
+        <div className="su-main">
+                    {intro && (
+            <div className={`su-step su-welcome${leaving ? ' leaving' : ''}`}>
+              <p className="su-kicker">Create your account</p>
+              <h1 className="su-title su-big">Welcome to <span className="su-accent">ElevateMe.</span></h1>
+              <p className="su-sub">Let&apos;s get you set up. It only takes a minute.</p>
+              <Button className="su-continue su-begin" onClick={startJourney}>Let&apos;s begin</Button>
+            </div>
+          )}
+          {!intro && (
+          <div key={step} className="su-step">
+            <p className="su-kicker">Step {step} of {STEPS.length} · {STEPS[step - 1]}</p>
+            <h1 className="su-title">{SU_TITLES[step - 1]}</h1>
+            {fixMode && step === 1 && (
+              <div className="notice" style={{ marginBottom: 18 }}>
+                <strong>Changes requested.</strong> An administrator asked for corrections. Review each step and resubmit — your updated details return to the approval queue.
+              </div>
+            )}
+            <ErrorSummary items={submitErrors} />
+            <div className="su-form">
+
+                            {step === 1 && (
+                <div className="field"><label> Choose your role
+                  <select value={draft.role} onChange={(e) => set('role', e.target.value)}>
+                    <option value="">Choose your role…</option>
+                    <option value="student">Student</option>
+                    <option value="parent">Parent or guardian (via invitation)</option>
+                  </select></label>
+                </div>
+              )}
+              {step === 2 && (
+                <div className="form-grid">
+                  <div className="field"><label> Full name<input value={draft.fullName} onChange={(e) => set('fullName', e.target.value)} onBlur={() => setTouched((t) => ({ ...t, fullName: true }))} placeholder="Full name" autoComplete="name" /></label>
+                    {touched.fullName && errors.fullName && <p role="alert" className="field-error">{errors.fullName}</p>}</div>
+                  <div className="field"><label> Email<input type="email" value={draft.email} onChange={(e) => set('email', e.target.value)} onBlur={() => setTouched((t) => ({ ...t, email: true }))} placeholder="you@example.edu" autoComplete="email" /></label>
+                    {touched.email && errors.email && <p role="alert" className="field-error">{errors.email}</p>}</div>
+                  <div className="field span-two"><label> Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onBlur={() => setTouched((t) => ({ ...t, password: true }))} placeholder="Choose a password" autoComplete="new-password" /></label>
+                    <span className="field-hint">At least 8 characters. Never stored on this device.</span>
+                    {touched.password && errors.password && <p role="alert" className="field-error">{errors.password}</p>}</div>
+                </div>
+              )}
+              {step === 3 && (
+                <div className="form-grid">
+                  {draft.role === 'student' && (
+                    <div className="field"><label> Institute<input value={draft.institute} onChange={(e) => set('institute', e.target.value)} onBlur={() => setTouched((t) => ({ ...t, institute: true }))} placeholder="Institute" /></label>
+                      {touched.institute && errors.institute && <p role="alert" className="field-error">{errors.institute}</p>}</div>
+                  )}
+                  {draft.role === 'student' && (
+                    <>
+                      <div className="field"><label> Date of birth<input type="date" value={draft.dob} onChange={(e) => set('dob', e.target.value)} onBlur={() => setTouched((t) => ({ ...t, dob: true }))} /></label>
+                        <span className="field-hint">Private. Never exposed via ElevateMe ID.</span>
+                        {touched.dob && errors.dob && <p role="alert" className="field-error">{errors.dob}</p>}</div>
+                      <div className="field span-two"><label> Referee name / contact<input value={draft.referee} onChange={(e) => set('referee', e.target.value)} placeholder="Referee (optional for draft)" /></label>
+                        <span className="field-hint">Verification only; hidden outside authorized staff.</span></div>
+                    </>
+                  )}
+                  {draft.role === 'parent' && (
+                    <div className="field"><label> Phone<input value={draft.phone} onChange={(e) => set('phone', e.target.value)} placeholder="Phone" autoComplete="tel" /></label></div>
+                  )}
+                  {draft.role === 'parent' && (
+                    <div className="notice span-two"><strong>Invitation required.</strong> Parent accounts link through a time-limited student-issued or admin-issued invitation — never open ID lookup.</div>
+                  )}
+                </div>
+              )}
+              {step === 4 && (
+                <div className="form-grid">
+                  <div className="field"><label> Profile photo<input type="file" accept="image/png,image/jpeg" aria-label="Profile photo" /></label>
+                    <span className="field-hint">JPG or PNG, max 5 MB. Preview only for now.</span></div>
+                  <div className="notice span-two"><strong>Verification.</strong> Student referee details help verify institute membership. Parent access is linked to a student invitation. National ID is not requested.</div>
+                </div>
+              )}
+              {step === 5 && (
+                <div>
+                  <div className="form-grid" style={{ fontSize: '.9rem', marginBottom: 18 }}>
+                    <div><span style={{ fontSize: '.75rem', color: '#8fa0e6' }}>Role</span><br />{draft.role}</div>
+                    <div><span style={{ fontSize: '.75rem', color: '#8fa0e6' }}>Name</span><br />{draft.fullName || '—'}</div>
+                    <div><span style={{ fontSize: '.75rem', color: '#8fa0e6' }}>Email</span><br />{draft.email || '—'}</div>
+                    <div><span style={{ fontSize: '.75rem', color: '#8fa0e6' }}>Institute</span><br />{draft.institute || '—'}</div>
+                  </div>
+                  <label className="checkbox-row">
+                    <input type="checkbox" checked={draft.consent} onChange={(e) => set('consent', e.target.checked)} />
+                    <span>I accept the consent and privacy policy. I understand student records are sensitive and approvals are required.</span>
+                  </label>
+                </div>
+              )}
+
+              <div className="su-actions">
+                <Button variant="secondary" className="su-back" disabled={step === 1 || busy} onClick={() => { setStep((s) => Math.max(1, s - 1)); setSubmitErrors([]); }}>Back</Button>
+                {step < STEPS.length ? (
+                  step === 2 ? (
+                    <Button className="su-continue" disabled={busy} onClick={handleStep2Continue}>{busy ? 'Creating login…' : 'Continue'}</Button>
+                  ) : (
+                    <Button className="su-continue" onClick={() => {
+                      const list = stepErrorList(step);
+                      if (list.length > 0) { setSubmitErrors(list); setTouched({ fullName: true, email: true, password: true, institute: true, dob: true }); return; }
+                      setSubmitErrors([]); setStep((s) => Math.min(STEPS.length, s + 1));
+                    }}>Continue</Button>
+                  )
+                ) : (
+                  <Button className="su-continue" disabled={busy} onClick={handleFinalSubmit}>{busy ? 'Submitting…' : 'Submit for approval'}</Button>
+                )}
+              </div>
+              <p className="su-links">
+                Already have an account? <Link to="/sign-in" className="link-quiet">Sign in</Link>
+                <span> · </span><button type="button" className="link-quiet" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }} onClick={() => navigate('/pending-approval')}>View pending approval</button>
+              </p>
+            </div>
+          </div>
+          )}
         </div>
-      </section>
+
+        <div className="su-path" aria-hidden="true">
+          <div className="su-path-inner" style={{ width: SU_W, transform: `translateX(calc(50vw - ${pos * SU_GAP}px))` }}>
+            <svg width={SU_W} height="300" viewBox={`0 0 ${SU_W} 300`}>
+              <path d={SU_PATH} className="su-line" />
+              <path d={SU_PATH} className="su-line-on" pathLength="1" style={{ strokeDashoffset: 1 - pos / (STEPS.length + 1) }} />
+            </svg>
+            {STEPS.map((label, i) => (
+              <span key={label} className={`su-circle${i + 1 === pos ? ' on' : i + 1 < pos ? ' done' : ''}`} style={{ left: (i + 1) * SU_GAP - 90, top: SU_YS[i] - 90 }}>
+                {i + 1 < pos ? '✓' : SU_ICONS[i]}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
     </AuthHead>
   );
 }
