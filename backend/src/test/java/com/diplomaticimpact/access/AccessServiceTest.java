@@ -31,7 +31,7 @@ class AccessServiceTest {
     when(repo.sheet(sheet)).thenReturn(Map.of("state", "SUBMITTED", "current_revision_id", current));
     var decision = new AccessRequests.Review(UUID.randomUUID(), "APPROVED", "", "");
     var error = assertThrows(ResponseStatusException.class,
-        () -> service.review(UUID.randomUUID(), sheet, decision));
+                () -> service.review(new AccessPolicy.Staff(UUID.randomUUID(), true), sheet, decision));
     assertEquals(409, error.getStatusCode().value());
     verify(repo, never()).review(any(), any(), any());
   }
