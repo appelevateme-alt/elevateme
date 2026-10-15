@@ -44,6 +44,13 @@ class AccessIdentity {
     if(!repo.activeUser(id)) throw AccessPolicy.error(403,"This account is not active.");
     return id;
   }
+    // Teachers are scoped to the programmes they created; admins see everything.
+  AccessPolicy.Staff staff(HttpServletRequest req) {
+    UUID id=user(req);
+    if(repo.admin(id)) return new AccessPolicy.Staff(id,true);
+    if(repo.staff(id)) return new AccessPolicy.Staff(id,false);
+    throw AccessPolicy.error(403,"Programme staff access required.");
+  }
   UUID admin(HttpServletRequest req) {
     UUID id=user(req); if(!repo.admin(id)) throw AccessPolicy.error(403,"DI administrator access required."); return id;
   }

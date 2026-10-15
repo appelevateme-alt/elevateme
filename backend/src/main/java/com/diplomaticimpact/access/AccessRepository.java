@@ -27,7 +27,8 @@ public class AccessRepository {
     return Instant.parse(value.toString());
   }
   boolean admin(UUID id) { return Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM public.profiles WHERE id=? AND status='Approved' AND 'admin'=ANY(roles))",Boolean.class,id)); }
-  boolean activeUser(UUID id) { return Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM public.profiles WHERE id=? AND status='Approved' AND (roles && ARRAY['admin','student','parent']))",Boolean.class,id)); }
+    boolean staff(UUID id) { return Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM public.profiles WHERE id=? AND status='Approved' AND (roles && ARRAY['admin','teacher']))",Boolean.class,id)); }
+  boolean activeUser(UUID id) { return Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM public.profiles WHERE id=? AND status='Approved' AND (roles && ARRAY['admin','teacher','student','parent']))",Boolean.class,id)); }
   void lockSession(UUID id) {
     // Serialize invitation/release work without requiring UPDATE rights on the
     // public sessions table. The transaction-scoped lock is released on commit
@@ -35,11 +36,16 @@ public class AccessRepository {
     rows("SELECT pg_advisory_xact_lock(hashtextextended(?::text, 0))",id.toString());
     one("SELECT id FROM public.sessions WHERE id=?",id);
   }
-  List<Map<String,Object>> catalog() { return rows("SELECT s.id,s.title,s.program_id,p.title AS program_title,s.date FROM public.sessions s JOIN public.programs p ON p.id=s.program_id ORDER BY s.date DESC NULLS LAST,s.id"); }
+    boolean canManage(AccessPolicy.Staff st,UUID session) {
+    return Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM public.sessions s JOIN public.programs pr ON pr.id=s.program_id WHERE s.id=? AND (?::boolean OR pr.created_by=?))",Boolean.class,session,st.admin(),st.id()));
+  }
+  UUID sheetSession(UUID sheet) {return uuid(one("SELECT session_id FROM evaluator_private.sheets WHERE id=?",sheet),"session_id");}
+  UUID invitationSession(UUID invitation) {return uuid(one("SELECT session_id FROM evaluator_private.invitations WHERE id=?",invitation),"session_id");}
+  List<Map<String,Object>> catalog(AccessPolicy.Staff st) { return rows("SELECT s.id,s.title,s.program_id,p.title AS program_title,s.date FROM public.sessions s JOIN public.programs p ON p.id=s.program_id WHERE (?::boolean OR p.created_by=?) ORDER BY s.date DESC NULLS LAST,s.id",st.admin(),st.id()); }
   List<Map<String,Object>> students(UUID session) {
     return rows("SELECT DISTINCT p.id,p.full_name,p.elevate_me_id,sh.id AS sheet_id,sh.state,sh.excluded_reason FROM public.registrations r JOIN public.profiles p ON p.id=r.student_id JOIN public.sessions s ON s.program_id=r.program_id LEFT JOIN evaluator_private.sheets sh ON sh.session_id=s.id AND sh.student_id=p.id WHERE s.id=? AND r.status='Confirmed' AND (r.session_id IS NULL OR r.session_id=s.id) ORDER BY p.full_name,p.id",session);
   }
-  List<Map<String,Object>> invitations() { return rows("SELECT i.id,i.session_id,i.evaluator_name,i.evaluator_email,i.organisation,i.evaluator_title,i.created_at,i.expires_at,i.consumed_at,i.revoked_at,s.title AS session_title,(SELECT count(*) FROM evaluator_private.sheets sh WHERE sh.invitation_id=i.id) AS assigned_count,CASE WHEN i.revoked_at IS NOT NULL THEN 'REVOKED' WHEN i.expires_at<=clock_timestamp() THEN 'EXPIRED' WHEN i.consumed_at IS NOT NULL THEN 'ACTIVATED' ELSE 'AWAITING_ACTIVATION' END AS status FROM evaluator_private.invitations i JOIN public.sessions s ON s.id=i.session_id ORDER BY i.created_at DESC LIMIT 500"); }
+  List<Map<String,Object>> invitations(AccessPolicy.Staff st) { return rows("SELECT i.id,i.session_id,i.evaluator_name,i.evaluator_email,i.organisation,i.evaluator_title,i.created_at,i.expires_at,i.consumed_at,i.revoked_at,s.title AS session_title,(SELECT count(*) FROM evaluator_private.sheets sh WHERE sh.invitation_id=i.id) AS assigned_count,CASE WHEN i.revoked_at IS NOT NULL THEN 'REVOKED' WHEN i.expires_at<=clock_timestamp() THEN 'EXPIRED' WHEN i.consumed_at IS NOT NULL THEN 'ACTIVATED' ELSE 'AWAITING_ACTIVATION' END AS status FROM evaluator_private.invitations i JOIN public.sessions s ON s.id=i.session_id WHERE (?::boolean OR EXISTS (SELECT 1 FROM public.programs op WHERE op.id=s.program_id AND op.created_by=?)) ORDER BY i.created_at DESC LIMIT 500",st.admin(),st.id()); }
   Map<String,Object> invitation(UUID id) { return one("SELECT * FROM evaluator_private.invitations WHERE id=? FOR UPDATE",id); }
   UUID insertInvite(UUID admin,AccessRequests.Invite input,String hash,UUID replaces) {
     UUID id=AccessPolicy.id();
@@ -73,7 +79,7 @@ public class AccessRepository {
     db.update("INSERT INTO evaluator_private.revisions(id,sheet_id,invitation_id,evaluator_snapshot,scores,feedback) SELECT ?,id,?,?::jsonb,scores,feedback FROM evaluator_private.sheets WHERE id=?",revision,invitation,encode(identity),id);
     db.update("UPDATE evaluator_private.sheets SET state='SUBMITTED',current_revision_id=?,change_request='',version=version+1 WHERE id=?",revision,id);return revision;
   }
-  List<Map<String,Object>> queue() {return rows("SELECT sh.id,sh.session_id,sh.state,sh.version,sh.excluded_reason,sh.current_revision_id,p.full_name,s.title AS session_title,i.evaluator_name FROM evaluator_private.sheets sh JOIN public.profiles p ON p.id=sh.student_id JOIN public.sessions s ON s.id=sh.session_id JOIN evaluator_private.invitations i ON i.id=sh.invitation_id ORDER BY s.date DESC NULLS LAST,p.full_name LIMIT 1000");}
+  List<Map<String,Object>> queue(AccessPolicy.Staff st) {return rows("SELECT sh.id,sh.session_id,sh.state,sh.version,sh.excluded_reason,sh.current_revision_id,p.full_name,s.title AS session_title,i.evaluator_name FROM evaluator_private.sheets sh JOIN public.profiles p ON p.id=sh.student_id JOIN public.sessions s ON s.id=sh.session_id JOIN evaluator_private.invitations i ON i.id=sh.invitation_id WHERE (?::boolean OR EXISTS (SELECT 1 FROM public.programs op WHERE op.id=s.program_id AND op.created_by=?)) ORDER BY s.date DESC NULLS LAST,p.full_name LIMIT 1000",st.admin(),st.id());}
   Map<String,Object> revision(UUID id) {var r=one("SELECT * FROM evaluator_private.revisions WHERE id=?",id);r.put("scores",decode(r.get("scores")));r.put("evaluator_snapshot",decode(r.get("evaluator_snapshot")));return r;}
   List<Map<String,Object>> history(UUID sheet) {var result=rows("SELECT r.id,r.submitted_at,r.evaluator_snapshot,v.decision,v.admin_id,v.internal_note,v.evaluator_message,v.created_at AS reviewed_at FROM evaluator_private.revisions r LEFT JOIN evaluator_private.reviews v ON v.revision_id=r.id WHERE r.sheet_id=? ORDER BY r.submitted_at DESC",sheet);result.forEach(r->r.put("evaluator_snapshot",decode(r.get("evaluator_snapshot"))));return result;}
   void review(UUID sheet,UUID admin,AccessRequests.Review input) {
@@ -95,6 +101,7 @@ public class AccessRepository {
     db.update("UPDATE evaluator_private.sheets SET state='RELEASED',released_revision_id=current_revision_id,version=version+1 WHERE id=?",id);
   }
   void audit(String actor,String action,UUID id) {db.update("INSERT INTO evaluator_private.audit(actor,action,entity_id) VALUES (?,?,?)",actor,action,id);}
+  List<UUID> reviewers(UUID session) {return db.query("SELECT id FROM public.profiles WHERE status='Approved' AND 'admin'=ANY(roles) UNION SELECT pr.created_by FROM public.sessions s JOIN public.programs pr ON pr.id=s.program_id JOIN public.profiles t ON t.id=pr.created_by WHERE s.id=? AND t.status='Approved' AND 'teacher'=ANY(t.roles)",(r,n)->r.getObject(1,UUID.class),session);}
   List<UUID> admins() {return db.query("SELECT id FROM public.profiles WHERE status='Approved' AND 'admin'=ANY(roles)",(r,n)->r.getObject(1,UUID.class));}
   List<UUID> linkedParents(UUID student) {return db.query("SELECT parent_id FROM public.parent_links WHERE student_id=? AND status IN ('Approved','Verified')",(r,n)->r.getObject(1,UUID.class),student);}
   void notify(UUID recipient,String key,String message,String destination) {

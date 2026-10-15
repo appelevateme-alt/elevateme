@@ -16,6 +16,19 @@ export const ROLE_NAV = {
     { href: '/parent/recommendations', label: 'Recommendations' },
     { href: '/parent/messages', label: 'Messages' },
   ],
+  // teacher: [
+  //   { href: '/teacher', label: 'Overview' },
+  //   { href: '/teacher/programs', label: 'Programs' },
+  // ],
+
+    teacher: [
+    { href: '/teacher', label: 'Overview' },
+    { href: '/teacher/programs', label: 'Programs' },
+    { href: '/teacher/students', label: 'Students' },
+    { href: '/teacher/evaluations', label: 'Evaluation review' },
+    { href: '/teacher/evaluator-invitations', label: 'Evaluator access' },
+  ],
+
   admin: [
     { href: '/admin', label: 'Overview' },
     { href: '/admin/approvals', label: 'Approval queue' },
@@ -32,11 +45,15 @@ export const ROLE_NAV = {
 
 // Secondary destinations reachable inside workspaces (not the side nav).
 export const ROLE_NAV_MORE = {
+  
+  teacher: [],
+  
   student: [
     { href: '/student/development', label: 'Further Development' },
     { href: '/student/parent-access', label: 'Parent Access' },
   ],
   parent: [],
+  
   admin: [
     { href: '/admin/reports', label: 'Reports' },
     { href: '/admin/configuration', label: 'Configuration' },
@@ -53,6 +70,7 @@ export const PUBLIC_NAV = [
 export const ROLE_LABEL = {
   student: 'Student',
   parent: 'Parent',
+  teacher: 'Teacher / Programme Coordinator',
   coordinator: 'Retired staff account',
   evaluator: 'Retired staff account',
   admin: 'DI Admin',

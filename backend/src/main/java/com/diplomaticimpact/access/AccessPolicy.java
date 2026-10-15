@@ -8,6 +8,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 public final class AccessPolicy {
   private AccessPolicy() {}
+    /** A signed-in staff member. Admins see everything; teachers only programmes they created. */
+  public record Staff(UUID id,boolean admin) {}
   public static final List<String> CRITERIA = List.of("preparation","clarity","confidence","focus",
       "critical-analysis","vocal-delivery","audience","counter","wit","overall");
   public static String token() {

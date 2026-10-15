@@ -23,18 +23,19 @@ public class AccessController {
   @GetMapping("/sheets/{id}") Object sheet(@CookieValue(value="em_evaluator",required=false) String token,@PathVariable UUID id){return service.guestSheet(token,id);}
   @PutMapping("/sheets/{id}") Object save(@CookieValue(value="em_evaluator",required=false) String token,@PathVariable UUID id,@Valid @RequestBody AccessRequests.Save input){return service.save(token,id,input,false);}
   @PostMapping("/sheets/{id}/submit") Object submit(@CookieValue(value="em_evaluator",required=false) String token,@PathVariable UUID id,@Valid @RequestBody AccessRequests.Save input){return service.save(token,id,input,true);}
-  @GetMapping("/admin/sessions") Object sessions(HttpServletRequest r){auth.admin(r);return service.catalog();}
-  @GetMapping("/admin/sessions/{id}/students") Object students(HttpServletRequest r,@PathVariable UUID id){auth.admin(r);return service.students(id);}
-  @GetMapping("/admin/invitations") Object invitations(HttpServletRequest r){auth.admin(r);return service.invitations();}
-  @PostMapping("/admin/invitations") Object invite(HttpServletRequest r,@Valid @RequestBody AccessRequests.Invite input){return service.invite(auth.admin(r),input);}
-  @PostMapping("/admin/invitations/{id}/revoke") Object revoke(HttpServletRequest r,@PathVariable UUID id){service.revoke(auth.admin(r),id);return Map.of("ok",true);}
-  @PostMapping("/admin/invitations/{id}/replace") Object replace(HttpServletRequest r,@PathVariable UUID id){return service.replace(auth.admin(r),id);}
-  @GetMapping("/admin/reviews") Object reviews(HttpServletRequest r){auth.admin(r);return service.queue();}
-  @GetMapping("/admin/reviews/{id}") Object review(HttpServletRequest r,@PathVariable UUID id){auth.admin(r);return service.detail(id);}
-  @PostMapping("/admin/reviews/{id}") Object decision(HttpServletRequest r,@PathVariable UUID id,@Valid @RequestBody AccessRequests.Review input){service.review(auth.admin(r),id,input);return Map.of("ok",true);}
-  @PostMapping("/admin/sheets/{id}/exclude") Object exclude(HttpServletRequest r,@PathVariable UUID id,@Valid @RequestBody AccessRequests.Exclude input){service.exclude(auth.admin(r),id,input.reason());return Map.of("ok",true);}
-  @PostMapping("/admin/sessions/{id}/release") Object release(HttpServletRequest r,@PathVariable UUID id){return service.release(auth.admin(r),id);}
+    @GetMapping("/admin/sessions") Object sessions(HttpServletRequest r){return service.catalog(auth.staff(r));}
+  @GetMapping("/admin/sessions/{id}/students") Object students(HttpServletRequest r,@PathVariable UUID id){return service.students(auth.staff(r),id);}
+  @GetMapping("/admin/invitations") Object invitations(HttpServletRequest r){return service.invitations(auth.staff(r));}
+  @PostMapping("/admin/invitations") Object invite(HttpServletRequest r,@Valid @RequestBody AccessRequests.Invite input){return service.invite(auth.staff(r),input);}
+  @PostMapping("/admin/invitations/{id}/revoke") Object revoke(HttpServletRequest r,@PathVariable UUID id){service.revoke(auth.staff(r),id);return Map.of("ok",true);}
+  @PostMapping("/admin/invitations/{id}/replace") Object replace(HttpServletRequest r,@PathVariable UUID id){return service.replace(auth.staff(r),id);}
+  @GetMapping("/admin/reviews") Object reviews(HttpServletRequest r){return service.queue(auth.staff(r));}
+  @GetMapping("/admin/reviews/{id}") Object review(HttpServletRequest r,@PathVariable UUID id){return service.detail(auth.staff(r),id);}
+  @PostMapping("/admin/reviews/{id}") Object decision(HttpServletRequest r,@PathVariable UUID id,@Valid @RequestBody AccessRequests.Review input){service.review(auth.staff(r),id,input);return Map.of("ok",true);}
   @GetMapping("/notifications") Object notices(HttpServletRequest r){return service.notifications(auth.user(r));}
   @PostMapping("/notifications/{id}/read") Object read(HttpServletRequest r,@PathVariable UUID id){service.read(auth.user(r),id);return Map.of("ok",true);}
+  @PostMapping("/admin/sheets/{id}/exclude") Object exclude(HttpServletRequest r,@PathVariable UUID id,@Valid @RequestBody AccessRequests.Exclude input){service.exclude(auth.staff(r),id,input.reason());return Map.of("ok",true);}
+  @PostMapping("/admin/sessions/{id}/release") Object release(HttpServletRequest r,@PathVariable UUID id){return service.release(auth.staff(r),id);}
   @GetMapping("/admin/delivery") Object delivery(HttpServletRequest r){auth.admin(r);return service.delivery();}
+  
 }

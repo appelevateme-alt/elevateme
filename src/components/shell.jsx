@@ -45,7 +45,7 @@ const NAV_ICON = {
   'Programs': I.cap, 'My registrations': I.ticket, 'Performance': I.chart,
   'Recommendations': I.bulb, 'Announcements': I.megaphone, 'Profile': I.user,
   'Messages': I.message, 'Approval queue': I.clipboard, 'Users': I.users,
-  'Evaluations': I.fileCheck, 'Evaluator access': I.key, 'Report delivery': I.send,
+  'Evaluations': I.fileCheck, 'Evaluation review': I.fileCheck, 'Students': I.users, 'Evaluator access': I.key, 'Report delivery': I.send,
   'Public website': I.globe, 'Create account': I.userPlus,
 };
 function NavIcon({ label }) {
@@ -123,7 +123,7 @@ export function Shell({ role, children }) {
             )}
           </div>
         </header>
-        <main id="main" className="main-content" tabIndex={-1}>{['admin', 'student', 'parent'].includes(role) && <ReportNotifications />}{children}</main>
+        <main id="main" className="main-content" tabIndex={-1}>{['admin', 'teacher', 'student', 'parent'].includes(role) && <ReportNotifications />}{children}</main>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
-import { Route, Routes, Navigate } from 'react-router-dom';
-import { AuthProvider } from './lib/auth.jsx';
+import { Route, Routes, Navigate, useLocation } from 'react-router-dom';
+import { AuthProvider, useAuth } from './lib/auth.jsx';
 import { RequireAuth, RequireRole, Shell } from './components/shell.jsx';
 
 import { About, Home, NotFound, ProgramDetail, Programs, StudentProgramDetail } from './views/public.jsx';
@@ -33,10 +33,20 @@ function ParentShell({ children }) {
 function TeacherShell({ children }) {
   return <RequireAuth><Shell role="teacher"><RequireRole allow={['teacher']} label="Teacher">{children}</RequireRole></Shell></RequireAuth>;
 }
-function AdminShell({ children }) {
-  return <RequireAuth><Shell role="admin"><RequireRole allow={['admin']} label="Admin">{children}</RequireRole></Shell></RequireAuth>;
+// function AdminShell({ children }) {
+//   return <RequireAuth><Shell role="admin"><RequireRole allow={['admin']} label="Admin">{children}</RequireRole></Shell></RequireAuth>;
+// }
+// Teachers share the admin programme screens, whose links point at /admin/...
+// Send a teacher to the same page inside the /teacher workspace.
+function BounceTeachers({ children }) {
+  const { session } = useAuth();
+  const { pathname, search } = useLocation();
+  if (session?.role === 'teacher') return <Navigate to={`${pathname.replace(/^\/admin/, '/teacher')}${search}`} replace />;
+  return children;
 }
-
+function AdminShell({ children }) {
+  return <RequireAuth><BounceTeachers><Shell role="admin"><RequireRole allow={['admin']} label="Admin">{children}</RequireRole></Shell></BounceTeachers></RequireAuth>;
+}
 export default function App() {
   return (
     <AuthProvider>
@@ -81,6 +91,18 @@ export default function App() {
 
         <Route path="/teacher" element={<TeacherShell><TeacherOverview /></TeacherShell>} />
         <Route path="/teacher/programs" element={<TeacherShell><TeacherPrograms /></TeacherShell>} />
+
+        <Route path="/teacher/programs/new" element={<TeacherShell><NewProgram /></TeacherShell>} />
+        <Route path="/teacher/programs/:programId" element={<TeacherShell><ProgramOverview /></TeacherShell>} />
+        <Route path="/teacher/programs/:programId/edit" element={<TeacherShell><ProgramEdit /></TeacherShell>} />
+        <Route path="/teacher/programs/:programId/sessions" element={<TeacherShell><ProgramSessionsTab /></TeacherShell>} />
+        <Route path="/teacher/programs/:programId/students" element={<TeacherShell><ProgramStudentsTab /></TeacherShell>} />
+        <Route path="/teacher/programs/:programId/performance" element={<TeacherShell><ProgramPerformanceTab /></TeacherShell>} />
+        <Route path="/teacher/programs/:programId/settings" element={<TeacherShell><ProgramSettingsTab /></TeacherShell>} />
+        <Route path="/teacher/students" element={<TeacherShell><AdminStudents /></TeacherShell>} />
+        <Route path="/teacher/evaluator-invitations" element={<TeacherShell><AdminInvitations /></TeacherShell>} />
+        <Route path="/teacher/evaluations" element={<TeacherShell><AdminReviewQueue /></TeacherShell>} />
+        <Route path="/teacher/evaluations/:id" element={<TeacherShell><AdminReviewDetail /></TeacherShell>} />
 
         <Route path="/evaluate/*" element={<GuestWorkspace />} />
         <Route path="/evaluator/*" element={<Navigate to="/evaluate/invite" replace />} />
