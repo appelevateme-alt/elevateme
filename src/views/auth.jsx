@@ -192,7 +192,7 @@ export function SignIn() {
    photo/verification → review/consent, with per-step validation, error
    summary, session draft persistence (never the password) and a pending-approval confirmation. */
 const EMPTY = { role: '', fullName: '', email: '', institute: '', dob: '', referee: '', phone: '', consent: false };
-const STEPS = ['Choose role', 'Account details', 'Profile information', 'Photo and verification', 'Review and submit'];
+const STEPS = ['Choose role', 'Account details', 'Profile information', 'Photo', 'Review and finish'];
 const DRAFT_KEY = 'em-signup-draft';
 
 function loadDraft() {
@@ -266,7 +266,7 @@ export function SignUp() {
     if (!draft.fullName.trim()) e.fullName = 'Enter your full name.';
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(draft.email.trim())) e.email = 'Enter a valid email address.';
     if (password.length < 8) e.password = 'Password must be at least 8 characters.';
-    if (draft.role === 'student' && !draft.institute.trim()) e.institute = 'Enter your institute.';
+    if ((draft.role === 'student' || draft.role === 'teacher') && !draft.institute.trim()) e.institute = 'Enter your institute.';
     if (draft.role === 'student' && !draft.dob) e.dob = 'Enter your date of birth.';
     return e;
   }, [draft, password]);
@@ -286,12 +286,12 @@ export function SignUp() {
       );
     }
     const cleanEmail = draft.email.trim();
-    if (!['student', 'parent'].includes(draft.role)) {
+    if (!['student', 'parent', 'teacher'].includes(draft.role)) {
       throw new Error('Choose your role in step 1 before creating your login.');
     }
     // The signup trigger builds the profile from metadata. Administrative and
-    // evaluator access is never self-service; only student/parent accounts can
-    // reach this flow.
+    // evaluator access is never self-service; only student/parent/teacher
+    // accounts can reach this flow, and they are active immediately.
     const enrichment = {};
     if (draft.institute.trim()) enrichment.institute = draft.institute.trim();
     if (draft.dob) enrichment.dob = draft.dob;
@@ -342,12 +342,13 @@ export function SignUp() {
   };
 
   const handleFinalSubmit = async () => {
+    console.log('AUTH.JSX NEW VERSION');
     const list = stepErrorList(5);
     if (list.length > 0) {
       setSubmitErrors(list);
       return;
     }
-    if (!['student', 'parent'].includes(draft.role)) {
+    if (!['student', 'parent', 'teacher'].includes(draft.role)) {
       setSubmitErrors(['Choose your role in step 1 before submitting.']);
       return;
     }
@@ -365,24 +366,21 @@ export function SignUp() {
         } catch { /* ignore */ }
       }
       if (!uid) {
-        setSubmitErrors(['Could not confirm your login. Check your email for the verification link, then sign in.']);
+        setSubmitErrors(['Could not confirm your login. Check your email for the confirmation link, then sign in.']);
         return;
       }
-      const { error: upsertError } = await supabase.from('profiles').upsert(
-        {
-          id: uid,
-          email: draft.email.trim(),
-          full_name: draft.fullName.trim(),
-          institute: draft.institute.trim() || null,
-          dob: draft.dob || null,
-          phone: draft.phone.trim() || null,
-          referee: draft.referee.trim() || null,
-          // NOTE: status/roles/active_role are intentionally NOT written here.
-          // The signup trigger owns them (roles come from signup metadata);
-          // writing them client-side would trip the protected-column guard.
-        },
-        { onConflict: 'id' },
-      );
+            // The signup trigger already created this profile row. Browser users are
+      // not allowed to INSERT into profiles (migration 010), and an upsert
+      // counts as an insert for RLS, so only UPDATE the signup details.
+      const { error: upsertError } = await supabase.from('profiles').update({
+        full_name: draft.fullName.trim(),
+        institute: draft.institute.trim() || null,
+        dob: draft.dob || null,
+        phone: draft.phone.trim() || null,
+        referee: draft.referee.trim() || null,
+        // status / roles / active_role are intentionally NOT written here;
+        // the signup trigger owns them.
+      }).eq('id', uid);
       if (upsertError) {
         // With email confirmation ON there is no session yet, so RLS denies
         // this upsert — but the signup trigger already created the full
@@ -400,6 +398,16 @@ export function SignUp() {
         sessionStorage.removeItem(DRAFT_KEY);
       } catch { /* ignore */ }
       setPassword('');
+      // Accounts are active immediately: if Supabase signed the user in, go
+      // straight to their workspace. (No session means "Confirm email" is still
+      // switched on in Supabase, so ask them to confirm first.)
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        if (sess?.session) {
+          navigate(roleHome(draft.role) || '/', { replace: true });
+          return;
+        }
+      } catch { /* fall through to the confirmation screen */ }
       setDone(true);
     } catch (err) {
       setSubmitErrors([err.message || 'Submission failed. Try again.']);
@@ -413,20 +421,14 @@ export function SignUp() {
       <AuthHead>
         <PageHead
           kicker="Account created"
-          title="Pending approval."
-          desc="Your account is awaiting email verification and role approval."
+          title="You're in."
+          desc="Your account has been created."
         />
         <div className="notice" style={{ marginBottom: 22 }}>
-          <strong>What happens next.</strong>{' '}
-          <>Verify your email, then a Diplomatic Impact administrator reviews {draft.role} access. You will be notified when your account is approved. Students receive an ElevateMe ID at that point.</>
-        </div>
-        <div className="notice" style={{ marginBottom: 22 }}>
-          <strong>Check your inbox.</strong> We sent a confirmation link to {draft.email || 'your email'}.{' '}
-          Confirm it, then track progress on the pending approval page.
+          <strong>One last step.</strong> We sent a confirmation link to {draft.email || 'your email'}. Confirm it, then sign in.
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <Link to={`/check-email?email=${encodeURIComponent(draft.email.trim())}`} className="button">Verify email steps</Link>
-          <Link to="/pending-approval" className="button secondary">Continue to status</Link>
+          <Link to="/sign-in" className="button">Sign in</Link>
           <Button variant="secondary" onClick={() => { try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ } setDraft(EMPTY); setPassword(''); setStep(1); setDone(false); setAuthUserId(null); }}>Start over</Button>
         </div>
       </AuthHead>
@@ -469,7 +471,8 @@ export function SignUp() {
                   <select value={draft.role} onChange={(e) => set('role', e.target.value)}>
                     <option value="">Choose your role…</option>
                     <option value="student">Student</option>
-                    <option value="parent">Parent or guardian (via invitation)</option>
+                    <option value="parent">Parent or guardian</option>
+                    <option value="teacher">Teacher / Programme Coordinator</option>
                   </select></label>
                 </div>
               )}
@@ -486,7 +489,7 @@ export function SignUp() {
               )}
               {step === 3 && (
                 <div className="form-grid">
-                  {draft.role === 'student' && (
+                  {(draft.role === 'student' || draft.role === 'teacher') && (
                     <div className="field"><label> Institute<input value={draft.institute} onChange={(e) => set('institute', e.target.value)} onBlur={() => setTouched((t) => ({ ...t, institute: true }))} placeholder="Institute" /></label>
                       {touched.institute && errors.institute && <p role="alert" className="field-error">{errors.institute}</p>}</div>
                   )}
@@ -499,11 +502,11 @@ export function SignUp() {
                         <span className="field-hint">Verification only; hidden outside authorized staff.</span></div>
                     </>
                   )}
-                  {draft.role === 'parent' && (
+                  {(draft.role === 'parent' || draft.role === 'teacher') && (
                     <div className="field"><label> Phone<input value={draft.phone} onChange={(e) => set('phone', e.target.value)} placeholder="Phone" autoComplete="tel" /></label></div>
                   )}
                   {draft.role === 'parent' && (
-                    <div className="notice span-two"><strong>Invitation required.</strong> Parent accounts link through a time-limited student-issued or admin-issued invitation — never open ID lookup.</div>
+                    <div className="notice span-two"><strong>Linking to your child.</strong> Parent accounts connect to a student through a time-limited invitation — never open ID lookup.</div>
                   )}
                 </div>
               )}
@@ -511,7 +514,7 @@ export function SignUp() {
                 <div className="form-grid">
                   <div className="field"><label> Profile photo<input type="file" accept="image/png,image/jpeg" aria-label="Profile photo" /></label>
                     <span className="field-hint">JPG or PNG, max 5 MB. Preview only for now.</span></div>
-                  <div className="notice span-two"><strong>Verification.</strong> Student referee details help verify institute membership. Parent access is linked to a student invitation. National ID is not requested.</div>
+                  <div className="notice span-two"><strong>Optional.</strong> A photo helps people recognise you. National ID is not requested.</div>
                 </div>
               )}
               {step === 5 && (
@@ -524,7 +527,7 @@ export function SignUp() {
                   </div>
                   <label className="checkbox-row">
                     <input type="checkbox" checked={draft.consent} onChange={(e) => set('consent', e.target.checked)} />
-                    <span>I accept the consent and privacy policy. I understand student records are sensitive and approvals are required.</span>
+                    <span>I accept the consent and privacy policy. I understand student records are sensitive.</span>
                   </label>
                 </div>
               )}
@@ -542,12 +545,11 @@ export function SignUp() {
                     }}>Continue</Button>
                   )
                 ) : (
-                  <Button className="su-continue" disabled={busy} onClick={handleFinalSubmit}>{busy ? 'Submitting…' : 'Submit for approval'}</Button>
+                  <Button className="su-continue" disabled={busy} onClick={handleFinalSubmit}>{busy ? 'Creating your account…' : 'Create my account'}</Button>
                 )}
               </div>
               <p className="su-links">
                 Already have an account? <Link to="/sign-in" className="link-quiet">Sign in</Link>
-                <span> · </span><button type="button" className="link-quiet" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }} onClick={() => navigate('/pending-approval')}>View pending approval</button>
               </p>
             </div>
           </div>

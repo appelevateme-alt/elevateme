@@ -15,6 +15,7 @@ import {
   ParentStudentRecommendations, ThreadDetail,
 } from './views/parent.jsx';
 import { NewProgram, ProgramEdit, ProgramOverview, ProgramSessionsTab, ProgramStudentsTab, ProgramPerformanceTab, ProgramSettingsTab, AdminStudents } from './views/program-management.jsx';
+import { TeacherOverview, TeacherPrograms } from './views/teacher.jsx';
 import { GuestWorkspace } from './features/evaluator-access/GuestWorkspace.jsx';
 import { AdminInvitations, AdminReviewQueue, AdminReviewDetail, AdminDelivery } from './features/evaluator-access/AdminAccess.jsx';
 import {
@@ -28,6 +29,9 @@ function StudentShell({ children }) {
 }
 function ParentShell({ children }) {
   return <RequireAuth><Shell role="parent"><RequireRole allow={['parent']} label="Parent">{children}</RequireRole></Shell></RequireAuth>;
+}
+function TeacherShell({ children }) {
+  return <RequireAuth><Shell role="teacher"><RequireRole allow={['teacher']} label="Teacher">{children}</RequireRole></Shell></RequireAuth>;
 }
 function AdminShell({ children }) {
   return <RequireAuth><Shell role="admin"><RequireRole allow={['admin']} label="Admin">{children}</RequireRole></Shell></RequireAuth>;
@@ -74,6 +78,9 @@ export default function App() {
         <Route path="/parent/students/:studentId" element={<ParentShell><ParentStudent /></ParentShell>} />
         <Route path="/parent/students/:studentId/performance" element={<ParentShell><ParentStudentPerformance /></ParentShell>} />
         <Route path="/parent/students/:studentId/recommendations" element={<ParentShell><ParentStudentRecommendations /></ParentShell>} />
+
+        <Route path="/teacher" element={<TeacherShell><TeacherOverview /></TeacherShell>} />
+        <Route path="/teacher/programs" element={<TeacherShell><TeacherPrograms /></TeacherShell>} />
 
         <Route path="/evaluate/*" element={<GuestWorkspace />} />
         <Route path="/evaluator/*" element={<Navigate to="/evaluate/invite" replace />} />

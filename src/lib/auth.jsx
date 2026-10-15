@@ -4,6 +4,7 @@ import { supabase } from './supabaseClient.js';
 const ROLE_HOME = {
   student: '/student',
   parent: '/parent',
+  teacher: '/teacher',
   coordinator: '/evaluate/invite',
   evaluator: '/evaluate/invite',
   admin: '/admin',

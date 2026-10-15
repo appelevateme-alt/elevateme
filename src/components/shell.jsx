@@ -5,7 +5,7 @@ import { ROLE_LABEL, ROLE_NAV } from '../lib/nav.js';
 import { roleHome, useAuth } from '../lib/auth.jsx';
 import { Button } from './ui.jsx';
 
-const ROLES = ['student', 'parent', 'admin'];
+const ROLES = ['student', 'parent', 'teacher', 'admin'];
 
 function pageTitle(path) {
   const seg = path.split('/').filter(Boolean).pop() || 'dashboard';
@@ -62,7 +62,7 @@ export function Shell({ role, children }) {
 
   // student and admin workspaces use the dark theme (same look as the landing page)
   useEffect(() => {
-    if (role !== 'student' && role !== 'admin') return undefined;
+    if (role !== 'student' && role !== 'admin' && role !== 'teacher') return undefined;
     const root = document.documentElement;
     root.setAttribute('data-theme', 'dark');
     return () => root.removeAttribute('data-theme');
