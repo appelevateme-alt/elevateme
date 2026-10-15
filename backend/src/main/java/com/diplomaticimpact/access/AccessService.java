@@ -17,7 +17,11 @@ public class AccessService {
   @Transactional public void logout(String token) {
     if (token != null && token.matches("[A-Za-z0-9_-]{43}")) repo.endSession(hash(token));
   }
-  @Transactional public Map<String,Object> invite(UUID admin,AccessRequests.Invite input) {
+  private void own(AccessPolicy.Staff st,UUID session) {
+    if(!st.admin() && !repo.canManage(st,session)) throw error(403,"That session belongs to another programme.");
+  }
+  @Transactional public Map<String,Object> invite(AccessPolicy.Staff st,AccessRequests.Invite input) {
+    UUID admin=st.id(); own(st,input.sessionId());
     repo.lockSession(input.sessionId());
     Set<UUID> allowed=new HashSet<>(); repo.students(input.sessionId()).forEach(s->allowed.add(uuid(s,"id")));
     Set<UUID> selected=new HashSet<>(input.studentIds());
@@ -28,14 +32,15 @@ public class AccessService {
     return link(id,token);
   }
   private Map<String,Object> link(UUID id,String token) {return Map.of("id",id,"url",publicUrl+"/evaluate/invite#t="+token,"expiresAt",repo.invitation(id).get("expires_at"));}
-  @Transactional public Map<String,Object> replace(UUID admin,UUID id) {
+  @Transactional public Map<String,Object> replace(AccessPolicy.Staff st,UUID id) {
+    UUID admin=st.id(); own(st,repo.invitationSession(id));
     var previous=repo.invitation(id); List<UUID> students=repo.assignedStudents(id);
     if(students.isEmpty()) throw error(409,"This invitation no longer has assignments.");
     var input=new AccessRequests.Invite(uuid(previous,"session_id"),previous.get("evaluator_name").toString(),previous.get("evaluator_email").toString(),previous.get("organisation").toString(),previous.get("evaluator_title").toString(),students);
     String token=token(); UUID next=repo.insertInvite(admin,input,hash(token),id);
     repo.revoke(id);repo.replace(id,next);repo.audit(admin.toString(),"INVITATION_REPLACED",id);return link(next,token);
   }
-  @Transactional public void revoke(UUID admin,UUID id) {repo.invitation(id);repo.revoke(id);repo.audit(admin.toString(),"INVITATION_REVOKED",id);}
+  @Transactional public void revoke(AccessPolicy.Staff st,UUID id) {UUID admin=st.id(); own(st,repo.invitationSession(id));repo.invitation(id);repo.revoke(id);repo.audit(admin.toString(),"INVITATION_REVOKED",id);}
   @Transactional public Activation activate(String token) {
     var invite=repo.consume(hash(token));String session=token(); repo.session(uuid(invite,"id"),hash(session),invite.get("expires_at"));
     repo.audit("invitation:"+invite.get("id"),"INVITATION_ACTIVATED",uuid(invite,"id"));return new Activation(session,AccessRepository.instant(invite.get("expires_at")));
@@ -63,26 +68,30 @@ public class AccessService {
     scores(input.scores(),submit);repo.save(id,input);
     if(submit){
       UUID revision=repo.submit(id,uuid(i,"id"),identity(i));repo.audit("invitation:"+i.get("id"),"EVALUATION_SUBMITTED",revision);
-      for(UUID admin:repo.admins())repo.notify(admin,"submitted:"+revision,"An evaluation is ready for DI review.","/admin/evaluations/"+id);
+      for(UUID admin:repo.reviewers(uuid(sheet,"session_id")))repo.notify(admin,"submitted:"+revision,"An evaluation is ready for DI review.","/admin/evaluations/"+id);
     }
     return guestView(repo.sheet(id));
   }
-  @Transactional public Map<String,Object> detail(UUID id) {
+  @Transactional public Map<String,Object> detail(AccessPolicy.Staff st,UUID id) {
+    own(st,repo.sheetSession(id));
     var sh=repo.sheet(id);var out=new LinkedHashMap<>(guestView(sh));out.put("history",repo.history(id));
     if(sh.get("current_revision_id")!=null){var revision=repo.revision(uuid(sh,"current_revision_id"));out.put("revision",revision);out.put("studentPreview",studentPreview(sh,revision));}
     return out;
   }
-  @Transactional public void review(UUID admin,UUID id,AccessRequests.Review input) {
+  @Transactional public void review(AccessPolicy.Staff st,UUID id,AccessRequests.Review input) {
+    UUID admin=st.id(); own(st,repo.sheetSession(id));
     var sh=repo.sheet(id);
     if(!"SUBMITTED".equals(sh.get("state")) || !input.revisionId().equals(sh.get("current_revision_id")))throw error(409,"The submitted revision changed or was already reviewed. Reload this report.");
     if("CHANGES_REQUESTED".equals(input.decision())&&input.message().isBlank())throw error(422,"Explain the changes the evaluator should make.");
     repo.review(id,admin,input);repo.audit(admin.toString(),input.decision(),input.revisionId());
   }
-  @Transactional public void exclude(UUID admin,UUID id,String reason) {
+  @Transactional public void exclude(AccessPolicy.Staff st,UUID id,String reason) {
+    UUID admin=st.id(); own(st,repo.sheetSession(id));
     var sh=repo.sheet(id);if(sh.get("released_revision_id")!=null)throw error(409,"A published report cannot be excluded.");
     repo.exclude(id,reason.trim());repo.audit(admin.toString(),"EVALUATION_EXCLUDED",id);
   }
-  @Transactional public Map<String,Object> release(UUID admin,UUID session) {
+  @Transactional public Map<String,Object> release(AccessPolicy.Staff st,UUID session) {
+    UUID admin=st.id(); own(st,session);
     repo.lockSession(session);var sheets=repo.lockSheets(session);var outstanding=repo.outstanding(session);
     if(!outstanding.isEmpty())throw error(409,"Release blocked: "+outstanding.size()+" student(s) still need an approved report or documented exclusion.");
     int count=0;
@@ -99,10 +108,10 @@ public class AccessService {
     }
     return Map.of("released",count,"alreadyReleased",count==0);
   }
-  public List<Map<String,Object>> catalog(){return repo.catalog();}
-  public List<Map<String,Object>> students(UUID id){return repo.students(id);}
-  public List<Map<String,Object>> invitations(){return repo.invitations();}
-  public List<Map<String,Object>> queue(){return repo.queue();}
+  public List<Map<String,Object>> catalog(AccessPolicy.Staff st){return repo.catalog(st);}
+  public List<Map<String,Object>> students(AccessPolicy.Staff st,UUID id){own(st,id);return repo.students(id);}
+  public List<Map<String,Object>> invitations(AccessPolicy.Staff st){return repo.invitations(st);}
+  public List<Map<String,Object>> queue(AccessPolicy.Staff st){return repo.queue(st);}
   public List<Map<String,Object>> notifications(UUID user){return repo.notifications(user);}
   public void read(UUID user,UUID id){repo.read(user,id);}
   public List<Map<String,Object>> delivery(){return repo.delivery();}
