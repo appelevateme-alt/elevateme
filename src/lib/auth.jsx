@@ -14,6 +14,15 @@ export function roleHome(role) {
   return ROLE_HOME[role];
 }
 
+// Students who have not paid keep a greyed-out Performance area. An unknown
+// payment status (column not created yet) is never treated as locked.
+export function isPerformanceLocked(session) {
+  return Boolean(session)
+    && session.role === 'student'
+    && Boolean(session.paymentStatus)
+    && session.paymentStatus !== 'paid';
+}
+
 const AuthContext = createContext(null);
 
 function toSession(user, profile) {
@@ -29,6 +38,7 @@ function toSession(user, profile) {
       availableRoles: metaRole ? [metaRole] : ['student'],
       status: 'PendingReview',
       elevateMeId: null,
+      paymentStatus: null,
     };
   }
   const activeRole = profile.active_role || (Array.isArray(profile.roles) && profile.roles[0]) || 'student';
@@ -41,6 +51,7 @@ function toSession(user, profile) {
     availableRoles,
     status: profile.status || 'PendingReview',
     elevateMeId: profile.elevate_me_id || null,
+    paymentStatus: profile.payment_status || null,
   };
 }
 
@@ -54,11 +65,19 @@ export function AuthProvider({ children }) {
       return null;
     }
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('profiles')
-        .select('id,email,full_name,elevate_me_id,status,active_role,roles')
+        .select('id,email,full_name,elevate_me_id,status,active_role,roles,payment_status')
         .eq('id', user.id)
         .single();
+      if (error && /payment_status/i.test(error.message || '')) {
+        // migration 014 not applied yet: load the profile without the flag
+        ({ data, error } = await supabase
+          .from('profiles')
+          .select('id,email,full_name,elevate_me_id,status,active_role,roles')
+          .eq('id', user.id)
+          .single());
+      }
       if (error || !data) {
         const fallback = toSession(user, null);
         setSession(fallback);
@@ -130,7 +149,17 @@ export function AuthProvider({ children }) {
     [session],
   );
 
-  const value = useMemo(() => ({ session, loading, signOut, switchActiveRole }), [session, loading, signOut, switchActiveRole]);
+  // Re-read the signed-in profile (used after a payment to pick up 'paid').
+  const refreshProfile = useCallback(async () => {
+    try {
+      const { data } = await supabase.auth.getUser();
+      return await loadForUser(data?.user ?? null);
+    } catch {
+      return null;
+    }
+  }, [loadForUser]);
+
+  const value = useMemo(() => ({ session, loading, signOut, switchActiveRole, refreshProfile }), [session, loading, signOut, switchActiveRole, refreshProfile]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

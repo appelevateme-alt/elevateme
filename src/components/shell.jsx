@@ -2,7 +2,7 @@ import { ReportNotifications } from '../features/evaluator-access/ReportNotifica
 import { useEffect, useState } from 'react';
 import { Link, Navigate, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { ROLE_LABEL, ROLE_NAV } from '../lib/nav.js';
-import { roleHome, useAuth } from '../lib/auth.jsx';
+import { roleHome, useAuth, isPerformanceLocked } from '../lib/auth.jsx';
 import { Button } from './ui.jsx';
 
 const ROLES = ['student', 'parent', 'teacher', 'admin'];
@@ -89,10 +89,17 @@ export function Shell({ role, children }) {
         <Link className="app-brand" to="/" aria-label="ElevateMe home"><img src="/images/logo.png" alt="ElevateMe" /></Link>
         <nav className="side-nav" aria-label="Application navigation">
           <div className="nav-group">{ROLE_LABEL[role]} workspace</div>
-          {nav.map((n) => (
+                    {nav.map((n) => (
+            role === 'student' && isPerformanceLocked(session) && n.href === '/student/performance' ? (
+              <span key={n.href} className="nav-link locked" aria-disabled="true" title="Complete your registration payment to unlock Performance">
+                <span className="nav-label"><NavIcon label={n.label} />{n.label}</span>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+              </span>
+            ) : (
             <NavLink key={n.href} to={n.href} end={n.href === `/${role}`} className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
               <span className="nav-label"><NavIcon label={n.label} />{n.label}</span>
             </NavLink>
+            )
           ))}
           <div className="nav-group">Website</div>
           <Link className="nav-link" to="/"><span className="nav-label"><NavIcon label="Public website" />Public website</span><span>↗</span></Link>

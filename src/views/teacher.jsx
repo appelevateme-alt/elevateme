@@ -88,7 +88,7 @@ export function TeacherPrograms() {
     <div>
       <PageHead kicker="Teacher / Programme Coordinator" title="Programs."
         desc="Create your programs, submit and publish them, and manage registrations."
-        action={<Link className="button" to="/teacher/programs/new">Create program</Link>} />
+                action={<Link className="button go" to="/teacher/programs/new">Create program</Link>} />
       <div className="filter-bar">
         <input type="search" placeholder="Search programs" aria-label="Search programs" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
@@ -104,11 +104,11 @@ export function TeacherPrograms() {
               <div className="row-main"><h3>{p.title}</h3><p>{p.meta} · {p.registered}/{p.capacity} registered</p></div>
               <div className="row-action" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 <Status value={p.status} />
-                {mine(p) && (p.status === 'Submitted' || p.status === 'UnderReview') && (
-                  <button type="button" className="button small" onClick={() => move(p, 'Approved')}>Approve</button>
+                                {mine(p) && (p.status === 'Submitted' || p.status === 'UnderReview') && (
+                  <button type="button" className="button small go" onClick={() => move(p, 'Approved')}>Approve</button>
                 )}
                 {mine(p) && p.status === 'Approved' && (
-                  <button type="button" className="button small" onClick={() => move(p, 'Published')}>Publish</button>
+                  <button type="button" className="button small go" onClick={() => move(p, 'Published')}>Publish</button>
                 )}
                 <Link to={`/teacher/programs/${p.id}`} className="button secondary small">Manage</Link>
               </div>

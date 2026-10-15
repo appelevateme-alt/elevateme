@@ -6,7 +6,8 @@ import { ProgramListRow, RecommendationRecord } from '../components/domain.jsx';
 import { total1000 } from '../lib/scores.js';
 import { useSupabaseList, useSupabaseRecord, useSupabaseMutation } from '../lib/useSupabase.js';
 import { toAnnouncement, toEvaluation, toProgram, toRecommendation, toRegistration } from '../lib/adapters.js';
-import { useAuth } from '../lib/auth.jsx';
+import { isPerformanceLocked, useAuth } from '../lib/auth.jsx';
+import { PerformanceLink } from './payment.jsx';
 import { NotFound } from './public.jsx';
 
 /* ---------- Student overview (prototype studentDashboard) ---------- */
@@ -28,6 +29,7 @@ function initialsFor(name) {
 
 export function StudentDashboard() {
   const { session } = useAuth();
+  const locked = isPerformanceLocked(session);
   const firstName = session?.name ? session.name.split(' ')[0] : 'Student';
   const elevateMeId = session?.elevateMeId || 'Pending approval';
 
@@ -45,96 +47,96 @@ export function StudentDashboard() {
   });
   const { data: annRows } = useSupabaseList({ table: 'announcements', filters: { status: 'Published' }, page: 1, pageSize: 3 });
   // Latest 3 evaluations that have actually been released to this student.
-const {
-  data: recentEvalRows,
-  loading: recentEvalsLoading,
-} = useSupabaseList({
-  table: 'published_evaluations',
+  const {
+    data: recentEvalRows,
+    loading: recentEvalsLoading,
+  } = useSupabaseList({
+    table: 'published_evaluations',
 
-  // evaluations.program_id is linked to programs.id
-  // so Supabase can return the program title with the evaluation.
-  select: '*',
+    // evaluations.program_id is linked to programs.id
+    // so Supabase can return the program title with the evaluation.
+    select: '*',
 
-  filters: {
-    student_id: session?.userId || '00000000-0000-0000-0000-000000000000',
-    released: true,
-  },
+    filters: {
+      student_id: session?.userId || '00000000-0000-0000-0000-000000000000',
+      released: true,
+    },
 
-  order: {
-    col: 'released_at',
-    ascending: false,
-  },
+    order: {
+      col: 'released_at',
+      ascending: false,
+    },
 
-  page: 1,
-  pageSize: 3,
-});
+    page: 1,
+    pageSize: 3,
+  });
 
-const recentEvalIds = (recentEvalRows || [])
-  .map((evaluation) => evaluation.id)
-  .filter(Boolean);
+  const recentEvalIds = (recentEvalRows || [])
+    .map((evaluation) => evaluation.id)
+    .filter(Boolean);
 
-// 3 evaluations × 10 criteria = maximum 30 rows.
-const {
-  data: recentScoreRows,
-  loading: recentScoresLoading,
-} = useSupabaseList({
-  table: 'published_evaluation_scores',
-  filters: {
-    evaluation_id:
-      recentEvalIds.length > 0
-        ? recentEvalIds
-        : ['00000000-0000-0000-0000-000000000000'],
-  },
-  page: 1,
-  pageSize: 30,
-});
+  // 3 evaluations × 10 criteria = maximum 30 rows.
+  const {
+    data: recentScoreRows,
+    loading: recentScoresLoading,
+  } = useSupabaseList({
+    table: 'published_evaluation_scores',
+    filters: {
+      evaluation_id:
+        recentEvalIds.length > 0
+          ? recentEvalIds
+          : ['00000000-0000-0000-0000-000000000000'],
+    },
+    page: 1,
+    pageSize: 30,
+  });
 
-const recentScores = (recentEvalRows || []).map((evaluation) => {
-  const scores = (recentScoreRows || [])
-    .filter((score) => score.evaluation_id === evaluation.id)
-    .map((score) => score.score ?? score.value);
+  const recentScores = (recentEvalRows || []).map((evaluation) => {
+    const scores = (recentScoreRows || [])
+      .filter((score) => score.evaluation_id === evaluation.id)
+      .map((score) => score.score ?? score.value);
 
-  const result = total1000(scores);
+    const result = total1000(scores);
 
-  return {
-  id: evaluation.id,
+    return {
+      id: evaluation.id,
 
-  programName:
-    evaluation.program_title ||
-    'Program',
+      programName:
+        evaluation.program_title ||
+        'Program',
 
-  score: scores.length === 10 ? result.scaled : null,
+      score: scores.length === 10 ? result.scaled : null,
 
-  releasedAt: evaluation.released_at,
-};
-});
+      releasedAt: evaluation.released_at,
+    };
+  });
 
-// Averages across EVERY released evaluation (all sessions), not just the recent three.
-const NO_ID = ['00000000-0000-0000-0000-000000000000'];
-const { data: allEvalRows, loading: allEvalsLoading } = useSupabaseList({
-  table: 'published_evaluations',
-  select: '*',
-  filters: { student_id: session?.userId || NO_ID[0], released: true },
-  order: { col: 'released_at', ascending: false },
-  page: 1,
-  pageSize: 200,
-});
-const allEvalIds = (allEvalRows || []).map((e) => e.id).filter(Boolean);
-const { data: allScoreRows, loading: allScoresLoading } = useSupabaseList({
-  table: 'published_evaluation_scores',
-  filters: { evaluation_id: allEvalIds.length > 0 ? allEvalIds : NO_ID },
-  page: 1,
-  pageSize: 2000,
-});
-const averagesLoading = allEvalsLoading || allScoresLoading;
-const averages = AVERAGE_CRITERIA.map((c) => {
-  const vals = (allScoreRows || [])
-    .filter((row) => normKey(row.criterion_key ?? row.criterion) === c.key)
-    .map((row) => Number(row.score ?? row.value))
-    .filter((n) => Number.isFinite(n));
-  const avg = vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : null;
-  return { ...c, avg, count: vals.length };
-});
+  // Averages across EVERY released evaluation (all sessions), not just the recent three.
+  const NO_ID = ['00000000-0000-0000-0000-000000000000'];
+  const { data: allEvalRows, loading: allEvalsLoading } = useSupabaseList({
+    table: 'published_evaluations',
+    select: '*',
+    filters: { student_id: session?.userId || NO_ID[0], released: true },
+    order: { col: 'released_at', ascending: false },
+    page: 1,
+    pageSize: 200,
+  });
+  const allEvalIds = (allEvalRows || []).map((e) => e.id).filter(Boolean);
+  const { data: allScoreRows, loading: allScoresLoading } = useSupabaseList({
+    table: 'published_evaluation_scores',
+    filters: { evaluation_id: allEvalIds.length > 0 ? allEvalIds : NO_ID },
+    page: 1,
+    pageSize: 2000,
+  });
+  const averagesLoading = allEvalsLoading || allScoresLoading;
+  const averages = AVERAGE_CRITERIA.map((c) => {
+    const vals = (allScoreRows || [])
+      .filter((row) => normKey(row.criterion_key ?? row.criterion) === c.key)
+      .map((row) => Number(row.score ?? row.value))
+      .filter((n) => Number.isFinite(n));
+    const avg = vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : null;
+    return { ...c, avg, count: vals.length };
+  });
 
   const regs = (regRows || []).map(toRegistration);
   const recs = (recRows || []).map(toRecommendation);
@@ -156,13 +158,19 @@ const averages = AVERAGE_CRITERIA.map((c) => {
         </div>
         <Link to="/student/programs" className="button pill">Find a program <span className="pill-arrow" aria-hidden="true">↗</span></Link>
       </section>
-      <Metrics className="metric-cards" items={[
+      {locked && (
+        <div className="pay-banner" role="status">
+          <div><strong>Performance is locked.</strong> You registered without paying, so your scores, insights and progress are greyed out until payment is complete.</div>
+          <Link to="/student/payment" className="button small">Pay now</Link>
+        </div>
+      )}
+      <Metrics className={`metric-cards${locked ? ' metric-perf-locked' : ''}`} items={[
         ['ElevateMe ID', elevateMeId, 'Your permanent student ID', <svg viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="5" rx="2" /><circle cx="8.5" cy="11" r="2" /><path d="M5.5 16c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4" /><path d="M14.5 10h4" /><path d="M14.5 14h3" /></svg>],
         ['Overall total', 'See performance', 'Released scores only', <svg viewBox="0 0 24 24"><path d="M3 3v18h18" /><path d="M7 15v3" /><path d="M12 10v8" /><path d="M17 6v12" /></svg>],
         ['Active programs', activePrograms, regs.length > 0 ? 'Across your registrations' : 'None yet', <svg viewBox="0 0 24 24"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z" /><path d="M22 10v6" /><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5" /></svg>],
         ['Recommendations', recLabel, highPriority > 0 ? `${highPriority} marked high priority` : 'None yet', <svg viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" /><path d="M9 18h6" /><path d="M10 22h4" /></svg>],
       ]} />
-      <div className="avg-grid">
+      <div className={`avg-grid${locked ? ' perf-locked' : ''}`}>
         {averages.map((a) => (
           <div className="avg-card" key={a.key}>
             <span className="avg-label">Average {a.label.toLowerCase()}</span>
@@ -177,77 +185,72 @@ const averages = AVERAGE_CRITERIA.map((c) => {
           </div>
         ))}
       </div>
-      <Panel
-  title="Recent scores"
-  // action={
-  //   <Link to="/student/performance" className="link-quiet">
-  //     View performance →
-  //   </Link>
-  // }
->
-  {recentEvalsLoading || recentScoresLoading ? (
-    <SkeletonRows rows={3} />
-  ) : recentScores.length === 0 ? (
-    <Empty
-      title="No released scores yet."
-      body="Your recent scores will appear here once an evaluation is released."
-    />
-  ) : (
-    <div className="flat-list">
-      {recentScores.map((evaluation, index) => (
-  <div
-    key={evaluation.id}
-    className="list-row compact"
-    style={{
-      marginBottom:
-        index === 0 && recentScores.length > 1
-          ? '16px'
-          : 0,
-    }}
-  >
-    <div className="row-meta">
-      {evaluation.releasedAt
-        ? new Date(evaluation.releasedAt).toLocaleDateString('en-GB', {
-            day: 'numeric',
-            month: 'short',
-          })
-        : 'Released'}
-    </div>
+      <div className={locked ? 'perf-locked' : undefined}>
+        <Panel title="Recent scores">
+          {recentEvalsLoading || recentScoresLoading ? (
+            <SkeletonRows rows={3} />
+          ) : recentScores.length === 0 ? (
+            <Empty
+              title="No released scores yet."
+              body="Your recent scores will appear here once an evaluation is released."
+            />
+          ) : (
+            <div className="flat-list">
+              {recentScores.map((evaluation, index) => (
+                <div
+                  key={evaluation.id}
+                  className="list-row compact"
+                  style={{
+                    marginBottom:
+                      index === 0 && recentScores.length > 1
+                        ? '16px'
+                        : 0,
+                  }}
+                >
+                  <div className="row-meta">
+                    {evaluation.releasedAt
+                      ? new Date(evaluation.releasedAt).toLocaleDateString('en-GB', {
+                          day: 'numeric',
+                          month: 'short',
+                        })
+                      : 'Released'}
+                  </div>
 
-    <div className="row-main">
-      <h3>{evaluation.programName}</h3>
+                  <div className="row-main">
+                    <h3>{evaluation.programName}</h3>
 
-      <p>
-        {index === 0
-          ? 'Most recent evaluation'
-          : 'Released evaluation'}
-      </p>
-    </div>
+                    <p>
+                      {index === 0
+                        ? 'Most recent evaluation'
+                        : 'Released evaluation'}
+                    </p>
+                  </div>
 
-    <div className="row-action">
-      <strong
-        style={{
-          font: '700 1.15rem Manrope',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {evaluation.score == null
-          ? '—'
-          : `${evaluation.score} / 100`}
-      </strong>
+                  <div className="row-action">
+                    <strong
+                      style={{
+                        font: '700 1.15rem Manrope',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {evaluation.score == null
+                        ? '—'
+                        : `${evaluation.score} / 100`}
+                    </strong>
 
-      <Link
-        to={`/student/performance/${evaluation.id}`}
-        className="button secondary small"
-      >
-        Open
-      </Link>
-    </div>
-  </div>
-))}
-    </div>
-  )}
-</Panel>
+                    <PerformanceLink
+                      to={`/student/performance/${evaluation.id}`}
+                      className="button secondary small"
+                    >
+                      Open
+                    </PerformanceLink>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Panel>
+      </div>
       <div className="grid dashboard">
         {regs.length > 0 ? (
           <section className="program-feature">
@@ -260,12 +263,12 @@ const averages = AVERAGE_CRITERIA.map((c) => {
             <div className="panel-body"><Empty title="No registrations yet." body="Browse programs and register to see your next session here." /></div>
           </section>
         )}
-        <section className="panel">
+        <section className={`panel${locked ? ' perf-locked' : ''}`}>
           <div className="panel-head"><h2>Latest insight</h2><Status value="Improving" /></div>
           <div className="panel-body">
             <h3 style={{ font: '700 1.65rem/1.1 Manrope', margin: '0 0 13px' }}>Confidence is moving in the right direction.</h3>
             <p style={{ color: 'var(--muted)' }}>Your score rose in four consecutive evaluated sessions.</p>
-            <Link to="/student/performance" className="button quiet">See performance →</Link>
+            <PerformanceLink to="/student/performance" className="button quiet">See performance →</PerformanceLink>
           </div>
         </section>
       </div>
@@ -497,7 +500,7 @@ export function StudentAnnouncements() {
             <div className="row-meta">{a.date}<br />{a.sender}</div>
             <div className="row-main"><h3>{a.title}</h3><p>{a.body}</p></div>
             <div className="row-action">
-              {a.isNew ? <Status value="New" /> : <Link to="/student/performance" className="button secondary small">View</Link>}
+              {a.isNew ? <Status value="New" /> : <PerformanceLink to="/student/performance" className="button secondary small">View</PerformanceLink>}
             </div>
           </article>
         ))}

@@ -16,6 +16,7 @@ import {
 } from './views/parent.jsx';
 import { NewProgram, ProgramEdit, ProgramOverview, ProgramSessionsTab, ProgramStudentsTab, ProgramPerformanceTab, ProgramSettingsTab, AdminStudents } from './views/program-management.jsx';
 import { TeacherOverview, TeacherPrograms } from './views/teacher.jsx';
+import { PaidOnly, StudentPayment, StudentPaymentCancelled, StudentPaymentSuccess } from './views/payment.jsx';
 import { GuestWorkspace } from './features/evaluator-access/GuestWorkspace.jsx';
 import { AdminInvitations, AdminReviewQueue, AdminReviewDetail, AdminDelivery } from './features/evaluator-access/AdminAccess.jsx';
 import {
@@ -71,8 +72,11 @@ export default function App() {
         <Route path="/student/programs" element={<StudentShell><StudentPrograms /></StudentShell>} />
         <Route path="/student/programs/:programId" element={<StudentShell><StudentProgramDetail /></StudentShell>} />
         <Route path="/student/registrations" element={<StudentShell><StudentRegistrations /></StudentShell>} />
-        <Route path="/student/performance" element={<StudentShell><StudentPerformance /></StudentShell>} />
-        <Route path="/student/performance/:evaluationId" element={<StudentShell><EvaluationDetail /></StudentShell>} />
+        <Route path="/student/performance" element={<StudentShell><PaidOnly><StudentPerformance /></PaidOnly></StudentShell>} />
+        <Route path="/student/performance/:evaluationId" element={<StudentShell><PaidOnly><EvaluationDetail /></PaidOnly></StudentShell>} />
+        <Route path="/student/payment" element={<StudentShell><StudentPayment /></StudentShell>} />
+        <Route path="/student/payment/success" element={<StudentShell><StudentPaymentSuccess /></StudentShell>} />
+        <Route path="/student/payment/cancelled" element={<StudentShell><StudentPaymentCancelled /></StudentShell>} />
         <Route path="/student/recommendations" element={<StudentShell><StudentRecommendations /></StudentShell>} />
         <Route path="/student/announcements" element={<StudentShell><StudentAnnouncements /></StudentShell>} />
         <Route path="/student/development" element={<StudentShell><StudentDevelopment /></StudentShell>} />
