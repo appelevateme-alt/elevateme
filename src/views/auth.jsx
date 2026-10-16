@@ -286,11 +286,11 @@ export function SignUp() {
       );
     }
     const cleanEmail = draft.email.trim();
-    if (!['student', 'parent', 'teacher'].includes(draft.role)) {
+    if (!['student', 'teacher'].includes(draft.role)) {
       throw new Error('Choose your role in step 1 before creating your login.');
     }
     // The signup trigger builds the profile from metadata. Administrative and
-    // evaluator access is never self-service; only student/parent/teacher
+    // evaluator access is never self-service; only student/teacher
     // accounts can reach this flow, and they are active immediately.
     const enrichment = {};
     if (draft.institute.trim()) enrichment.institute = draft.institute.trim();
@@ -341,14 +341,16 @@ export function SignUp() {
     }
   };
 
-  const handleFinalSubmit = async () => {
+  // goToPayment = true: after the account is created, a student is taken
+  // straight to the PayHere payment page instead of the portal.
+  const handleFinalSubmit = async (goToPayment = false) => {
     console.log('AUTH.JSX NEW VERSION');
     const list = stepErrorList(5);
     if (list.length > 0) {
       setSubmitErrors(list);
       return;
     }
-    if (!['student', 'parent', 'teacher'].includes(draft.role)) {
+    if (!['student', 'teacher'].includes(draft.role)) {
       setSubmitErrors(['Choose your role in step 1 before submitting.']);
       return;
     }
@@ -399,12 +401,13 @@ export function SignUp() {
       } catch { /* ignore */ }
       setPassword('');
       // Accounts are active immediately: if Supabase signed the user in, go
-      // straight to their workspace. (No session means "Confirm email" is still
-      // switched on in Supabase, so ask them to confirm first.)
+      // straight to their workspace (or, for "pay now", to the payment page).
+      // (No session means "Confirm email" is still switched on in Supabase,
+      // so ask them to confirm first.)
       try {
         const { data: sess } = await supabase.auth.getSession();
         if (sess?.session) {
-          navigate(roleHome(draft.role) || '/', { replace: true });
+          navigate(goToPayment && draft.role === 'student' ? '/student/payment' : (roleHome(draft.role) || '/'), { replace: true });
           return;
         }
       } catch { /* fall through to the confirmation screen */ }
@@ -471,7 +474,6 @@ export function SignUp() {
                   <select value={draft.role} onChange={(e) => set('role', e.target.value)}>
                     <option value="">Choose your role…</option>
                     <option value="student">Student</option>
-                    <option value="parent">Parent or guardian</option>
                     <option value="teacher">Teacher / Programme Coordinator</option>
                   </select></label>
                 </div>
@@ -502,11 +504,8 @@ export function SignUp() {
                         <span className="field-hint">Verification only; hidden outside authorized staff.</span></div>
                     </>
                   )}
-                  {(draft.role === 'parent' || draft.role === 'teacher') && (
+                  {draft.role === 'teacher' && (
                     <div className="field"><label> Phone<input value={draft.phone} onChange={(e) => set('phone', e.target.value)} placeholder="Phone" autoComplete="tel" /></label></div>
-                  )}
-                  {draft.role === 'parent' && (
-                    <div className="notice span-two"><strong>Linking to your child.</strong> Parent accounts connect to a student through a time-limited invitation — never open ID lookup.</div>
                   )}
                 </div>
               )}
@@ -545,7 +544,16 @@ export function SignUp() {
                     }}>Continue</Button>
                   )
                 ) : (
-                  <Button className="su-continue" disabled={busy} onClick={handleFinalSubmit}>{busy ? 'Creating your account…' : 'Create my account'}</Button>
+                  <>
+                    {draft.role === 'student' ? (
+                      <>
+                        <Button variant="secondary" className="su-continue su-skip" disabled={busy} onClick={() => handleFinalSubmit(false)}>{busy ? 'Creating your account…' : 'Create my account'}</Button>
+                        <Button className="su-continue" disabled={busy} onClick={() => handleFinalSubmit(true)}>{busy ? 'Creating your account…' : 'Create account & pay now'}</Button>
+                      </>
+                    ) : (
+                      <Button className="su-continue" disabled={busy} onClick={() => handleFinalSubmit(false)}>{busy ? 'Creating your account…' : 'Create my account'}</Button>
+                    )}
+                  </>
                 )}
               </div>
               <p className="su-links">

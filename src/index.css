@@ -2400,3 +2400,12 @@ html[data-theme="dark"] .public-main .su-form .field > span:first-child { color:
 /* Teacher: primary actions in the app green pill (matches the welcome card + payment CTA) */
 .app-shell .button.go { background: #36c904; border-color: #36c904; color: #041a00; font-weight: 700; border-radius: 999px; }
 .app-shell .button.go:hover:not(:disabled) { background: #4bde1a; border-color: #4bde1a; color: #041a00; }
+
+
+/* signup final step: secondary "Create my account" next to the pay button */
+.su-actions .button.su-skip { background: transparent !important; border: 2px solid rgba(255,255,255,.4) !important; color: #fff !important; }
+.su-actions .button.su-skip:hover:not(:disabled) { border-color: #fff !important; background: rgba(255,255,255,.08) !important; }
+
+/* payment: green hover (the default .button hover is pink) */
+.app-shell .button.pay-cta:hover:not(:disabled),
+.app-shell .pay-banner .button:hover { background: #4bde1a; border-color: #4bde1a; color: #041a00; filter: none; box-shadow: 0 8px 22px rgba(54, 201, 4, .3); }
